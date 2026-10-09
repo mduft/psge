@@ -7,7 +7,6 @@ import {
 import {
   BoxGeometry,
   Color,
-  DynamicDrawUsage,
   Fog,
   Group,
   InstancedMesh,
@@ -18,8 +17,6 @@ import { getBlockMaterial } from "./blockMaterials.js";
 import { createSkyColor, type BlockId } from "./blockTextures.js";
 
 export interface DigWorld {
-  readonly group: Group;
-  getShaftDepth(): number;
   /** Logical focus in block units (0 = surface, negative = down). */
   getFocusBlockY(): number;
   setFocusBlockY(blockY: number): void;
@@ -50,7 +47,7 @@ const DEEP_CUT_Z = -2;
 const WALL_HALF = 10;
 export const BLOCK_SCALE = 1.55;
 
-export const CHUNK_SIZE = 16;
+const CHUNK_SIZE = 16;
 /** Keep this many chunks above and below the focus chunk. */
 const CHUNK_RADIUS = 3;
 /** Rebase floating origin when focus drifts this many blocks from origin. */
@@ -161,8 +158,6 @@ export function buildDigWorld(
   chunks.sync(focusBlockY);
 
   return {
-    group: root,
-    getShaftDepth: () => shaftDepth,
     getFocusBlockY: () => focusBlockY,
     setFocusBlockY,
     getRenderFocusY: () => floating.toRender(focusBlockY),
@@ -228,10 +223,6 @@ function buildChunk(
       if (Math.abs(tx) <= 3 && tz >= -4) continue;
       placeTree(add, tx, tz);
     }
-
-    if (yMin <= 4 && yMax >= 1) {
-      placeHouse(add, 7, -6);
-    }
   }
 
   // Cutaway wall strip for any underground rows in this chunk.
@@ -253,7 +244,6 @@ function buildChunk(
   for (const [id, matrices] of buckets) {
     if (matrices.length === 0) continue;
     const mesh = new InstancedMesh(sharedBox, getBlockMaterial(id), matrices.length);
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.frustumCulled = false;
@@ -326,27 +316,6 @@ function placeTree(
         add("leaves", x + dx, dy, z + dz);
       }
     }
-  }
-}
-
-function placeHouse(
-  add: (id: BlockId, x: number, y: number, z: number) => void,
-  x: number,
-  z: number,
-): void {
-  for (let dx = 0; dx < 5; dx++) {
-    for (let dz = 0; dz < 4; dz++) {
-      for (let dy = 1; dy <= 3; dy++) {
-        const wall = dx === 0 || dx === 4 || dz === 0 || dz === 3 || dy === 3;
-        const door = dx === 2 && dz === 3 && dy <= 2;
-        if (!wall || door) continue;
-        add(dy === 3 ? "planks" : "cobble", x + dx, dy, z + dz);
-      }
-    }
-  }
-  for (let dx = 0; dx < 5; dx++) {
-    add("planks", x + dx, 4, z + 1);
-    add("planks", x + dx, 4, z + 2);
   }
 }
 

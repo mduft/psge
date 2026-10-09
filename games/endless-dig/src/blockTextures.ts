@@ -15,7 +15,6 @@ export type BlockId =
   | "deepslate"
   | "log"
   | "leaves"
-  | "planks"
   | "cobble";
 
 interface BlockPalette {
@@ -33,7 +32,6 @@ const PALETTES: Record<BlockId, BlockPalette> = {
   deepslate: { top: "#3d4450", side: "#323842", bottom: "#282e36", noise: 20 },
   log: { top: "#6b4f2a", side: "#5a3f22", bottom: "#4a3218", noise: 18 },
   leaves: { top: "#3f8f3a", side: "#347a30", bottom: "#2a6628", noise: 35 },
-  planks: { top: "#c4a35a", side: "#b09248", bottom: "#9a7e3c", noise: 16 },
   cobble: { top: "#7d7d7d", side: "#6e6e6e", bottom: "#5f5f5f", noise: 40 },
 };
 

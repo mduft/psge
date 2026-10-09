@@ -9,7 +9,6 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @psge/endless-dig",
-    "generate:assets": "npm run generate:assets -w @psge/endless-dig",
     "build": "npm run build -w @psge/engine && npm run build -w @psge/endless-dig",
     "test": "vitest run",
     "test:e2e": "playwright test",

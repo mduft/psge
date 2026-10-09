@@ -11,7 +11,6 @@ export interface ShaftScrollOptions {
 }
 
 export interface ShaftScrollController {
-  getFocusBlockY(): number;
   apply(): void;
   dispose(): void;
 }
@@ -42,7 +41,6 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
   apply();
 
   return {
-    getFocusBlockY: () => world.getFocusBlockY(),
     apply,
     dispose: () => drag.dispose(),
   };

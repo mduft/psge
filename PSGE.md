@@ -1853,7 +1853,7 @@ See §4.8 for the decision table. In short:
 - Preferred modeling tool for authored (non-generated) assets?
 - Texture-generation workflow?
 - Asset metadata format when first needed?
-- Which assets need source/recipe files beyond the M1 generated GLB?
+- Which assets need source/recipe files when GLBs are first authored?
 - How should agent-generated assets be validated?
 
 ## Sample game

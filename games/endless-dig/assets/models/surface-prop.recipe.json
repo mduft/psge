@@ -1,9 +1,0 @@
-{
-  "id": "surface-prop",
-  "type": "model",
-  "runtime": "surface-prop.glb",
-  "generator": "scripts/generate-surface-prop.mjs",
-  "description": "Milestone 1 cottage prop: body, roof, chimney, door boxes. Regenerated without Blender.",
-  "scale": 1,
-  "command": "npm run generate:assets -w @psge/endless-dig"
-}
