@@ -899,6 +899,8 @@ Offline progression should be deterministic and testable.
 
 # 14. Discoveries
 
+Achievements (meta unlocks for depth, gear, idle, collection) are separate — see **Milestone 10**. This chapter is about in-world finds only.
+
 The central secondary mechanic is discovery.
 
 The player should always have the feeling that something interesting might be hidden underground.
@@ -993,6 +995,8 @@ Target:
 1 simple collection
 1 fixed-camera 3D excavation scene
 ```
+
+Later (Milestone 10): a small achievements set (depth / shop / idle / discovery toasts + panel) — optional chrome, not required for the first playable loop.
 
 The first version does not need:
 
@@ -1750,6 +1754,85 @@ modify code
 
 This should become a practical benchmark for PSGE.
 
+## Milestone 10 — Achievements
+
+Meta progression distinct from **Discoveries** (M7): discoveries are in-world finds; achievements are durable unlocks for reaching milestones of play (depth, upgrades, idle, collection).
+
+### Goals
+
+- Game-owned achievement definitions + unlock checks (engine may later offer a tiny toast/list helper; not required for M10).
+- Persist unlocked ids in `GameState` / save (new save version + migrate).
+- Lightweight UI: toast on unlock + a simple Achievements panel (list name, short blurb, locked/unlocked).
+- Deterministic: same play history → same unlocks; Vitest covers triggers without WebGL.
+
+### Potential Endless Dig achievements (illustrative; tune names/thresholds in impl)
+
+**Depth**
+
+| Id | Idea |
+| --- | --- |
+| `first-dig` | Excavate the first block |
+| `depth-10` | Reach 10 m |
+| `depth-100` | Reach 100 m |
+| `depth-1k` | Reach 1 000 m |
+| `depth-10k` | Reach 10 000 m |
+| `new-layer` | Enter each named geological layer (ties to M6) |
+
+**Tools & shop**
+
+| Id | Idea |
+| --- | --- |
+| `first-purchase` | Buy any shop upgrade |
+| `own-shovel` | Own a shovel |
+| `own-pickaxe` | Own a pickaxe |
+| `own-jackhammer` | Own a jackhammer |
+| `full-kit` | Own shovel + pickaxe + jackhammer |
+| `cart-crew` | Own any passive generator (cart / drill / crew) |
+
+**Idle & session**
+
+| Id | Idea |
+| --- | --- |
+| `afk-digger` | Gain depth from passive dig alone |
+| `dirt-hoarder` | Hold a large Dirt balance (e.g. 1 000 / 1 M thresholds) |
+| `overnight` | Claim offline progress once (after M5) |
+| `long-haul` | Single session dig streak / many taps in one sitting |
+
+**Discoveries & artifacts** (after M7 / M8)
+
+| Id | Idea |
+| --- | --- |
+| `first-find` | Unlock first discovery |
+| `collector` | Unlock N discoveries |
+| `museum` | Complete a discovery set / all common finds |
+| `inspector` | Finish one 3D artifact inspection / puzzle |
+
+**Curiosity / debug-safe**
+
+| Id | Idea |
+| --- | --- |
+| `surface-dweller` | Return focus to the surface after digging deep |
+| `spendthrift` | Spend a large total of Dirt in the shop |
+
+Do **not** gate core dig loop behind achievements; they are optional celebration + collection chrome. Avoid achievements that require `?debug=1` or save wipe.
+
+### Sample flow
+
+```text
+dig / buy / idle / discover
+→ unlock check (pure)
+→ toast + persist id
+→ Achievements panel shows progress
+```
+
+### Acceptance
+
+- Unit tests for unlock predicates + save migrate of `achievements: string[]` (or equivalent).
+- E2e: trigger one easy unlock (e.g. `first-dig`), see toast or panel state; reload retains it.
+- Docs distinguish achievements (M10) from discoveries (M7).
+
+Out of scope for M10: cloud sync, leaderboards, Steam-style rare %, monetized unlocks.
+
 ---
 
 # 31. Monetization / Hosting
@@ -1898,6 +1981,7 @@ See §4.8 for the decision table. In short:
 - Exact progression formula?
 - Layer structure?
 - Discovery system?
+- Achievement set size / whether any grant a tiny reward vs toast-only?
 - Artifact puzzle mechanics?
 - Upgrade tree?
 - Visual art direction?

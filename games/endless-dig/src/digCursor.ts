@@ -22,7 +22,7 @@ export function digToolOf(upgrades: UpgradeLevels): DigTool {
 const HOTSPOTS: Record<DigTool, readonly [number, number]> = {
   spoon: [15, 24],
   shovel: [15, 28],
-  pickaxe: [1, 2],
+  pickaxe: [10, 2],
   jackhammer: [15, 29],
 };
 
