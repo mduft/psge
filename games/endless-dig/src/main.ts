@@ -2,7 +2,12 @@
  * Copyright (c) 2026 Markus Duft
  * SPDX-License-Identifier: MIT
  */
-import { createApp, type LightingOptions } from "@psge/engine";
+import {
+  createApp,
+  createLocalSaveStore,
+  type LightingOptions,
+} from "@psge/engine";
+import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
 import {
   createInitialState,
@@ -11,10 +16,13 @@ import {
   SHAFT_CROSS_SECTION,
   type GameState,
 } from "./gameState.js";
+import { DIG_SAVE_KEY, loadGameState } from "./persist.js";
 import { BLOCK_SCALE, buildDigWorld } from "./world.js";
 
 /** Slider uses integer steps of DEFAULT_DIG_POWER (1 = 1/32 block). */
 const DIG_POWER_SLIDER_MAX = 256;
+const DEFAULT_WORLD_EXTENT = 1000;
+const SAVE_INDICATOR_MS = 1800;
 
 /** Outdoor cutaway lighting — Dig-specific, not engine defaults. */
 const DIG_LIGHTING: LightingOptions = {
@@ -26,25 +34,27 @@ const DIG_LIGHTING: LightingOptions = {
   ],
 };
 
-const DEFAULT_WORLD_EXTENT = 1000;
-
-/**
- * `?depth=N` (testing): start already excavated to N meters and generate at least that far.
- * Omit for normal play (dug 0, extent 1000).
- */
-function readDepthQuery(): { excavatedDepth: number; worldExtent: number } {
+function readQueryFlags(): {
+  excavatedDepth: number;
+  worldExtent: number;
+  nosave: boolean;
+} {
   const params = new URLSearchParams(window.location.search);
+  const nosave =
+    params.get("nosave") === "1" || params.get("nosave") === "true";
+
   const raw = params.get("depth");
   if (!raw) {
-    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT };
+    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT, nosave };
   }
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 0) {
-    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT };
+    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT, nosave };
   }
   return {
     excavatedDepth: n,
     worldExtent: Math.max(n, DEFAULT_WORLD_EXTENT),
+    nosave,
   };
 }
 
@@ -53,17 +63,31 @@ function focusForDepth(depth: number): number {
   return -depth + 0.35;
 }
 
-function main(): () => void {
+function freshState(excavatedDepth: number): GameState {
+  return createInitialState({
+    depth: excavatedDepth,
+    dirt: excavatedDepth * SHAFT_CROSS_SECTION,
+  });
+}
+
+async function boot(): Promise<() => void> {
   const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
   if (!canvas) {
     throw new Error("Expected #game-canvas");
   }
 
-  const { excavatedDepth: startDepth, worldExtent } = readDepthQuery();
-  const state = createInitialState({
-    depth: startDepth,
-    dirt: startDepth * SHAFT_CROSS_SECTION,
-  });
+  const { excavatedDepth: depthQuery, worldExtent, nosave } = readQueryFlags();
+  const store = createLocalSaveStore({ key: DIG_SAVE_KEY });
+
+  let state: GameState;
+  if (nosave) {
+    await store.clear();
+    state = freshState(depthQuery);
+  } else {
+    const loaded = await loadGameState(store);
+    state = loaded ?? freshState(depthQuery);
+  }
+
   const app = createApp({
     canvas,
     background: 0x87b7e0,
@@ -95,6 +119,21 @@ function main(): () => void {
   const dirtEl = document.querySelector('[data-stat="dirt"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const digPowerInput = document.querySelector<HTMLInputElement>("#dig-power");
+  const saveIndicator = document.querySelector("#save-indicator");
+
+  let saveFadeTimer = 0;
+  const showSavedIndicator = (): void => {
+    if (!saveIndicator) return;
+    saveIndicator.classList.add("is-visible");
+    saveIndicator.setAttribute("aria-hidden", "false");
+    document.documentElement.dataset.psgeSaved = "1";
+    if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
+    saveFadeTimer = window.setTimeout(() => {
+      saveFadeTimer = 0;
+      saveIndicator.classList.remove("is-visible");
+      saveIndicator.setAttribute("aria-hidden", "true");
+    }, SAVE_INDICATOR_MS);
+  };
 
   const fmt = (n: number, digits = 2): string =>
     n.toLocaleString("en-US", {
@@ -127,7 +166,15 @@ function main(): () => void {
         `${formatDigPower(state.digPower)} block`,
       );
     }
+    document.documentElement.dataset.psgeDepth = String(state.depth);
+    document.documentElement.dataset.psgeDirt = String(state.dirt);
   };
+
+  const autosave = createAutosave({
+    store,
+    getState: () => state,
+    onSaved: showSavedIndicator,
+  });
 
   const onDigPowerInput = (): void => {
     if (!digPowerInput) return;
@@ -137,9 +184,9 @@ function main(): () => void {
     );
     state.digPower = steps * DEFAULT_DIG_POWER;
     updateHud();
+    autosave.markDirty();
   };
   digPowerInput?.addEventListener("input", onDigPowerInput);
-  // Keep slider drags from reaching the canvas dig/scroll handlers.
   digPowerInput?.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   const applyPlayView = (): void => {
@@ -156,9 +203,8 @@ function main(): () => void {
     onTap: () => {
       dig(state, worldExtent);
       document.documentElement.dataset.psgeDigIntent = "1";
-      document.documentElement.dataset.psgeDepth = String(state.depth);
-      document.documentElement.dataset.psgeDirt = String(state.dirt);
       applyPlayView();
+      autosave.markDirty();
     },
   });
 
@@ -167,8 +213,18 @@ function main(): () => void {
     updateHud();
   };
   window.addEventListener("resize", onResize);
-  applyPlayView();
 
+  const flushSave = (): void => {
+    void autosave.flush().catch((err) => console.error(err));
+  };
+  const onPageHide = (): void => flushSave();
+  const onVisibility = (): void => {
+    if (document.visibilityState === "hidden") flushSave();
+  };
+  window.addEventListener("pagehide", onPageHide);
+  document.addEventListener("visibilitychange", onVisibility);
+
+  applyPlayView();
   app.startLoop();
 
   const dbg = window as Window & {
@@ -176,21 +232,29 @@ function main(): () => void {
     __psgeWorld?: typeof world;
     __psgeScroll?: typeof scroll;
     __psgeState?: GameState;
+    __psgeSaveStore?: typeof store;
   };
   dbg.__psgeApp = app;
   dbg.__psgeWorld = world;
   dbg.__psgeScroll = scroll;
   dbg.__psgeState = state;
+  dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "2";
+  document.documentElement.dataset.psgeMilestone = "3";
   document.documentElement.dataset.psgeWorldExtent = String(worldExtent);
-  document.documentElement.dataset.psgeDepth = String(state.depth);
-  document.documentElement.dataset.psgeDirt = String(state.dirt);
+  document.documentElement.dataset.psgeNosave = nosave ? "1" : "0";
+  updateHud();
 
   return () => {
     window.removeEventListener("resize", onResize);
+    window.removeEventListener("pagehide", onPageHide);
+    document.removeEventListener("visibilitychange", onVisibility);
     digPowerInput?.removeEventListener("input", onDigPowerInput);
+    if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
+    void autosave.flush().finally(() => {
+      autosave.dispose();
+    });
     scroll.dispose();
     world.dispose();
     app.dispose();
@@ -198,14 +262,24 @@ function main(): () => void {
     delete dbg.__psgeWorld;
     delete dbg.__psgeScroll;
     delete dbg.__psgeState;
+    delete dbg.__psgeSaveStore;
   };
 }
 
 try {
-  const dispose = main();
-  const hot = (import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } })
-    .hot;
-  hot?.dispose(() => dispose());
+  const disposePromise = boot();
+  const hot = (
+    import.meta as ImportMeta & {
+      hot?: { dispose: (cb: () => void) => void };
+    }
+  ).hot;
+  hot?.dispose(() => {
+    void disposePromise.then((dispose) => dispose());
+  });
+  void disposePromise.catch((err) => {
+    console.error(err);
+    document.documentElement.dataset.psgeError = "true";
+  });
 } catch (err) {
   console.error(err);
   document.documentElement.dataset.psgeError = "true";

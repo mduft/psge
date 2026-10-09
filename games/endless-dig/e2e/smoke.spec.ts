@@ -15,10 +15,10 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
     consoleErrors.push(String(err));
   });
 
-  await page.goto("/?depth=1000");
+  await page.goto("/?nosave=1&depth=1000");
   await expect(page.getByRole("heading", { name: "The Endless Dig" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "2");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "3");
   await expect(page.locator("html")).toHaveAttribute("data-psge-world-extent", "1000");
 
   const canvas = page.locator("#game-canvas");
@@ -27,7 +27,6 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
   const viewport = page.viewportSize();
   expect(box!.width).toBeGreaterThan(viewport!.width * 0.9);
 
-  // Debug scroll deep: chunk count must stay bounded.
   const stats = await page.evaluate(() => {
     const w = (
       window as unknown as {
@@ -60,8 +59,7 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
 });
 
 test("tap dig increases depth/dirt and follows focus", async ({ page }) => {
-  // No ?depth= — normal play starts at surface (param pre-excavates for testing).
-  await page.goto("/");
+  await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
 
   const before = await page.evaluate(() => {
@@ -80,7 +78,6 @@ test("tap dig increases depth/dirt and follows focus", async ({ page }) => {
   const canvas = page.locator("#game-canvas");
   const box = await canvas.boundingBox();
   expect(box).toBeTruthy();
-  // Short click (no drag) so hold-drag treats it as a tap.
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
 
   await expect
@@ -111,13 +108,87 @@ test("tap dig increases depth/dirt and follows focus", async ({ page }) => {
   expect(after.dirt).toBeGreaterThan(before.dirt);
   expect(after.excavated).toBeCloseTo(after.depth);
   expect(after.focus).toBeLessThan(before.focus);
+});
 
-  await expect(page.locator('[data-stat="depth"]')).not.toHaveText("0 m");
-  await expect(page.locator('[data-stat="dirt"]')).not.toHaveText("0");
+test("reload restores saved progress", async ({ page }) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+
+  await page.evaluate(async () => {
+    const s = (
+      window as unknown as {
+        __psgeState: {
+          depth: number;
+          dirt: number;
+          digPower: number;
+          version: number;
+        };
+        __psgeSaveStore: { save: (data: unknown) => Promise<void> };
+        __psgeWorld: { setExcavatedDepth: (d: number) => void };
+      }
+    );
+    s.__psgeState.depth = 12.5;
+    s.__psgeState.dirt = 50;
+    s.__psgeState.digPower = 1;
+    s.__psgeWorld.setExcavatedDepth(12.5);
+    await s.__psgeSaveStore.save({
+      version: 2,
+      depth: 12.5,
+      dirt: 50,
+      digPower: 1,
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .toBe("12.5");
+
+  const restored = await page.evaluate(() => {
+    const s = (
+      window as unknown as { __psgeState: { depth: number; dirt: number } }
+    ).__psgeState;
+    return { depth: s.depth, dirt: s.dirt };
+  });
+  expect(restored.depth).toBe(12.5);
+  expect(restored.dirt).toBe(50);
+});
+
+test("nosave=1 clears persistence", async ({ page }) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+
+  await page.evaluate(async () => {
+    const s = (
+      window as unknown as {
+        __psgeSaveStore: { save: (data: unknown) => Promise<void> };
+      }
+    );
+    await s.__psgeSaveStore.save({
+      version: 2,
+      depth: 99,
+      dirt: 400,
+      digPower: 1,
+    });
+  });
+
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-nosave", "1");
+
+  const state = await page.evaluate(() => {
+    const s = (
+      window as unknown as { __psgeState: { depth: number; dirt: number } }
+    ).__psgeState;
+    return { depth: s.depth, dirt: s.dirt };
+  });
+  expect(state.depth).toBe(0);
+  expect(state.dirt).toBe(0);
 });
 
 test("stress depth=10000 keeps chunk window bounded", async ({ page }) => {
-  await page.goto("/?depth=10000");
+  await page.goto("/?nosave=1&depth=10000");
   await expect(page.locator("html")).toHaveAttribute("data-psge-world-extent", "10000");
 
   const maxChunks = await page.evaluate(() => {

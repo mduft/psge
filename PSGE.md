@@ -373,7 +373,7 @@ The same principle applies to modeling, texture creation, image processing, audi
 
 PSGE should orchestrate proven tools rather than duplicate them.
 
-## 4.8 Resolved decisions for Milestone 0 / 1 / 1.1 / 2
+## 4.8 Resolved decisions for Milestone 0 / 1 / 1.1 / 2 / 3
 
 The following choices are locked for implementing these milestones. They may still change later; see the unfrozen-API policy in §28.
 
@@ -393,10 +393,13 @@ The following choices are locked for implementing these milestones. They may sti
 | M1 shell UI | Full-bleed canvas (no window-in-window); transparent HUD overlays; dig = click canvas (no dedicated DIG button) |
 | Responsive | Usable on phone, tablet, desktop, and half-desktop split layouts |
 | Deep scroll (M1.1) | Vertical **chunk streaming** + **floating origin** rebasing |
-| `?depth=N` (testing) | Pre-excavate to N and generate at least that far (`max(N, 1000)`); omit for normal play (dug 0) |
+| `?depth=N` (testing) | Pre-excavate to N when there is **no** save (or after `nosave`); extent `max(N, 1000)` |
 | M2 dig | Straight-down only; **dig-to-reveal** cavity = excavated `depth`; camera **follows** dig face |
 | M2 input | Tap (no drag) digs; hold-drag scroll is **debug/testing** only for now |
 | M2 state | Plain game-owned `GameState` `{ version, depth, dirt, digPower }`; engine has no dig rules |
+| M3 SaveStore | Engine `SaveStore` + `createLocalSaveStore`; game never touches `localStorage` directly |
+| M3 autosave | Debounce **1s** after change; force save at least every **30s** while dirty; flush on pagehide/hidden |
+| M3 testing | `?nosave=1` **clears** save and starts fresh (`?depth=` then applies) |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1635,20 +1638,22 @@ Acceptance: unit tests for `dig()`; e2e tap increases Depth/Dirt and moves focus
 
 ## Milestone 3 — Persistence
 
-Add:
+Locked in §4.8:
 
-- SaveStore;
-- local saves;
-- save version;
-- reload behavior.
+- engine `SaveStore` / `createLocalSaveStore` (key e.g. `psge:endless-dig:save`);
+- persist `GameState` (`version` gate; M3 accepts version 2);
+- autosave: **1s** debounce, **30s** max-while-dirty, flush on `pagehide` / hidden;
+- fading **Saved** indicator (bottom-right);
+- `?nosave=1` clears save for testing.
 
 Sample:
 
 ```text
-dig
-→ reload browser
-→ progress remains
+dig → wait autosave → reload browser → depth / dirt remain
+?nosave=1 → save cleared → fresh run
 ```
+
+Acceptance: unit tests for SaveStore + parse; e2e reload restore; e2e nosave clears.
 
 ## Milestone 4 — Incremental mechanics
 
@@ -1823,7 +1828,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3
 
 See §4.8 for the decision table. In short:
 
@@ -1831,8 +1836,9 @@ See §4.8 for the decision table. In short:
 - Layout: monorepo with `@psge/engine` and `games/endless-dig`.
 - M1 API surface: §28.1 (`createApp`, `startLoop`, `loadGltf`, `setCamera`, `dispose`).
 - Camera/world defaults: §19.3 (Y-up, depth −Y, camera +Z, 1 block = 1 unit).
-- M1.1: vertical chunks + floating origin; `?depth=` = world extent (default 1000; stress `10000`).
+- M1.1: vertical chunks + floating origin; `?depth=` testing helper (with save rules in M3).
 - M2: dig-to-reveal + camera follow; drag-scroll debug-only; game-owned `GameState`.
+- M3: `SaveStore` / `createLocalSaveStore`; 1s debounce + 30s max autosave; `?nosave=1` clears.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 
@@ -1845,9 +1851,8 @@ See §4.8 for the decision table. In short:
 
 - Exact `Game` lifecycle?
 - How should state updates be modeled?
-- How should input be exposed?
+- How should input be exposed beyond hold-drag?
 - How should assets be referenced beyond `loadGltf`?
-- How should save stores be injected?
 - How should the agent/test interface be exposed?
 
 ## 2.5D rendering (still open; mostly M6+)

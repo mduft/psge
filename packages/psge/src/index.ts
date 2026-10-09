@@ -9,6 +9,7 @@
  * Time/RNG: clampDelta / createSeededRng
  * Deep worlds: createFloatingOrigin / createChunkWindow / chunkIndex
  * Input: createHoldDragScroll
+ * Persistence: createLocalSaveStore / createMemorySaveStore / decideAutosave
  */
 
 export { clampDelta, DEFAULT_MAX_DELTA } from "./time.js";
@@ -39,3 +40,16 @@ export {
   type HoldDragScroll,
   type HoldDragScrollOptions,
 } from "./holdDragScroll.js";
+export {
+  createLocalSaveStore,
+  createMemorySaveStore,
+  type LocalSaveStoreOptions,
+  type SaveStore,
+} from "./saveStore.js";
+export {
+  decideAutosave,
+  DEFAULT_AUTOSAVE_DEBOUNCE_MS,
+  DEFAULT_AUTOSAVE_MAX_INTERVAL_MS,
+  type AutosaveDecision,
+  type AutosavePolicyInput,
+} from "./autosavePolicy.js";

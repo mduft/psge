@@ -28,15 +28,17 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 2 status
+## Milestone 3 status
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
 
-**M2:** Tap canvas to **dig** (straight down, dig-to-reveal). Camera follows excavated depth. Hold-drag scroll is **debug** only. `?depth=N` = start pre-excavated to N for testing (omit for dug 0; stress `?depth=10000`).
+**M2/M3 play:** Tap to dig (dig-to-reveal + camera follow). Autosave via engine `SaveStore` (1s debounce, 30s max-while-dirty, pagehide flush). HUD: Depth / Dirt / dig-power slider + fading Saved.
 
-Engine: `createApp`, `startLoop`, `stopLoop`, `loadGltf`, `setCamera`, `dispose`, `clampDelta`, `createSeededRng`, `createFloatingOrigin`, `createChunkWindow`, `chunkIndex`, `createHoldDragScroll`.
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. Stress: `?nosave=1&depth=10000`.
 
-Dig rules live in the **game**, not the engine.
+Engine: `createApp`, loop, camera, `clampDelta`, `createSeededRng`, floating origin / chunk window, `createHoldDragScroll`, `createLocalSaveStore`, `decideAutosave`.
+
+Dig rules + save payload live in the **game**.
 
 ## Visual verification
 

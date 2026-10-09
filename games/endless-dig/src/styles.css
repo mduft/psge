@@ -147,6 +147,28 @@ body {
   cursor: pointer;
 }
 
+.save-indicator {
+  position: absolute;
+  right: calc(0.9rem + var(--safe-right));
+  bottom: calc(0.75rem + var(--safe-bottom));
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  background: rgba(10, 14, 20, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.save-indicator.is-visible {
+  opacity: 1;
+  transition: opacity 0.12s ease;
+}
+
 .hud-hint {
   margin: 0;
   justify-self: center;

@@ -7,7 +7,7 @@ Pleasantly Simple Game Engine — browser helpers for small Three.js games.
 
 **The public API is never frozen.** Prefer refactoring over preserving premature contracts.
 
-## Surface (M1 / M1.1)
+## Surface (M1–M3)
 
 | Export | Role |
 | --- | --- |
@@ -18,5 +18,7 @@ Pleasantly Simple Game Engine — browser helpers for small Three.js games.
 | `createFloatingOrigin` | Logical ↔ render rebasing |
 | `createChunkWindow` / `chunkIndex` | 1D chunk load window |
 | `createHoldDragScroll` | Press-hold drag scroll input |
+| `createLocalSaveStore` / `createMemorySaveStore` | Persistence (`SaveStore`) |
+| `decideAutosave` | Debounce + max-interval save policy helper |
 
 Games own art direction (lights, textures, terrain). See root [AGENTS.md](../../AGENTS.md) and [PSGE.md](../../PSGE.md).
