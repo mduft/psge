@@ -34,7 +34,7 @@ First-time e2e: `npx playwright install chromium`
 
 **M2/M3 play:** Tap to dig (dig-to-reveal + camera follow). Autosave via engine `SaveStore` (1s debounce, 30s max-while-dirty, pagehide flush). HUD: Depth / Dirt / dig-power slider + fading Saved.
 
-**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. Stress: `?nosave=1&depth=10000`.
+**Testing:** `?depth=N` pre-digs when no save; generation extent `max(1000, N, ceil(savedDepth))`. `?nosave=1` clears save. Stress: `?nosave=1&depth=10000`.
 
 Engine: `createApp`, loop, camera, `clampDelta`, `createSeededRng`, floating origin / chunk window, `createHoldDragScroll`, `createLocalSaveStore`, `decideAutosave`.
 

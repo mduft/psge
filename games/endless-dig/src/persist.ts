@@ -6,13 +6,14 @@ import type { SaveStore } from "@psge/engine";
 import {
   createInitialState,
   DEFAULT_DIG_POWER,
+  GAME_STATE_VERSION,
   type GameState,
 } from "./gameState.js";
 
 export const DIG_SAVE_KEY = "psge:endless-dig:save";
 
 /** Accepted save blob version (matches GameState.version). */
-export const DIG_SAVE_VERSION = 2;
+export const DIG_SAVE_VERSION = GAME_STATE_VERSION;
 
 export function parseGameState(data: unknown): GameState | null {
   if (!data || typeof data !== "object") return null;

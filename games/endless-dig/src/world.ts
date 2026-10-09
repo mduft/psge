@@ -75,13 +75,18 @@ const sharedBox = new BoxGeometry(1, 1, 1);
 /** Partial dig-face cubes with UVs that keep texel density (no squash). */
 const partialBoxCache = new Map<number, BoxGeometry>();
 
+/** Quantize dig-face height to 1/32 so geometry, UV, and matrix agree. */
+export function quantizePartialHeight(height: number): number {
+  return Math.round(height * 32) / 32;
+}
+
 function getPartialBox(height: number): BoxGeometry {
-  const key = Math.max(1, Math.round(height * 32));
+  const h = quantizePartialHeight(height);
+  const key = Math.round(h * 32);
   let geo = partialBoxCache.get(key);
   if (geo) return geo;
-  const h = key / 32;
   geo = new BoxGeometry(1, h, 1);
-  // BoxGeometry faces: +x,-x,+y,-y,+z,-z — each 4 verts. Keep side texel density.
+  // Side faces only (+x,-x,+z,-z = indices 0,1,4,5). Keep texel density.
   const uv = geo.attributes.uv as BufferAttribute;
   for (const face of [0, 1, 4, 5]) {
     for (let i = 0; i < 4; i++) {
@@ -284,12 +289,14 @@ function buildChunk(
     height = 1,
   ): void => {
     if (y < yMin || y > yMax) return;
-    if (height <= 1e-6) return;
+    const h =
+      height < 1 - 1e-6 ? quantizePartialHeight(height) : 1;
+    if (h <= 1e-6) return;
     const m = new Matrix4();
-    m.setPosition(x + 0.5, y + height / 2, z + 0.5);
-    if (height < 1 - 1e-6) {
-      // Dig face: dedicated geometry (UV-correct) instead of Y-scale squash.
-      partialHeight = height;
+    m.setPosition(x + 0.5, y + h / 2, z + 0.5);
+    if (h < 1 - 1e-6) {
+      // Dig face: UV-correct geometry; matrix uses the same quantized height.
+      partialHeight = h;
       let list = partialBuckets.get(id);
       if (!list) {
         list = [];
@@ -472,8 +479,8 @@ function placeTree(
 function disposeChunkGroup(group: Group): void {
   for (const child of [...group.children]) {
     if (child instanceof InstancedMesh) {
-      // Shared geometry + cached materials — do not dispose those.
-      child.count = 0;
+      // Frees instance GPU buffers; shared geometry + materials stay cached.
+      child.dispose();
       group.remove(child);
     }
   }

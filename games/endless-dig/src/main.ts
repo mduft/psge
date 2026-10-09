@@ -16,7 +16,7 @@ import {
   SHAFT_CROSS_SECTION,
   type GameState,
 } from "./gameState.js";
-import { DIG_SAVE_KEY, loadGameState } from "./persist.js";
+import { DIG_SAVE_KEY, loadGameState, saveGameState } from "./persist.js";
 import { BLOCK_SCALE, buildDigWorld } from "./world.js";
 
 /** Slider uses integer steps of DEFAULT_DIG_POWER (1 = 1/32 block). */
@@ -76,7 +76,8 @@ async function boot(): Promise<() => void> {
     throw new Error("Expected #game-canvas");
   }
 
-  const { excavatedDepth: depthQuery, worldExtent, nosave } = readQueryFlags();
+  const { excavatedDepth: depthQuery, worldExtent: extentFromQuery, nosave } =
+    readQueryFlags();
   const store = createLocalSaveStore({ key: DIG_SAVE_KEY });
 
   let state: GameState;
@@ -87,6 +88,13 @@ async function boot(): Promise<() => void> {
     const loaded = await loadGameState(store);
     state = loaded ?? freshState(depthQuery);
   }
+
+  // Extent must cover query depth and any deeper saved progress.
+  const worldExtent = Math.max(
+    DEFAULT_WORLD_EXTENT,
+    extentFromQuery,
+    Math.ceil(state.depth),
+  );
 
   const app = createApp({
     canvas,
@@ -119,6 +127,8 @@ async function boot(): Promise<() => void> {
   const dirtEl = document.querySelector('[data-stat="dirt"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const digPowerInput = document.querySelector<HTMLInputElement>("#dig-power");
+  const resetButton =
+    document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
 
   let saveFadeTimer = 0;
@@ -195,6 +205,21 @@ async function boot(): Promise<() => void> {
     updateHud();
   };
 
+  const onReset = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    void (async () => {
+      state.depth = 0;
+      state.dirt = 0;
+      applyPlayView();
+      await store.clear();
+      await saveGameState(store, state);
+      showSavedIndicator();
+    })().catch((err) => console.error(err));
+  };
+  resetButton?.addEventListener("click", onReset);
+  resetButton?.addEventListener("pointerdown", (e) => e.stopPropagation());
+
   const scroll = createShaftScroll({
     world,
     canvas,
@@ -251,6 +276,7 @@ async function boot(): Promise<() => void> {
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibility);
     digPowerInput?.removeEventListener("input", onDigPowerInput);
+    resetButton?.removeEventListener("click", onReset);
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
     void autosave.flush().finally(() => {
       autosave.dispose();

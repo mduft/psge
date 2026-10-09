@@ -26,6 +26,9 @@ export interface AutosaveOptions {
   debounceMs?: number;
   maxIntervalMs?: number;
   now?: () => number;
+  /** Injectable timer APIs for unit tests (defaults to window). */
+  setTimeout?: (fn: () => void, ms: number) => number;
+  clearTimeout?: (id: number) => void;
 }
 
 /**
@@ -35,6 +38,11 @@ export function createAutosave(options: AutosaveOptions): AutosaveController {
   const debounceMs = options.debounceMs ?? DEFAULT_AUTOSAVE_DEBOUNCE_MS;
   const maxIntervalMs = options.maxIntervalMs ?? DEFAULT_AUTOSAVE_MAX_INTERVAL_MS;
   const now = options.now ?? (() => performance.now());
+  const schedule =
+    options.setTimeout ??
+    ((fn, ms) => window.setTimeout(fn, ms) as unknown as number);
+  const cancel =
+    options.clearTimeout ?? ((id) => window.clearTimeout(id));
 
   let dirty = false;
   let lastChangeAt = 0;
@@ -45,34 +53,36 @@ export function createAutosave(options: AutosaveOptions): AutosaveController {
 
   const clearTimers = (): void => {
     if (debounceTimer !== 0) {
-      clearTimeout(debounceTimer);
+      cancel(debounceTimer);
       debounceTimer = 0;
     }
     if (maxTimer !== 0) {
-      clearTimeout(maxTimer);
+      cancel(maxTimer);
       maxTimer = 0;
     }
   };
 
   const performSave = async (): Promise<void> => {
-    if (!dirty) return;
+    // Wait for an in-flight save (pagehide must not skip it).
     if (saving) {
-      await saving;
-      if (!dirty) return;
+      try {
+        await saving;
+      } catch {
+        // Prior attempt failed; fall through if still dirty.
+      }
     }
+    if (!dirty) return;
+
     clearTimers();
-    const snapshotDirtySince = dirtySince;
-    const snapshotChange = lastChangeAt;
     dirty = false;
     saving = (async () => {
       try {
         await saveGameState(options.store, options.getState());
         options.onSaved?.();
       } catch (err) {
-        // Re-dirty if save failed so a later attempt can retry.
         dirty = true;
-        dirtySince = snapshotDirtySince;
-        lastChangeAt = snapshotChange;
+        // Do not clobber newer timestamps from markDirty during the attempt.
+        armTimers();
         throw err;
       } finally {
         saving = null;
@@ -82,6 +92,7 @@ export function createAutosave(options: AutosaveOptions): AutosaveController {
   };
 
   const armTimers = (): void => {
+    if (!dirty) return;
     clearTimers();
     const t0 = now();
     const decision = decideAutosave({
@@ -91,20 +102,23 @@ export function createAutosave(options: AutosaveOptions): AutosaveController {
       debounceMs,
       maxIntervalMs,
     });
-    if (decision === "max-interval" || decision === "debounce-ready") {
-      void performSave().catch((err) => console.error(err));
-      return;
-    }
+    // Schedule a turn later so a failure inside performSave does not recurse.
     const untilDebounce = Math.max(0, debounceMs - (t0 - lastChangeAt));
     const untilMax = Math.max(0, maxIntervalMs - (t0 - dirtySince));
-    debounceTimer = window.setTimeout(() => {
+    const delay =
+      decision === "max-interval" || decision === "debounce-ready"
+        ? 0
+        : Math.min(untilDebounce, untilMax);
+    debounceTimer = schedule(() => {
       debounceTimer = 0;
       void performSave().catch((err) => console.error(err));
-    }, untilDebounce);
-    maxTimer = window.setTimeout(() => {
-      maxTimer = 0;
-      void performSave().catch((err) => console.error(err));
-    }, untilMax);
+    }, delay);
+    if (decision !== "max-interval" && decision !== "debounce-ready") {
+      maxTimer = schedule(() => {
+        maxTimer = 0;
+        void performSave().catch((err) => console.error(err));
+      }, untilMax);
+    }
   };
 
   return {

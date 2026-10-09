@@ -2,7 +2,7 @@
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification
-> Status: early design / requirements — Milestone 0 and 1 decisions locked (§4.8, §28, §30)
+> Status: Milestone 0–3 implemented — decisions locked in §4.8; API unfrozen (§28)
 > Core goal: make small browser games **pleasantly simple to build, test, run, and evolve — including by autonomous agents**.
 
 ---
@@ -393,13 +393,13 @@ The following choices are locked for implementing these milestones. They may sti
 | M1 shell UI | Full-bleed canvas (no window-in-window); transparent HUD overlays; dig = click canvas (no dedicated DIG button) |
 | Responsive | Usable on phone, tablet, desktop, and half-desktop split layouts |
 | Deep scroll (M1.1) | Vertical **chunk streaming** + **floating origin** rebasing |
-| `?depth=N` (testing) | Pre-excavate to N when there is **no** save (or after `nosave`); extent `max(N, 1000)` |
+| `?depth=N` (testing) | Pre-excavate to N when there is **no** save (or after `nosave`); generation extent `max(1000, N, ceil(savedDepth))` |
 | M2 dig | Straight-down only; **dig-to-reveal** cavity = excavated `depth`; camera **follows** dig face |
 | M2 input | Tap (no drag) digs; hold-drag scroll is **debug/testing** only for now |
 | M2 state | Plain game-owned `GameState` `{ version, depth, dirt, digPower }`; engine has no dig rules |
 | M3 SaveStore | Engine `SaveStore` + `createLocalSaveStore`; game never touches `localStorage` directly |
 | M3 autosave | Debounce **1s** after change; force save at least every **30s** while dirty; flush on pagehide/hidden |
-| M3 testing | `?nosave=1` **clears** save and starts fresh (`?depth=` then applies) |
+| M3 testing | `?nosave=1` **clears** save and starts fresh (`?depth=` then applies); deep saves expand extent on reload |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1606,7 +1606,7 @@ Endless / fast vertical descent must not build one absolute-Y scene of unbounded
 
 ### Acceptance criteria
 
-- Shaft depth configurable (default **1000** for M1.1; `?depth=10000` stress).
+- Shaft generation extent configurable (default **1000** for M1.1; `?depth=10000` stress).
 - Drag-scroll from surface to shaft floor stays smooth; no progressive slowdown from accumulating meshes.
 - After long scrolls, the scene remains visually stable (no runaway precision jitter).
 - `PSGE.md` / `AGENTS.md` document the approach.
@@ -1622,7 +1622,7 @@ First playable dig (locked in §4.8):
 - **dig-to-reveal**: shaft cavity deepens with excavated `depth` (not a pre-carved tunnel);
 - camera follows the dig face via the existing focus path;
 - Depth / Dirt HUD counters;
-- `?depth=` remains world **generation extent** for look-ahead / debug scroll.
+- world **generation extent** = `max(1000, ?depth=, ceil(savedDepth))` — look-ahead / dig cap / deep-save reload.
 
 Sample:
 
@@ -1642,18 +1642,20 @@ Locked in §4.8:
 
 - engine `SaveStore` / `createLocalSaveStore` (key e.g. `psge:endless-dig:save`);
 - persist `GameState` (`version` gate; M3 accepts version 2);
-- autosave: **1s** debounce, **30s** max-while-dirty, flush on `pagehide` / hidden;
+- autosave: **1s** debounce, **30s** max-while-dirty, flush on `pagehide` / hidden (await in-flight; re-arm timers on save failure);
 - fading **Saved** indicator (bottom-right);
-- `?nosave=1` clears save for testing.
+- `?nosave=1` clears save for testing;
+- reload with saved depth **deeper than 1000** expands generation extent (no clamp back to default).
 
 Sample:
 
 ```text
 dig → wait autosave → reload browser → depth / dirt remain
+deep save (e.g. 1500) → reload → extent ≥ 1500, cavity intact
 ?nosave=1 → save cleared → fresh run
 ```
 
-Acceptance: unit tests for SaveStore + parse; e2e reload restore; e2e nosave clears.
+Acceptance: unit tests for SaveStore + parse + autosave controller; e2e reload restore; e2e deep-save extent; e2e nosave clears.
 
 ## Milestone 4 — Incremental mechanics
 

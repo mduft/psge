@@ -155,6 +155,135 @@ test("reload restores saved progress", async ({ page }) => {
   expect(restored.dirt).toBe(50);
 });
 
+test("deep save expands world extent on reload", async ({ page }) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+
+  await page.evaluate(async () => {
+    const s = window as unknown as {
+      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
+    };
+    await s.__psgeSaveStore.save({
+      version: 2,
+      depth: 1500,
+      dirt: 6000,
+      digPower: 1,
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-world-extent",
+    "1500",
+  );
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .toBe("1500");
+
+  const restored = await page.evaluate(() => {
+    const w = (
+      window as unknown as {
+        __psgeWorld: {
+          getExcavatedDepth: () => number;
+          getWorldExtent: () => number;
+        };
+        __psgeState: { depth: number };
+      }
+    );
+    return {
+      depth: w.__psgeState.depth,
+      excavated: w.__psgeWorld.getExcavatedDepth(),
+      extent: w.__psgeWorld.getWorldExtent(),
+    };
+  });
+  expect(restored.depth).toBe(1500);
+  expect(restored.excavated).toBe(1500);
+  expect(restored.extent).toBe(1500);
+});
+
+test("autosave persists after dig debounce", async ({ page }) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+
+  const canvas = page.locator("#game-canvas");
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .not.toBe("0");
+
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-saved"), {
+      timeout: 5000,
+    })
+    .toBe("1");
+
+  const saved = await page.evaluate(async () => {
+    const store = (
+      window as unknown as {
+        __psgeSaveStore: { load: () => Promise<unknown> };
+        __psgeState: { depth: number; dirt: number };
+      }
+    );
+    const blob = (await store.__psgeSaveStore.load()) as {
+      depth: number;
+      dirt: number;
+    } | null;
+    return {
+      blob,
+      depth: store.__psgeState.depth,
+      dirt: store.__psgeState.dirt,
+    };
+  });
+
+  expect(saved.blob).toBeTruthy();
+  expect(saved.blob!.depth).toBeCloseTo(saved.depth);
+  expect(saved.blob!.dirt).toBeCloseTo(saved.dirt);
+});
+
+test("reset button clears depth and save", async ({ page }) => {
+  await page.goto("/?nosave=1&depth=50");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .toBe("50");
+
+  await page.getByRole("button", { name: "Reset" }).click();
+
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .toBe("0");
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-dirt"))
+    .toBe("0");
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-saved"))
+    .toBe("1");
+
+  const saved = await page.evaluate(async () => {
+    const store = (
+      window as unknown as {
+        __psgeSaveStore: { load: () => Promise<unknown> };
+        __psgeState: { depth: number; dirt: number };
+        __psgeWorld: { getExcavatedDepth: () => number };
+      }
+    );
+    return {
+      blob: await store.__psgeSaveStore.load(),
+      depth: store.__psgeState.depth,
+      dirt: store.__psgeState.dirt,
+      excavated: store.__psgeWorld.getExcavatedDepth(),
+    };
+  });
+  expect(saved.depth).toBe(0);
+  expect(saved.dirt).toBe(0);
+  expect(saved.excavated).toBe(0);
+  expect(saved.blob).toMatchObject({ depth: 0, dirt: 0 });
+});
+
 test("nosave=1 clears persistence", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");

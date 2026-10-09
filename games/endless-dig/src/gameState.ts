@@ -12,6 +12,9 @@ export const SHAFT_CROSS_SECTION = 4;
  */
 export const DEFAULT_DIG_POWER = 1 / 32;
 
+/** Persist / GameState schema version (M2+). */
+export const GAME_STATE_VERSION = 2;
+
 export interface GameState {
   version: number;
   /** Excavated depth in blocks (positive = down from surface). */
@@ -26,7 +29,7 @@ export function createInitialState(
   overrides: Partial<GameState> = {},
 ): GameState {
   return {
-    version: 2,
+    version: GAME_STATE_VERSION,
     depth: 0,
     dirt: 0,
     digPower: DEFAULT_DIG_POWER,

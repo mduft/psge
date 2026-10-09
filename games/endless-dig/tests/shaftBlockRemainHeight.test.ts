@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 import { describe, expect, it } from "vitest";
-import { shaftBlockRemainHeight } from "../src/world.js";
+import {
+  quantizePartialHeight,
+  shaftBlockRemainHeight,
+} from "../src/world.js";
 
 describe("shaftBlockRemainHeight", () => {
   it("leaves all blocks intact at depth 0", () => {
@@ -28,3 +31,17 @@ describe("shaftBlockRemainHeight", () => {
     expect(shaftBlockRemainHeight(-2, 2)).toBe(1);
   });
 });
+
+describe("quantizePartialHeight", () => {
+  it("snaps to 1/32 grid", () => {
+    expect(quantizePartialHeight(0.25)).toBe(0.25);
+    expect(quantizePartialHeight(0.26)).toBeCloseTo(8 / 32);
+    expect(quantizePartialHeight(1 / 32)).toBeCloseTo(1 / 32);
+  });
+
+  it("matches dig-face remain height after dig power steps", () => {
+    const remain = shaftBlockRemainHeight(0, 5 / 32);
+    expect(quantizePartialHeight(remain)).toBeCloseTo(remain);
+  });
+});
+

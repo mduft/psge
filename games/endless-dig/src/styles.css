@@ -147,6 +147,32 @@ body {
   cursor: pointer;
 }
 
+.hud-reset {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  align-self: stretch;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  text-shadow: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+
+.hud-reset:hover,
+.hud-reset:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.hud-reset:active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .save-indicator {
   position: absolute;
   right: calc(0.9rem + var(--safe-right));
