@@ -56,6 +56,8 @@ const CHUNK_SIZE = 16;
 const CHUNK_RADIUS = 3;
 /** Rebase floating origin when focus drifts this many blocks from origin. */
 const REBASE_THRESHOLD = 48;
+/** Solid earth continuing below the shaft floor so the bottom does not look clipped. */
+const BELOW_SHAFT_BLOCKS = 48;
 
 const sharedBox = new BoxGeometry(1, 1, 1);
 
@@ -217,7 +219,17 @@ function buildChunk(
       for (let z = -r; z <= Z_FRONT; z++) {
         if (!onSurfaceDisk(x, z)) continue;
         for (let y = localMax; y >= localMin; y--) {
-          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, x, y, z, true);
+          placeColumnBlock(
+            add,
+            grassCaps,
+            inShaft,
+            shaftDepth,
+            -shaftDepth - BELOW_SHAFT_BLOCKS,
+            x,
+            y,
+            z,
+            true,
+          );
         }
       }
     }
@@ -229,14 +241,15 @@ function buildChunk(
     }
   }
 
-  // Cutaway wall strip for any underground rows in this chunk.
+  // Cutaway wall strip for underground rows (through shaft floor + padding below).
+  const worldMinY = -shaftDepth - BELOW_SHAFT_BLOCKS;
   const stripMax = Math.min(yMax, -3);
-  const stripMin = Math.max(yMin, -shaftDepth - 1);
+  const stripMin = Math.max(yMin, worldMinY);
   if (stripMax >= stripMin) {
     for (let x = -WALL_HALF; x <= WALL_HALF; x++) {
       for (let z = DEEP_CUT_Z; z <= Z_FRONT; z++) {
         for (let y = stripMax; y >= stripMin; y--) {
-          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, x, y, z, false);
+          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, worldMinY, x, y, z, false);
         }
       }
     }
@@ -275,23 +288,17 @@ function placeColumnBlock(
   grassCaps: Matrix4[],
   inShaft: (x: number, z: number) => boolean,
   shaftDepth: number,
+  worldMinY: number,
   x: number,
   y: number,
   z: number,
   allowGrass: boolean,
 ): void {
+  if (y < worldMinY) return;
+  // Pre-carved shaft cavity only — floor and everything below use normal strata.
   if (inShaft(x, z) && y <= 0 && y > -shaftDepth) {
     return;
   }
-  if (inShaft(x, z) && y === -shaftDepth) {
-    add("cobble", x, y, z);
-    return;
-  }
-  if (inShaft(x, z) && y < -shaftDepth) {
-    if (y >= -shaftDepth - 1) add("cobble", x, y, z);
-    return;
-  }
-  if (y < -shaftDepth - 1) return;
 
   add(strata(y), x, y, z);
 
