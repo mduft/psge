@@ -85,6 +85,22 @@ export interface DigWorldOptions {
 
 /** Extra solid blocks kept below the dig face / scroll focus. */
 export const WORLD_EXTENT_LOOKAHEAD = 64;
+/**
+ * Grow the solid-earth floor in coarse steps. Growing by 1 m each dig used to
+ * reload every loaded chunk every full block once depth sat within lookahead
+ * of the extent (common after `?depth=` / layer jumps) — felt like a hitch.
+ */
+export const WORLD_EXTENT_GROW_STEP = 256;
+
+/** Ceil `minExtent` to the next grow step (testable helper). */
+export function roundWorldExtentUp(minExtent: number): number {
+  const step = WORLD_EXTENT_GROW_STEP;
+  const safe = Math.min(
+    Number.MAX_SAFE_INTEGER - step - 1,
+    Math.max(0, minExtent),
+  );
+  return Math.ceil(safe / step) * step;
+}
 
 /** Half-disk grass radius extending away from the player (−Z). */
 const SURFACE_RADIUS = 40;
@@ -197,9 +213,13 @@ export function buildDigWorld(
 ): DigWorld {
   let worldExtent = Math.max(0, Math.floor(options.worldExtent ?? 1000));
   let excavatedDepth = quantizeExcavatedDepth(options.excavatedDepth ?? 0);
-  // Allow cavity deeper than initial extent; ensureWorldExtent expands solid earth.
-  if (excavatedDepth > worldExtent) {
-    worldExtent = Math.ceil(excavatedDepth) + WORLD_EXTENT_LOOKAHEAD;
+
+  // Allow cavity deeper than initial extent; pad in coarse grow steps.
+  if (excavatedDepth > worldExtent - WORLD_EXTENT_LOOKAHEAD) {
+    worldExtent = Math.max(
+      worldExtent,
+      roundWorldExtentUp(excavatedDepth + WORLD_EXTENT_LOOKAHEAD),
+    );
   }
 
   scene.background = createSkyColor("soil");
@@ -357,18 +377,20 @@ export function buildDigWorld(
   };
 
   const ensureWorldExtent = (minExtent: number): boolean => {
-    const safe = Math.min(
-      Number.MAX_SAFE_INTEGER - WORLD_EXTENT_LOOKAHEAD - 1,
-      Math.max(0, minExtent),
-    );
-    const next = Math.max(worldExtent, Math.ceil(safe));
+    const next = Math.max(worldExtent, roundWorldExtentUp(minExtent));
     if (next <= worldExtent) return false;
+    const prevExtent = worldExtent;
     worldExtent = next;
-    // Rebuild loaded chunks so deep strips use the new solid floor.
+    // Only chunks that intersect the newly solid band need a rebuild —
+    // dig-face / mid-shaft strips are unchanged when the floor drops.
+    const oldFloorY = -prevExtent - BELOW_EXTENT_BLOCKS;
+    const newFloorY = -worldExtent - BELOW_EXTENT_BLOCKS;
     for (const idx of [...chunkGroups.keys()]) {
+      const { min, max } = chunkRange(idx, CHUNK_SIZE);
+      if (min > oldFloorY) continue;
+      if (max < newFloorY) continue;
       reloadChunkIfLoaded(idx);
     }
-    rebuildDigFaceOverlay();
     return true;
   };
 
@@ -450,6 +472,9 @@ export function buildDigWorld(
 const MIN_LAYER_THICKNESS = 2;
 
 const DEEP_BANDS = ["deepslate", "stone", "granite", "cobble"] as const;
+/** Nominal start / thickness of the repeating deep-band stack (below granite). */
+const DEEP_BAND_BASE = 12;
+const DEEP_BAND_STEP = 8;
 
 type WarpProfile = { cell: number; amp: number; seed: number };
 
@@ -457,16 +482,8 @@ type WarpProfile = { cell: number; amp: number; seed: number };
 const BOUNDARY_DIRT_STONE: WarpProfile = { cell: 6, amp: 2.5, seed: 0x11a3 };
 const BOUNDARY_STONE_GRANITE: WarpProfile = { cell: 11, amp: 4, seed: 0x22b7 };
 const BOUNDARY_GRANITE_DEEP: WarpProfile = { cell: 9, amp: 3.5, seed: 0x33c1 };
-
-function deepBoundaryProfile(bandIndex: number): WarpProfile {
-  // Vary wavelength per deep contact so repeating bands do not rhyme.
-  const cell = 7 + ((bandIndex * 3) % 6); // 7…12
-  return {
-    cell,
-    amp: cell * 0.45,
-    seed: 0x500 + Math.imul(bandIndex + 1, 0x9e3779b1),
-  };
-}
+/** Single deep-stack warp — O(1) band index (no per-contact walk). */
+const BOUNDARY_DEEP_BANDS: WarpProfile = { cell: 10, amp: 4, seed: 0x50de };
 
 function layerLatticeHash(ix: number, iz: number, seed: number): number {
   let n =
@@ -507,8 +524,10 @@ export function layerWarp(x: number, z: number): number {
 }
 
 /**
- * Block material at (x,y,z). Each geological contact undulates independently
- * (different seed/wavelength); contacts are clamped so layers cannot invert.
+ * Block material at (x,y,z). Shallow contacts undulate independently; deeper
+ * repeating bands use one warped depth → index map (O(1)). The old per-contact
+ * walk (up to 512 warps/cell) made every full-block chunk rebuild hitch once
+ * depth passed a few km.
  */
 export function strataAt(x: number, y: number, z: number): BlockId {
   const d = -y;
@@ -520,22 +539,19 @@ export function strataAt(x: number, y: number, z: number): BlockId {
   );
   const tGranite = Math.max(
     tStone + MIN_LAYER_THICKNESS,
-    12 + boundaryWarp(x, z, BOUNDARY_GRANITE_DEEP),
+    DEEP_BAND_BASE + boundaryWarp(x, z, BOUNDARY_GRANITE_DEEP),
   );
   if (d <= tDirt) return "dirt";
   if (d <= tStone) return "stone";
   if (d < tGranite) return "granite";
 
-  let lo = tGranite;
-  for (let i = 0; i < 512; i++) {
-    const hi = Math.max(
-      lo + MIN_LAYER_THICKNESS,
-      12 + 8 * (i + 1) + boundaryWarp(x, z, deepBoundaryProfile(i)),
-    );
-    if (d < hi) return DEEP_BANDS[i & 3]!;
-    lo = hi;
-  }
-  return "cobble";
+  const warped =
+    d - boundaryWarp(x, z, BOUNDARY_DEEP_BANDS);
+  const i = Math.max(
+    0,
+    Math.floor((warped - DEEP_BAND_BASE) / DEEP_BAND_STEP),
+  );
+  return DEEP_BANDS[i & 3]!;
 }
 
 function buildChunk(

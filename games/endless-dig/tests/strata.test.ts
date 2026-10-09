@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 import { describe, expect, it } from "vitest";
-import { boundaryWarp, layerWarp, strataAt } from "../src/world.js";
+import {
+  boundaryWarp,
+  layerWarp,
+  roundWorldExtentUp,
+  strataAt,
+  WORLD_EXTENT_GROW_STEP,
+} from "../src/world.js";
 
 const SAMPLE_PROFILES = [
   { cell: 6, amp: 2.5, seed: 0x11a3 },
@@ -110,5 +116,31 @@ describe("strataAt", () => {
         }
       }
     }
+  });
+
+  it("keeps cycling deep bands at km depth (O(1), not stuck on cobble)", () => {
+    const ids = new Set<string>();
+    for (let y = -50_000; y > -50_080; y--) {
+      ids.add(strataAt(0, y, -1));
+    }
+    expect(ids.size).toBeGreaterThan(1);
+    expect(ids.has("cobble") || ids.has("deepslate") || ids.has("stone")).toBe(
+      true,
+    );
+
+    const t0 = performance.now();
+    for (let i = 0; i < 20_000; i++) {
+      strataAt(i % 17, -120_000 - (i % 64), -(i % 3));
+    }
+    expect(performance.now() - t0).toBeLessThan(100);
+  });
+});
+
+describe("roundWorldExtentUp", () => {
+  it("grows in coarse steps so digs do not expand every meter", () => {
+    expect(roundWorldExtentUp(1000)).toBe(WORLD_EXTENT_GROW_STEP * 4);
+    expect(roundWorldExtentUp(119_995 + 64)).toBeGreaterThan(119_995);
+    expect(roundWorldExtentUp(256)).toBe(256);
+    expect(roundWorldExtentUp(257)).toBe(512);
   });
 });
