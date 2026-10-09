@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@psge/engine": "*",
+    "decimal.js": "^10.6.0",
     "three": "^0.186.1"
   },
   "devDependencies": {

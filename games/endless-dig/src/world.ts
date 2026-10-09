@@ -37,20 +37,28 @@ export interface DigWorld {
   /** How far the open shaft cavity goes (positive blocks down). */
   getExcavatedDepth(): number;
   setExcavatedDepth(depth: number): void;
-  /** Solid-earth generation extent (positive blocks down). */
+  /** Solid-earth generation extent (positive blocks down); grows with dig. */
   getWorldExtent(): number;
+  /**
+   * Ensure solid generation reaches at least `minExtent` (ceil).
+   * Returns true when the extent grew.
+   */
+  ensureWorldExtent(minExtent: number): boolean;
   dispose(): void;
 }
 
 export interface DigWorldOptions {
   /**
-   * How far solid earth is generated (look-ahead / debug scroll).
-   * Not the same as excavated (dug) depth.
+   * Initial solid-earth generation look-ahead (grows as the player digs).
+   * Not a hard game end — The Endless Dig expands this automatically.
    */
   worldExtent?: number;
   /** Initial open shaft depth (normally 0 until the player digs). */
   excavatedDepth?: number;
 }
+
+/** Extra solid blocks kept below the dig face / scroll focus. */
+export const WORLD_EXTENT_LOOKAHEAD = 64;
 
 /** Half-disk grass radius extending away from the player (−Z). */
 const SURFACE_RADIUS = 32;
@@ -129,15 +137,18 @@ const TREE_SPOTS: Array<[number, number]> = [
 
 /**
  * Chunked cutaway world with floating-origin rebasing.
- * Cavity depth follows excavation; worldExtent bounds solid generation.
+ * Cavity depth follows excavation; worldExtent is a growing generation floor.
  */
 export function buildDigWorld(
   scene: Scene,
   options: DigWorldOptions = {},
 ): DigWorld {
-  const worldExtent = Math.max(0, Math.floor(options.worldExtent ?? 1000));
+  let worldExtent = Math.max(0, Math.floor(options.worldExtent ?? 1000));
   let excavatedDepth = Math.max(0, options.excavatedDepth ?? 0);
-  excavatedDepth = Math.min(excavatedDepth, worldExtent);
+  // Allow cavity deeper than initial extent; ensureWorldExtent expands solid earth.
+  if (excavatedDepth > worldExtent) {
+    worldExtent = Math.ceil(excavatedDepth) + WORLD_EXTENT_LOOKAHEAD;
+  }
 
   scene.background = createSkyColor();
   scene.fog = new Fog(new Color(0x87b7e0), 45, 100);
@@ -221,6 +232,21 @@ export function buildDigWorld(
     }
   };
 
+  const ensureWorldExtent = (minExtent: number): boolean => {
+    const safe = Math.min(
+      Number.MAX_SAFE_INTEGER - WORLD_EXTENT_LOOKAHEAD - 1,
+      Math.max(0, minExtent),
+    );
+    const next = Math.max(worldExtent, Math.ceil(safe));
+    if (next <= worldExtent) return false;
+    worldExtent = next;
+    // Rebuild loaded chunks so deep strips use the new solid floor.
+    for (const idx of [...chunkGroups.keys()]) {
+      reloadChunkIfLoaded(idx);
+    }
+    return true;
+  };
+
   const setFocusBlockY = (blockY: number): void => {
     const minY = -(worldExtent - 1.5);
     const maxY = 2.5;
@@ -230,7 +256,10 @@ export function buildDigWorld(
   };
 
   const setExcavatedDepth = (depth: number): void => {
-    const next = Math.min(worldExtent, Math.max(0, depth));
+    const next = Math.max(0, depth);
+    if (next > worldExtent - WORLD_EXTENT_LOOKAHEAD) {
+      ensureWorldExtent(next + WORLD_EXTENT_LOOKAHEAD);
+    }
     if (next === excavatedDepth) return;
     const prev = excavatedDepth;
     excavatedDepth = next;
@@ -251,6 +280,7 @@ export function buildDigWorld(
     getExcavatedDepth: () => excavatedDepth,
     setExcavatedDepth,
     getWorldExtent: () => worldExtent,
+    ensureWorldExtent,
     dispose(): void {
       chunks.dispose();
       scene.remove(root);

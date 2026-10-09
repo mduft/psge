@@ -147,8 +147,141 @@ body {
   cursor: pointer;
 }
 
-.hud-reset {
+.shop {
   margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shop-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-muted);
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: min(42vh, 18rem);
+  overflow-y: auto;
+}
+
+.shop-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.5rem;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shop-row:last-child {
+  border-bottom: none;
+}
+
+.shop-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.shop-name {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.shop-effect {
+  font-size: 0.68rem;
+  color: var(--hud-muted);
+}
+
+.shop-buy {
+  justify-self: end;
+  padding: 0.28rem 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  text-shadow: none;
+  background: rgba(196, 165, 116, 0.22);
+  border: 1px solid rgba(196, 165, 116, 0.45);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.shop-buy:hover:not(:disabled),
+.shop-buy:focus-visible:not(:disabled) {
+  background: rgba(196, 165, 116, 0.35);
+  outline: none;
+}
+
+.shop-buy:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.debug-panel[hidden] {
+  display: none !important;
+}
+
+.debug-panel {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.debug-dirt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.debug-dirt .label {
+  color: var(--hud-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.debug-dirt-row {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.debug-dirt-row .hud-reset {
+  margin-top: 0;
+  flex: 1;
+  padding: 0.28rem 0.35rem;
+  font-size: 0.7rem;
+}
+
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--hud-ink);
+  cursor: pointer;
+}
+
+.debug-toggle input {
+  margin: 0;
+  accent-color: #c4a574;
+  cursor: pointer;
+}
+
+.hud-reset {
+  margin-top: 0.1rem;
   padding: 0.35rem 0.55rem;
   align-self: stretch;
   font: inherit;

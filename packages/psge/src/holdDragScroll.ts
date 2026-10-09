@@ -23,6 +23,9 @@ export interface HoldDragScrollOptions {
 }
 
 export interface HoldDragScroll {
+  /** When false, hold-drag scroll is ignored; taps still fire `onTap`. */
+  setEnabled(enabled: boolean): void;
+  isEnabled(): boolean;
   dispose(): void;
 }
 
@@ -45,6 +48,7 @@ export function createHoldDragScroll(
     maxDeltaSeconds = 0.05,
   } = options;
 
+  let enabled = true;
   let dragging = false;
   let dragged = false;
   let pressClient = 0;
@@ -75,7 +79,7 @@ export function createHoldDragScroll(
     lastTs = ts;
 
     const offset = holdClient - pressClient;
-    if (Math.abs(offset) > deadzonePx) {
+    if (enabled && Math.abs(offset) > deadzonePx) {
       if (Math.abs(offset) > dragThresholdPx) dragged = true;
       const unitsPerSec = (offset / 100) * speedAt100px;
       onScroll(unitsPerSec * dt, dt);
@@ -101,7 +105,10 @@ export function createHoldDragScroll(
   const onPointerMove = (event: PointerEvent): void => {
     if (!dragging || event.pointerId !== pointerId) return;
     holdClient = clientOf(event);
-    if (Math.abs(holdClient - pressClient) > dragThresholdPx) {
+    if (
+      enabled &&
+      Math.abs(holdClient - pressClient) > dragThresholdPx
+    ) {
       dragged = true;
     }
   };
@@ -132,6 +139,14 @@ export function createHoldDragScroll(
   element.addEventListener("touchmove", onTouchMove, { passive: false });
 
   return {
+    setEnabled(next: boolean): void {
+      enabled = next;
+      if (!enabled) {
+        stopHoldLoop();
+        if (draggingClass) element.classList.remove(draggingClass);
+      }
+    },
+    isEnabled: () => enabled,
     dispose(): void {
       stopHoldLoop();
       element.removeEventListener("pointerdown", onPointerDown);

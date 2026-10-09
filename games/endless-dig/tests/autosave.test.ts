@@ -43,7 +43,7 @@ describe("createAutosave", () => {
 
     await vi.waitFor(async () => {
       const loaded = await loadGameState(store);
-      expect(loaded?.depth).toBe(3);
+      expect(loaded?.depth.toNumber()).toBe(3);
     });
 
     autosave.dispose();
@@ -84,7 +84,7 @@ describe("createAutosave", () => {
     await flushPromise;
 
     const loaded = await loadGameState(store);
-    expect(loaded?.depth).toBe(1);
+    expect(loaded?.depth.toNumber()).toBe(1);
 
     await autosave.flush();
     autosave.dispose();
@@ -141,7 +141,7 @@ describe("createAutosave", () => {
 
     await vi.waitFor(async () => {
       const loaded = await loadGameState(store);
-      expect(loaded?.depth).toBe(2);
+      expect(loaded?.depth.toNumber()).toBe(2);
     });
 
     autosave.dispose();

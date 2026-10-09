@@ -7,17 +7,34 @@ import {
   createLocalSaveStore,
   type LightingOptions,
 } from "@psge/engine";
+import Decimal from "decimal.js";
 import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
+import { formatAmount } from "./formatAmount.js";
 import {
+  buyUpgrade,
+  canBuyUpgrade,
   createInitialState,
   DEFAULT_DIG_POWER,
   dig,
+  digPowerOf,
+  passiveRateOf,
+  resetProgress,
   SHAFT_CROSS_SECTION,
+  tickProduction,
   type GameState,
 } from "./gameState.js";
 import { DIG_SAVE_KEY, loadGameState, saveGameState } from "./persist.js";
-import { BLOCK_SCALE, buildDigWorld } from "./world.js";
+import {
+  UPGRADE_DEFS,
+  upgradeCost,
+  type UpgradeId,
+} from "./upgrades.js";
+import {
+  BLOCK_SCALE,
+  buildDigWorld,
+  WORLD_EXTENT_LOOKAHEAD,
+} from "./world.js";
 
 /** Slider uses integer steps of DEFAULT_DIG_POWER (1 = 1/32 block). */
 const DIG_POWER_SLIDER_MAX = 256;
@@ -38,23 +55,37 @@ function readQueryFlags(): {
   excavatedDepth: number;
   worldExtent: number;
   nosave: boolean;
+  debug: boolean;
 } {
   const params = new URLSearchParams(window.location.search);
   const nosave =
     params.get("nosave") === "1" || params.get("nosave") === "true";
+  const debug =
+    params.get("debug") === "1" || params.get("debug") === "true";
 
   const raw = params.get("depth");
   if (!raw) {
-    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT, nosave };
+    return {
+      excavatedDepth: 0,
+      worldExtent: DEFAULT_WORLD_EXTENT,
+      nosave,
+      debug,
+    };
   }
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 0) {
-    return { excavatedDepth: 0, worldExtent: DEFAULT_WORLD_EXTENT, nosave };
+    return {
+      excavatedDepth: 0,
+      worldExtent: DEFAULT_WORLD_EXTENT,
+      nosave,
+      debug,
+    };
   }
   return {
     excavatedDepth: n,
     worldExtent: Math.max(n, DEFAULT_WORLD_EXTENT),
     nosave,
+    debug,
   };
 }
 
@@ -70,14 +101,29 @@ function freshState(excavatedDepth: number): GameState {
   });
 }
 
+function depthNumber(state: GameState): number {
+  return state.depth.toNumber();
+}
+
+function formatDigPower(power: Decimal): string {
+  const steps = power.div(DEFAULT_DIG_POWER).round().toNumber();
+  if (steps <= 1) return "1/32";
+  if (steps % 32 === 0) return `${steps / 32}`;
+  return `${steps}/32`;
+}
+
 async function boot(): Promise<() => void> {
   const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
   if (!canvas) {
     throw new Error("Expected #game-canvas");
   }
 
-  const { excavatedDepth: depthQuery, worldExtent: extentFromQuery, nosave } =
-    readQueryFlags();
+  const {
+    excavatedDepth: depthQuery,
+    worldExtent: extentFromQuery,
+    nosave,
+    debug,
+  } = readQueryFlags();
   const store = createLocalSaveStore({ key: DIG_SAVE_KEY });
 
   let state: GameState;
@@ -93,7 +139,7 @@ async function boot(): Promise<() => void> {
   const worldExtent = Math.max(
     DEFAULT_WORLD_EXTENT,
     extentFromQuery,
-    Math.ceil(state.depth),
+    Math.ceil(depthNumber(state)),
   );
 
   const app = createApp({
@@ -105,7 +151,7 @@ async function boot(): Promise<() => void> {
   });
   const world = buildDigWorld(app.scene, {
     worldExtent,
-    excavatedDepth: state.depth,
+    excavatedDepth: depthNumber(state),
   });
 
   const applyCamera = (): void => {
@@ -126,10 +172,36 @@ async function boot(): Promise<() => void> {
   const depthEl = document.querySelector('[data-stat="depth"]');
   const dirtEl = document.querySelector('[data-stat="dirt"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
+  const passiveEl = document.querySelector('[data-stat="passive"]');
+  const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
   const digPowerInput = document.querySelector<HTMLInputElement>("#dig-power");
+  const debugDigPowerEl = document.querySelector(
+    '[data-stat="debug-dig-power"]',
+  );
+  const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
+  const shopList = document.querySelector<HTMLElement>("#shop-list");
   const resetButton =
     document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
+
+  if (debug) {
+    debugPanel?.removeAttribute("hidden");
+    document.documentElement.dataset.psgeDebug = "1";
+  } else {
+    debugPanel?.setAttribute("hidden", "");
+    delete document.documentElement.dataset.psgeDebug;
+    delete state.debugDigPower;
+  }
+
+  const ensureExtentForPlay = (): void => {
+    const needed =
+      Math.ceil(depthNumber(state)) + WORLD_EXTENT_LOOKAHEAD;
+    if (world.ensureWorldExtent(needed)) {
+      document.documentElement.dataset.psgeWorldExtent = String(
+        world.getWorldExtent(),
+      );
+    }
+  };
 
   let saveFadeTimer = 0;
   const showSavedIndicator = (): void => {
@@ -145,59 +217,57 @@ async function boot(): Promise<() => void> {
     }, SAVE_INDICATOR_MS);
   };
 
-  const fmt = (n: number, digits = 2): string =>
-    n.toLocaleString("en-US", {
-      maximumFractionDigits: digits,
-      minimumFractionDigits: 0,
-    });
-
-  const formatDigPower = (power: number): string => {
-    const steps = Math.round(power / DEFAULT_DIG_POWER);
-    if (steps <= 1) return "1/32";
-    if (steps % 32 === 0) return `${steps / 32}`;
-    return `${steps}/32`;
-  };
-
-  const syncFromState = (): void => {
-    world.setExcavatedDepth(state.depth);
-    world.setFocusBlockY(focusForDepth(state.depth));
-  };
-
-  const updateHud = (): void => {
-    if (depthEl) depthEl.textContent = `${fmt(state.depth, 2)} m`;
-    if (dirtEl) dirtEl.textContent = fmt(state.dirt, 1);
-    if (digPowerEl) digPowerEl.textContent = formatDigPower(state.digPower);
-    if (digPowerInput) {
-      digPowerInput.value = String(
-        Math.round(state.digPower / DEFAULT_DIG_POWER),
-      );
-      digPowerInput.setAttribute(
-        "aria-valuetext",
-        `${formatDigPower(state.digPower)} block`,
-      );
-    }
-    document.documentElement.dataset.psgeDepth = String(state.depth);
-    document.documentElement.dataset.psgeDirt = String(state.dirt);
-  };
-
   const autosave = createAutosave({
     store,
     getState: () => state,
     onSaved: showSavedIndicator,
   });
 
-  const onDigPowerInput = (): void => {
-    if (!digPowerInput) return;
-    const steps = Math.min(
-      DIG_POWER_SLIDER_MAX,
-      Math.max(1, Number.parseInt(digPowerInput.value, 10) || 1),
-    );
-    state.digPower = steps * DEFAULT_DIG_POWER;
-    updateHud();
-    autosave.markDirty();
+  const shopButtons = new Map<UpgradeId, HTMLButtonElement>();
+
+  const syncFromState = (): void => {
+    ensureExtentForPlay();
+    const d = depthNumber(state);
+    world.setExcavatedDepth(d);
+    world.setFocusBlockY(focusForDepth(d));
   };
-  digPowerInput?.addEventListener("input", onDigPowerInput);
-  digPowerInput?.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  const updateHud = (): void => {
+    const power = digPowerOf(state);
+    const passive = passiveRateOf(state);
+    if (depthEl) depthEl.textContent = `${formatAmount(state.depth)} m`;
+    if (dirtEl) dirtEl.textContent = formatAmount(state.dirt);
+    if (digPowerEl) digPowerEl.textContent = formatDigPower(power);
+    if (passiveEl) {
+      passiveEl.textContent = `${formatAmount(passive)}/s`;
+    }
+    if (debug && digPowerInput) {
+      const steps = Math.round(power.toNumber() / DEFAULT_DIG_POWER);
+      digPowerInput.value = String(
+        Math.min(DIG_POWER_SLIDER_MAX, Math.max(1, steps)),
+      );
+      const label = formatDigPower(power);
+      digPowerInput.setAttribute("aria-valuetext", `${label} block`);
+      if (debugDigPowerEl) debugDigPowerEl.textContent = label;
+    }
+
+    for (const def of UPGRADE_DEFS) {
+      const level = state.upgrades[def.id];
+      const cost = upgradeCost(def.id, level);
+      const effect = shopList?.querySelector(`[data-shop-effect="${def.id}"]`);
+      if (effect) {
+        effect.textContent = `Lv ${level} · ${def.effectLabel} · ${formatAmount(cost)} dirt`;
+      }
+      const buy = shopButtons.get(def.id);
+      if (buy) {
+        buy.textContent = "Buy";
+        buy.disabled = !canBuyUpgrade(state, def.id);
+      }
+    }
+
+    document.documentElement.dataset.psgeDepth = state.depth.toString();
+    document.documentElement.dataset.psgeDirt = state.dirt.toString();
+  };
 
   const applyPlayView = (): void => {
     syncFromState();
@@ -205,12 +275,81 @@ async function boot(): Promise<() => void> {
     updateHud();
   };
 
+  const buildShop = (): void => {
+    if (!shopList) return;
+    shopList.replaceChildren();
+    shopButtons.clear();
+    for (const def of UPGRADE_DEFS) {
+      const row = document.createElement("div");
+      row.className = "shop-row";
+      row.dataset.upgrade = def.id;
+
+      const meta = document.createElement("div");
+      meta.className = "shop-meta";
+      const name = document.createElement("span");
+      name.className = "shop-name";
+      name.textContent = def.name;
+      const effect = document.createElement("span");
+      effect.className = "shop-effect";
+      effect.dataset.shopEffect = def.id;
+      meta.append(name, effect);
+
+      const buy = document.createElement("button");
+      buy.type = "button";
+      buy.className = "shop-buy";
+      buy.dataset.shopBuy = def.id;
+      buy.addEventListener("pointerdown", (e) => e.stopPropagation());
+      buy.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!buyUpgrade(state, def.id)) return;
+        applyPlayView();
+        autosave.markDirty();
+      });
+
+      row.append(meta, buy);
+      shopList.append(row);
+      shopButtons.set(def.id, buy);
+    }
+  };
+
+  buildShop();
+
+  const onDigPowerInput = (): void => {
+    if (!debug || !digPowerInput) return;
+    const steps = Math.min(
+      DIG_POWER_SLIDER_MAX,
+      Math.max(1, Number.parseInt(digPowerInput.value, 10) || 1),
+    );
+    state.debugDigPower = steps * DEFAULT_DIG_POWER;
+    updateHud();
+  };
+  digPowerInput?.addEventListener("input", onDigPowerInput);
+  digPowerInput?.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  const onGiveDirt = (e: Event): void => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const amount = Number.parseFloat(btn.dataset.giveDirt ?? "");
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    state.dirt = state.dirt.plus(amount);
+    applyPlayView();
+  };
+  const giveDirtButtons = [
+    ...document.querySelectorAll<HTMLButtonElement>("[data-give-dirt]"),
+  ];
+  for (const btn of giveDirtButtons) {
+    btn.addEventListener("click", onGiveDirt);
+    btn.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  }
+
   const onReset = (e: Event): void => {
     e.preventDefault();
     e.stopPropagation();
     void (async () => {
-      state.depth = 0;
-      state.dirt = 0;
+      resetProgress(state);
+      if (debug) delete state.debugDigPower;
       applyPlayView();
       await store.clear();
       await saveGameState(store, state);
@@ -225,13 +364,24 @@ async function boot(): Promise<() => void> {
     canvas,
     applyCamera,
     onFocusBlockY: updateHud,
+    // Drag-scroll is debug tooling; default off unless ?debug=1 keeps checkbox on.
+    scrollEnabled: debug,
     onTap: () => {
-      dig(state, worldExtent);
+      dig(state);
       document.documentElement.dataset.psgeDigIntent = "1";
       applyPlayView();
       autosave.markDirty();
     },
   });
+
+  if (debug && debugScroll) {
+    debugScroll.checked = scroll.isScrollEnabled();
+    const onScrollToggle = (): void => {
+      scroll.setScrollEnabled(debugScroll.checked);
+    };
+    debugScroll.addEventListener("change", onScrollToggle);
+    debugScroll.addEventListener("pointerdown", (e) => e.stopPropagation());
+  }
 
   const onResize = (): void => {
     applyCamera();
@@ -250,7 +400,13 @@ async function boot(): Promise<() => void> {
   document.addEventListener("visibilitychange", onVisibility);
 
   applyPlayView();
-  app.startLoop();
+  app.startLoop((dt) => {
+    if (!tickProduction(state, dt)) return;
+    syncFromState();
+    applyCamera();
+    updateHud();
+    autosave.markDirty();
+  });
 
   const dbg = window as Window & {
     __psgeApp?: typeof app;
@@ -266,8 +422,10 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "3";
-  document.documentElement.dataset.psgeWorldExtent = String(worldExtent);
+  document.documentElement.dataset.psgeMilestone = "4";
+  document.documentElement.dataset.psgeWorldExtent = String(
+    world.getWorldExtent(),
+  );
   document.documentElement.dataset.psgeNosave = nosave ? "1" : "0";
   updateHud();
 
@@ -277,6 +435,9 @@ async function boot(): Promise<() => void> {
     document.removeEventListener("visibilitychange", onVisibility);
     digPowerInput?.removeEventListener("input", onDigPowerInput);
     resetButton?.removeEventListener("click", onReset);
+    for (const btn of giveDirtButtons) {
+      btn.removeEventListener("click", onGiveDirt);
+    }
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
     void autosave.flush().finally(() => {
       autosave.dispose();

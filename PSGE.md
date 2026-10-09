@@ -2,7 +2,7 @@
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification
-> Status: Milestone 0–3 implemented — decisions locked in §4.8; API unfrozen (§28)
+> Status: Milestone 0–4 implemented — decisions locked in §4.8; API unfrozen (§28)
 > Core goal: make small browser games **pleasantly simple to build, test, run, and evolve — including by autonomous agents**.
 
 ---
@@ -400,6 +400,13 @@ The following choices are locked for implementing these milestones. They may sti
 | M3 SaveStore | Engine `SaveStore` + `createLocalSaveStore`; game never touches `localStorage` directly |
 | M3 autosave | Debounce **1s** after change; force save at least every **30s** while dirty; flush on pagehide/hidden |
 | M3 testing | `?nosave=1` **clears** save and starts fresh (`?depth=` then applies); deep saves expand extent on reload |
+| M4 resource | **Dirt** is the spendable currency (`depthGained × 4` still) |
+| M4 shop | Tiny HUD shop: spend dirt on level-based upgrades |
+| M4 dig power | Derived from upgrades (base `1/32`; shovel `+1/32`); debug dig-power / give-dirt / Reset / drag-scroll only with `?debug=1` |
+| M4 passive | Auto-dig depth/sec from generator upgrades; applied each frame via `startLoop(update)` |
+| M4 numbers | Game-owned `decimal.js` for depth/dirt/costs/rates; persist as strings; HUD idle suffixes `K M B T` then `aa ab …` |
+| M4 save | `GameState` version **3**; migrate v2 → Decimals + empty upgrades (slider digPower discarded) |
+| M4 endless | Generation extent **grows** with excavated depth (+ lookahead); 1000 is initial look-ahead, not an end |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1659,13 +1666,24 @@ Acceptance: unit tests for SaveStore + parse + autosave controller; e2e reload r
 
 ## Milestone 4 — Incremental mechanics
 
-Add:
+Locked in §4.8:
 
-- resource;
-- upgrades;
-- passive production;
-- large numbers;
-- UI.
+- **Dirt** as spendable resource; shop HUD buys level-based upgrades;
+- dig power derived from shovel / pickaxe / jackhammer; generators (cart / drill / crew) grant depth/sec;
+- `decimal.js` for depth, dirt, costs, rates; persist strings; `formatAmount` uses `K M B T` then `aa ab …`;
+- dig-power slider only with `?debug=1` (debug override, not saved);
+- save version **3** with v2 migration.
+
+Sample:
+
+```text
+dig → earn dirt → buy Shovel → dig power rises
+buy Hand cart → depth increases without tapping
+reload → upgrades / Decimal dirt remain
+?debug=1 → dig-power slider visible
+```
+
+Acceptance: unit tests for dig / buy / passive / formatAmount / v2→v3 migrate; e2e buy, passive dig, save/reload upgrades, debug slider gate.
 
 ## Milestone 5 — Offline progression
 
@@ -1830,7 +1848,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4
 
 See §4.8 for the decision table. In short:
 
@@ -1841,6 +1859,7 @@ See §4.8 for the decision table. In short:
 - M1.1: vertical chunks + floating origin; `?depth=` testing helper (with save rules in M3).
 - M2: dig-to-reveal + camera follow; drag-scroll debug-only; game-owned `GameState`.
 - M3: `SaveStore` / `createLocalSaveStore`; 1s debounce + 30s max autosave; `?nosave=1` clears.
+- M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` dig-power slider.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

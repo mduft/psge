@@ -12,17 +12,23 @@ export interface ShaftScrollOptions {
   applyCamera: () => void;
   onTap?: () => void;
   onFocusBlockY?: (blockY: number) => void;
+  /** Initial hold-drag scroll enabled state. Default true. */
+  scrollEnabled?: boolean;
 }
 
 export interface ShaftScrollController {
   apply(): void;
+  setScrollEnabled(enabled: boolean): void;
+  isScrollEnabled(): boolean;
   dispose(): void;
 }
 
 /**
  * Dig-facing wrapper: hold-drag scroll drives logical focus; DigWorld streams chunks.
  */
-export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollController {
+export function createShaftScroll(
+  options: ShaftScrollOptions,
+): ShaftScrollController {
   const { world, canvas, applyCamera, onTap, onFocusBlockY } = options;
 
   const apply = (): void => {
@@ -42,10 +48,16 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
     draggingClass: "is-dragging",
   });
 
+  if (options.scrollEnabled === false) {
+    drag.setEnabled(false);
+  }
+
   apply();
 
   return {
     apply,
+    setScrollEnabled: (enabled) => drag.setEnabled(enabled),
+    isScrollEnabled: () => drag.isEnabled(),
     dispose: () => drag.dispose(),
   };
 }

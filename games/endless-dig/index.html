@@ -30,30 +30,63 @@
             <span class="label">Dirt</span>
             <span class="value" data-stat="dirt">0</span>
           </div>
-          <label class="dig-power">
+          <div class="stat">
             <span class="label">Dig power</span>
-            <span class="dig-power-row">
-              <input
-                id="dig-power"
-                type="range"
-                min="1"
-                max="256"
-                step="1"
-                value="1"
-                aria-valuetext="1/32 block"
-              />
-              <span class="value" data-stat="dig-power">1/32</span>
-            </span>
-          </label>
-          <button type="button" id="reset-progress" class="hud-reset">
-            Reset
-          </button>
+            <span class="value" data-stat="dig-power">1/32</span>
+          </div>
+          <div class="stat">
+            <span class="label">Auto</span>
+            <span class="value" data-stat="passive">0/s</span>
+          </div>
+          <section class="shop" aria-label="Shop">
+            <h2 class="shop-title">Shop</h2>
+            <div id="shop-list" class="shop-list"></div>
+          </section>
+          <section class="debug-panel" id="debug-panel" hidden>
+            <h2 class="shop-title">Debug</h2>
+            <label class="dig-power dig-power-debug">
+              <span class="label">Debug dig power</span>
+              <span class="dig-power-row">
+                <input
+                  id="dig-power"
+                  type="range"
+                  min="1"
+                  max="256"
+                  step="1"
+                  value="1"
+                  aria-valuetext="1/32 block"
+                />
+                <span class="value" data-stat="debug-dig-power">1/32</span>
+              </span>
+            </label>
+            <div class="debug-dirt">
+              <span class="label">Give dirt</span>
+              <span class="debug-dirt-row">
+                <button type="button" class="hud-reset" data-give-dirt="100">
+                  +100
+                </button>
+                <button type="button" class="hud-reset" data-give-dirt="1000">
+                  +1K
+                </button>
+                <button type="button" class="hud-reset" data-give-dirt="1000000">
+                  +1M
+                </button>
+              </span>
+            </div>
+            <label class="debug-toggle">
+              <input type="checkbox" id="debug-scroll" checked />
+              <span>Drag to scroll</span>
+            </label>
+            <button type="button" id="reset-progress" class="hud-reset">
+              Reset
+            </button>
+          </section>
         </aside>
         <div id="save-indicator" class="save-indicator" aria-hidden="true">
           Saved
         </div>
         <p class="hud-hint">
-          Tap to dig · drag to scroll (debug) · Reset clears save
+          Tap to dig · spend dirt in the shop · ?debug=1 for tools
         </p>
       </div>
     </div>

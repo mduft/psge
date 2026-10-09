@@ -28,17 +28,19 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 3 status
+## Milestone 4 (current)
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
 
-**M2/M3 play:** Tap to dig (dig-to-reveal + camera follow). Autosave via engine `SaveStore` (1s debounce, 30s max-while-dirty, pagehide flush). HUD: Depth / Dirt / dig-power slider + fading Saved.
+**M4 play:** Tap to dig; spend **Dirt** in the shop for dig-power and passive upgrades; camera follows dig face. Autosave via engine `SaveStore`. HUD: Depth / Dirt / Shop + fading Saved. World extent grows with dig (endless).
 
-**Testing:** `?depth=N` pre-digs when no save; generation extent `max(1000, N, ceil(savedDepth))`. `?nosave=1` clears save. Stress: `?nosave=1&depth=10000`.
+**Numbers:** Game-owned `decimal.js`; HUD idle suffixes (`K M B T` then `aa ab …`).
+
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. `?debug=1` = dig-power override, give dirt, drag-scroll, Reset. Stress: `?nosave=1&depth=10000`.
 
 Engine: `createApp`, loop, camera, `clampDelta`, `createSeededRng`, floating origin / chunk window, `createHoldDragScroll`, `createLocalSaveStore`, `decideAutosave`.
 
-Dig rules + save payload live in the **game**.
+Dig rules, shop, Decimal state, and save payload live in the **game**.
 
 ## Visual verification
 
