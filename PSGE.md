@@ -2,7 +2,7 @@
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification
-> Status: Milestone 0–4 implemented — decisions locked in §4.8; API unfrozen (§28)
+> Status: Milestone 0–5 implemented — decisions locked in §4.8; API unfrozen (§28)
 > Core goal: make small browser games **pleasantly simple to build, test, run, and evolve — including by autonomous agents**.
 
 ---
@@ -407,6 +407,9 @@ The following choices are locked for implementing these milestones. They may sti
 | M4 numbers | Game-owned `decimal.js` for depth/dirt/costs/rates; persist as strings; HUD idle suffixes `K M B T` then `aa ab …` |
 | M4 save | `GameState` version **3**; migrate v2 → Decimals + empty upgrades (slider digPower discarded) |
 | M4 endless | Generation extent **grows** with excavated depth (+ lookahead); 1000 is initial look-ahead, not an end |
+| M5 offline | Depth **and** dirt; soft-capped live auto rate × **1/6**; max **24h**; claim modal when away ≥**30s** (tab hide or unload); shorter hides get full-rate catch-up |
+| M5 clock | Persist `lastPlayedAtMs` (save version **4**; v2/v3 migrate with clock `0`); pure `computeOfflineReward(state, last, now)` |
+| M5 testing | Injectable `nowMs` in unit tests; `?offlineMs=N` forces an offline window in the browser |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1693,12 +1696,13 @@ Acceptance: unit tests for dig / buy / passive / formatAmount / v2→v3 migrate;
 
 ## Milestone 5 — Offline progression
 
-Add:
+Locked (see also §4.8):
 
-- timestamps;
-- offline duration;
-- offline calculation;
-- automatic saving.
+- Persist `lastPlayedAtMs` (save version **4**); autosave refreshes it while playing.
+- On load, if auto-dig owned and away ≥ 5s: claim modal with duration + depth/dirt.
+- Payout: `softDigAmount(passiveRate) × min(elapsed, 24h) × (1/6)`; dirt = depth × 4.
+- Automatic saving already from M3; M5 keeps the offline clock coherent with saves.
+- Tests: pure offline helpers + `?offlineMs=` e2e claim path.
 
 ## Milestone 6 — Excavation presentation
 
@@ -1933,7 +1937,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5
 
 See §4.8 for the decision table. In short:
 
@@ -1945,6 +1949,7 @@ See §4.8 for the decision table. In short:
 - M2: dig-to-reveal + camera follow; drag-scroll debug-only; game-owned `GameState`.
 - M3: `SaveStore` / `createLocalSaveStore`; 1s debounce + 30s max autosave; `?nosave=1` clears.
 - M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` give dirt / Reset / drag-scroll.
+- M5: offline claim at soft auto rate × 1/6 (max 24h); save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

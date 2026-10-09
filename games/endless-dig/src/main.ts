@@ -26,6 +26,14 @@ import {
   tickProduction,
   type GameState,
 } from "./gameState.js";
+import {
+  applyHiddenCatchUp,
+  claimOfflineReward,
+  computeHiddenCatchUp,
+  computeOfflineReward,
+  formatOfflineDuration,
+  type OfflineReward,
+} from "./offline.js";
 import { DIG_SAVE_KEY, loadGameState, saveGameState } from "./persist.js";
 import {
   SHOP_SECTIONS,
@@ -57,12 +65,19 @@ function readQueryFlags(): {
   worldExtent: number;
   nosave: boolean;
   debug: boolean;
+  /** Force an offline window of this many ms (testing). */
+  offlineMs: number;
 } {
   const params = new URLSearchParams(window.location.search);
   const nosave =
     params.get("nosave") === "1" || params.get("nosave") === "true";
   const debug =
     params.get("debug") === "1" || params.get("debug") === "true";
+
+  const offlineRaw = params.get("offlineMs");
+  const offlineParsed = offlineRaw ? Number.parseInt(offlineRaw, 10) : 0;
+  const offlineMs =
+    Number.isFinite(offlineParsed) && offlineParsed > 0 ? offlineParsed : 0;
 
   const raw = params.get("depth");
   if (!raw) {
@@ -71,6 +86,7 @@ function readQueryFlags(): {
       worldExtent: DEFAULT_WORLD_EXTENT,
       nosave,
       debug,
+      offlineMs,
     };
   }
   const n = Number.parseInt(raw, 10);
@@ -80,6 +96,7 @@ function readQueryFlags(): {
       worldExtent: DEFAULT_WORLD_EXTENT,
       nosave,
       debug,
+      offlineMs,
     };
   }
   return {
@@ -87,6 +104,7 @@ function readQueryFlags(): {
     worldExtent: Math.max(n, DEFAULT_WORLD_EXTENT),
     nosave,
     debug,
+    offlineMs,
   };
 }
 
@@ -117,8 +135,10 @@ async function boot(): Promise<() => void> {
     worldExtent: extentFromQuery,
     nosave,
     debug,
+    offlineMs: offlineMsQuery,
   } = readQueryFlags();
   const store = createLocalSaveStore({ key: DIG_SAVE_KEY });
+  const wallClock = (): number => Date.now();
 
   let state: GameState;
   if (nosave) {
@@ -127,6 +147,16 @@ async function boot(): Promise<() => void> {
   } else {
     const loaded = await loadGameState(store);
     state = loaded ?? freshState(depthQuery);
+  }
+
+  let pendingOffline: OfflineReward | null = null;
+  {
+    const nowMs = wallClock();
+    const lastPlayed =
+      offlineMsQuery > 0
+        ? nowMs - offlineMsQuery
+        : state.lastPlayedAtMs;
+    pendingOffline = computeOfflineReward(state, lastPlayed, nowMs);
   }
 
   // Extent must cover query depth and any deeper saved progress.
@@ -181,6 +211,15 @@ async function boot(): Promise<() => void> {
   const resetButton =
     document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
+  const offlineBackdrop = document.querySelector<HTMLElement>(
+    "[data-offline-backdrop]",
+  );
+  const offlineClaim = document.querySelector<HTMLButtonElement>(
+    "#offline-claim",
+  );
+  const offlineDurationEl = document.querySelector("[data-offline-duration]");
+  const offlineDepthEl = document.querySelector("[data-offline-depth]");
+  const offlineDirtEl = document.querySelector("[data-offline-dirt]");
 
   const setDebugSheetOpen = (open: boolean): void => {
     if (open) {
@@ -245,9 +284,52 @@ async function boot(): Promise<() => void> {
 
   const autosave = createAutosave({
     store,
-    getState: () => state,
+    getState: () => {
+      // Keep the offline clock fresh while playing; freeze it while a claim
+      // is pending so a reload still offers the same reward.
+      if (!pendingOffline) state.lastPlayedAtMs = wallClock();
+      return state;
+    },
     onSaved: showSavedIndicator,
   });
+
+  const hideOfflineModal = (): void => {
+    offlineBackdrop?.setAttribute("hidden", "");
+    document.documentElement.dataset.psgeOffline = "none";
+  };
+
+  const showOfflineModal = (reward: OfflineReward): void => {
+    if (offlineDurationEl) {
+      offlineDurationEl.textContent = formatOfflineDuration(reward.elapsedMs);
+    }
+    if (offlineDepthEl) {
+      offlineDepthEl.textContent = `+${formatMeters(reward.depthGained)} m`;
+    }
+    if (offlineDirtEl) {
+      offlineDirtEl.textContent = `+${formatAmount(reward.dirtGained)}`;
+    }
+    offlineBackdrop?.removeAttribute("hidden");
+    document.documentElement.dataset.psgeOffline = "pending";
+    setShopOpen(false);
+    setDebugSheetOpen(false);
+  };
+
+  const onOfflineClaim = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!pendingOffline) return;
+    claimOfflineReward(state, pendingOffline);
+    pendingOffline = null;
+    state.lastPlayedAtMs = wallClock();
+    hideOfflineModal();
+    document.documentElement.dataset.psgeOffline = "claimed";
+    applyPlayView();
+    autosave.markDirty();
+    void autosave.flush().catch((err) => console.error(err));
+  };
+  offlineClaim?.addEventListener("click", onOfflineClaim);
+  offlineClaim?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  offlineBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const shopButtons = new Map<UpgradeId, HTMLButtonElement>();
 
@@ -461,18 +543,71 @@ async function boot(): Promise<() => void> {
   const flushSave = (): void => {
     void autosave.flush().catch((err) => console.error(err));
   };
-  const onPageHide = (): void => flushSave();
+
+  /** Stamp "left at" so tab switches / minimize count as away time. */
+  const stampLeftAt = (): void => {
+    if (pendingOffline) return;
+    state.lastPlayedAtMs = wallClock();
+  };
+
+  /**
+   * Tab return or resume: ≥30s → offline claim (1/6); shorter → full-rate catch-up.
+   * (rAF is paused in background, so without this neither live nor offline ran.)
+   */
+  const handleReturnFromBackground = (): void => {
+    if (pendingOffline) return;
+    const nowMs = wallClock();
+    const last = state.lastPlayedAtMs;
+    const reward = computeOfflineReward(state, last, nowMs);
+    if (reward) {
+      pendingOffline = reward;
+      showOfflineModal(reward);
+      return;
+    }
+    const catchUp = computeHiddenCatchUp(state, last, nowMs);
+    if (catchUp) {
+      applyHiddenCatchUp(state, catchUp);
+      applyPlayView();
+      autosave.markDirty();
+    }
+    state.lastPlayedAtMs = nowMs;
+  };
+
+  let pageWasHidden = document.visibilityState === "hidden";
+  const onPageHide = (): void => {
+    stampLeftAt();
+    flushSave();
+  };
   const onVisibility = (): void => {
-    if (document.visibilityState === "hidden") flushSave();
+    if (document.visibilityState === "hidden") {
+      pageWasHidden = true;
+      stampLeftAt();
+      flushSave();
+      return;
+    }
+    if (!pageWasHidden) return;
+    pageWasHidden = false;
+    handleReturnFromBackground();
   };
   window.addEventListener("pagehide", onPageHide);
   document.addEventListener("visibilitychange", onVisibility);
 
   applyPlayView();
+  if (pendingOffline) showOfflineModal(pendingOffline);
+  else {
+    hideOfflineModal();
+    if (!state.lastPlayedAtMs) {
+      state.lastPlayedAtMs = wallClock();
+      autosave.markDirty();
+    }
+  }
+
   /** Pace subtle passive chips so high rates don't look like tap bursts. */
   let trickleCooldown = 0;
   app.startLoop((dt) => {
     world.update(dt);
+    // Pause live auto-dig while the offline claim is open (avoid double-dipping).
+    if (pendingOffline) return;
     trickleCooldown = Math.max(0, trickleCooldown - dt);
     if (!tickProduction(state, dt)) return;
     syncFromState();
@@ -501,7 +636,7 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "4";
+  document.documentElement.dataset.psgeMilestone = "5";
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -518,6 +653,7 @@ async function boot(): Promise<() => void> {
     debugFab?.removeEventListener("click", onDebugFabToggle);
     debugClose?.removeEventListener("click", onDebugSheetClose);
     debugBackdrop?.removeEventListener("click", onDebugSheetClose);
+    offlineClaim?.removeEventListener("click", onOfflineClaim);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);

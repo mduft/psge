@@ -28,19 +28,19 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 4 (current)
+## Milestone 5 (current)
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
 
-**M4 play:** Tap to dig; spend **Dirt** in the shop for dig-power and passive upgrades; camera follows dig face. Autosave via engine `SaveStore`. HUD: Depth / Dirt / Shop + fading Saved. World extent grows with dig (endless).
+**M5 play:** M4 loop plus **offline progression**. Autosave stores `lastPlayedAtMs`. Tab hide / page close stamps leave time; on return (or reload) with auto upgrades: **≥30s** → claim modal at soft auto rate × **1/6** (max **24h**); **&lt;30s** → silent full-rate catch-up. Depth and dirt both accrue.
 
-**Numbers:** Game-owned `decimal.js`; HUD idle suffixes (`K M B T` then `aa ab …`).
+**Numbers:** Game-owned `decimal.js`; HUD idle suffixes (`K M B T` then `aa ab …`); dig shown as **m/tap** and **m/s**.
 
-**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. `?debug=1` = give dirt, drag-scroll (off by default), Reset. Stress: `?nosave=1&depth=10000`.
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save; `?offlineMs=N` forces an offline window for claim UI; `?debug=1` = give dirt, drag-scroll (off by default), Reset. Stress: `?nosave=1&depth=10000`.
 
 Engine: `createApp`, loop, camera, `clampDelta`, `createSeededRng`, floating origin / chunk window, `createHoldDragScroll`, `createLocalSaveStore`, `decideAutosave`.
 
-Dig rules, shop, Decimal state, and save payload live in the **game**.
+Dig rules, shop, offline math, Decimal state, and save payload live in the **game**.
 
 ## Visual verification
 

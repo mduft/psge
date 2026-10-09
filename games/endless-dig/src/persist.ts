@@ -21,6 +21,7 @@ export interface SerializedGameState {
   depth: string;
   dirt: string;
   upgrades: Record<string, number>;
+  lastPlayedAtMs: number;
 }
 
 function parseDecimalField(value: unknown): Decimal | null {
@@ -38,27 +39,61 @@ function parseDecimalField(value: unknown): Decimal | null {
   return null;
 }
 
-/** Migrate a v2 save blob into a v3 GameState (discards digPower). */
+function parseLastPlayedAtMs(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string" && value.length > 0) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  return 0;
+}
+
+function stateFromFields(
+  depth: Decimal,
+  dirt: Decimal,
+  upgrades: ReturnType<typeof normalizeUpgrades>,
+  lastPlayedAtMs: number,
+): GameState {
+  return createInitialState({
+    version: DIG_SAVE_VERSION,
+    depth,
+    dirt,
+    upgrades,
+    lastPlayedAtMs,
+  });
+}
+
+/** Migrate a v2 save blob into current GameState (discards digPower). */
 export function migrateV2ToV3(data: Record<string, unknown>): GameState | null {
   if (data.version !== 2) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
   if (!depth || !dirt) return null;
-  return createInitialState({
-    version: DIG_SAVE_VERSION,
-    depth,
-    dirt,
-    upgrades: {},
-  });
+  // v2 → current: no offline clock (avoid a surprise mega-claim).
+  return stateFromFields(depth, dirt, normalizeUpgrades(undefined), 0);
+}
+
+/** Migrate a v3 save blob into v4 (adds lastPlayedAtMs = 0). */
+export function migrateV3ToV4(data: Record<string, unknown>): GameState | null {
+  if (data.version !== 3) return null;
+  const depth = parseDecimalField(data.depth);
+  const dirt = parseDecimalField(data.dirt);
+  if (!depth || !dirt) return null;
+  const upgrades =
+    data.upgrades && typeof data.upgrades === "object"
+      ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
+      : normalizeUpgrades(undefined);
+  return stateFromFields(depth, dirt, upgrades, 0);
 }
 
 export function parseGameState(data: unknown): GameState | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
 
-  if (o.version === 2) {
-    return migrateV2ToV3(o);
-  }
+  if (o.version === 2) return migrateV2ToV3(o);
+  if (o.version === 3) return migrateV3ToV4(o);
 
   if (o.version !== DIG_SAVE_VERSION) return null;
 
@@ -71,12 +106,12 @@ export function parseGameState(data: unknown): GameState | null {
       ? normalizeUpgrades(o.upgrades as Record<string, unknown>)
       : normalizeUpgrades(undefined);
 
-  return createInitialState({
-    version: DIG_SAVE_VERSION,
+  return stateFromFields(
     depth,
     dirt,
     upgrades,
-  });
+    parseLastPlayedAtMs(o.lastPlayedAtMs),
+  );
 }
 
 export function serializeGameState(state: GameState): SerializedGameState {
@@ -85,6 +120,7 @@ export function serializeGameState(state: GameState): SerializedGameState {
     depth: state.depth.toString(),
     dirt: state.dirt.toString(),
     upgrades: { ...state.upgrades },
+    lastPlayedAtMs: state.lastPlayedAtMs,
   };
 }
 

@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # The Endless Dig — Agent Guide
 
-Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 4).
+Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 5).
 
 ## Commands
 
@@ -16,8 +16,9 @@ Dev URL examples:
 - `http://<host>:5173/?nosave=1` — clear save, fresh run
 - `http://<host>:5173/?nosave=1&depth=10000` — reset + stress shaft
 - `http://<host>:5173/?debug=1` — debug panel (give dirt, drag-scroll opt-in, Reset)
+- `http://<host>:5173/?offlineMs=3600000` — pretend away for N ms (claim modal if auto dig owned)
 
-## Milestone 4
+## Milestone 5
 
 - Tap to dig; HUD stats + separate shop panel; camera follows dig face
 - Wide: stats panel + shop panel stacked (top-right)
@@ -25,14 +26,15 @@ Dev URL examples:
 - Camera framing is aspect-aware (`digCamera.ts`) — closer on wide / fullscreen so sky does not show past the cutaway
 - Dig/passive amounts soft-capped via `softDigAmount` (`softDig.ts`) so high gear speeds up without linear blur
 - Manual dig: punchy chip burst; passive dig: quieter trickle FX at the dig face
-- Shop: spend dirt on shovel / pickaxe / jackhammer (dig power) and cart / drill / crew (depth/s)
+- Shop: Per tap vs Auto dig sections; effects in **m/tap** / **m/s**
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)
 - Canvas cursor: spoon → shovel → pickaxe → jackhammer (`assets/textures/cursors/*.png`; hotspots in `src/digCursor.ts`)
 - Passive dig via `startLoop`; Decimal depth/dirt; idle `formatAmount` (`2.1K`, `2.1aa`, …)
+- **Offline:** tab hide / unload stamps leave time; return ≥**30s** → claim modal at soft auto × **1/6** (max **24h**); shorter hide → silent full-rate catch-up; `lastPlayedAtMs` on save
 - World extent **grows** with dig (not capped at 1000); chunk streaming + floating origin
 - `?debug=1`: give-dirt buttons, drag-scroll (default off), Reset (clears save)
 - Autosave: 1s debounce, 30s max-while-dirty, flush on hide; fading **Saved**
-- Save key: `psge:endless-dig:save` via `createLocalSaveStore` (version **3**; v2 migrates)
+- Save key: `psge:endless-dig:save` via `createLocalSaveStore` (version **4**; v2/v3 migrate)
 
 Dev hooks: `window.__psgeApp`, `__psgeWorld`, `__psgeScroll`, `__psgeState`, `__psgeSaveStore`
 

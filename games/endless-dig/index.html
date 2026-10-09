@@ -160,6 +160,41 @@
         <p class="hud-hint">
           Tap to dig · spend dirt in the shop · ?debug=1 for tools
         </p>
+
+        <div
+          id="offline-backdrop"
+          class="offline-backdrop"
+          hidden
+          data-offline-backdrop
+        >
+          <div
+            class="offline-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="offline-title"
+          >
+            <h2 id="offline-title" class="offline-title">Welcome back</h2>
+            <p class="offline-away">
+              Away for <span data-offline-duration>—</span>
+            </p>
+            <ul class="offline-rewards">
+              <li>
+                <span class="offline-reward-label">Depth</span>
+                <span class="offline-reward-value" data-offline-depth>+0 m</span>
+              </li>
+              <li>
+                <span class="offline-reward-label">Dirt</span>
+                <span class="offline-reward-value" data-offline-dirt>+0</span>
+              </li>
+            </ul>
+            <p class="offline-note">
+              Away ≥30s counts as offline — auto-dig at 1/6 speed (max 24h).
+            </p>
+            <button type="button" id="offline-claim" class="offline-claim">
+              Claim
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

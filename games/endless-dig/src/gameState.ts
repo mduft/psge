@@ -19,8 +19,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (M4+). */
-export const GAME_STATE_VERSION = 3;
+/** Persist / GameState schema version (M5+: offline timestamp). */
+export const GAME_STATE_VERSION = 4;
 
 export interface GameState {
   version: number;
@@ -30,6 +30,11 @@ export interface GameState {
   dirt: Decimal;
   /** Owned upgrade levels. */
   upgrades: UpgradeLevels;
+  /**
+   * Wall-clock ms when the player was last active (saved on autosave).
+   * `0` means unknown — no offline claim on load.
+   */
+  lastPlayedAtMs: number;
 }
 
 export function toDecimal(value: Decimal.Value): Decimal {
@@ -42,6 +47,7 @@ export function createInitialState(
     depth?: Decimal.Value;
     dirt?: Decimal.Value;
     upgrades?: Partial<UpgradeLevels>;
+    lastPlayedAtMs?: number;
   } = {},
 ): GameState {
   const upgrades = emptyUpgrades();
@@ -53,11 +59,18 @@ export function createInitialState(
       }
     }
   }
+  const last =
+    typeof overrides.lastPlayedAtMs === "number" &&
+    Number.isFinite(overrides.lastPlayedAtMs) &&
+    overrides.lastPlayedAtMs >= 0
+      ? Math.floor(overrides.lastPlayedAtMs)
+      : 0;
   return {
     version: overrides.version ?? GAME_STATE_VERSION,
     depth: toDecimal(overrides.depth ?? 0),
     dirt: toDecimal(overrides.dirt ?? 0),
     upgrades,
+    lastPlayedAtMs: last,
   };
 }
 
@@ -151,4 +164,5 @@ export function resetProgress(state: GameState): void {
   state.dirt = new Decimal(0);
   state.upgrades = emptyUpgrades();
   state.version = GAME_STATE_VERSION;
+  state.lastPlayedAtMs = 0;
 }

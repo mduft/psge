@@ -8,6 +8,7 @@ import { createInitialState } from "../src/gameState.js";
 import {
   loadGameState,
   migrateV2ToV3,
+  migrateV3ToV4,
   parseGameState,
   saveGameState,
   serializeGameState,
@@ -23,11 +24,12 @@ describe("parseGameState", () => {
     });
     expect(s?.depth.toNumber()).toBe(1.5);
     expect(s?.dirt.toNumber()).toBe(6);
-    expect(s?.version).toBe(3);
+    expect(s?.version).toBe(4);
     expect(s?.upgrades.shovel).toBe(0);
+    expect(s?.lastPlayedAtMs).toBe(0);
   });
 
-  it("accepts version 3 string Decimals + upgrades", () => {
+  it("migrates version 3 upgrades and clears offline clock", () => {
     const s = parseGameState({
       version: 3,
       depth: "12.5",
@@ -36,6 +38,20 @@ describe("parseGameState", () => {
     });
     expect(s?.depth.toNumber()).toBe(12.5);
     expect(s?.upgrades.shovel).toBe(2);
+    expect(s?.upgrades.cart).toBe(1);
+    expect(s?.version).toBe(4);
+    expect(s?.lastPlayedAtMs).toBe(0);
+  });
+
+  it("accepts version 4 with lastPlayedAtMs", () => {
+    const s = parseGameState({
+      version: 4,
+      depth: "3",
+      dirt: "12",
+      upgrades: { cart: 1 },
+      lastPlayedAtMs: 1_700_000_000_000,
+    });
+    expect(s?.lastPlayedAtMs).toBe(1_700_000_000_000);
     expect(s?.upgrades.cart).toBe(1);
   });
 
@@ -46,9 +62,13 @@ describe("parseGameState", () => {
   });
 });
 
-describe("migrateV2ToV3", () => {
-  it("returns null for non-v2", () => {
+describe("migrate helpers", () => {
+  it("migrateV2ToV3 returns null for non-v2", () => {
     expect(migrateV2ToV3({ version: 3, depth: 1, dirt: 1 })).toBeNull();
+  });
+
+  it("migrateV3ToV4 returns null for non-v3", () => {
+    expect(migrateV3ToV4({ version: 4, depth: 1, dirt: 1 })).toBeNull();
   });
 });
 
@@ -59,19 +79,22 @@ describe("saveGameState / loadGameState", () => {
       depth: 4,
       dirt: 16,
       upgrades: { shovel: 1 },
+      lastPlayedAtMs: 42,
     });
     await saveGameState(store, state);
     const raw = await store.load();
     expect(raw).toMatchObject({
-      version: 3,
+      version: 4,
       depth: "4",
       dirt: "16",
+      lastPlayedAtMs: 42,
       upgrades: expect.objectContaining({ shovel: 1 }),
     });
     const loaded = await loadGameState(store);
     expect(loaded?.depth.eq(state.depth)).toBe(true);
     expect(loaded?.dirt.eq(state.dirt)).toBe(true);
     expect(loaded?.upgrades.shovel).toBe(1);
+    expect(loaded?.lastPlayedAtMs).toBe(42);
   });
 
   it("serialize omits legacy digPower", () => {
@@ -79,5 +102,6 @@ describe("saveGameState / loadGameState", () => {
     const blob = serializeGameState(state);
     expect(blob).not.toHaveProperty("digPower");
     expect(blob.upgrades.shovel).toBe(1);
+    expect(blob).toHaveProperty("lastPlayedAtMs");
   });
 });

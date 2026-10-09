@@ -344,6 +344,109 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.offline-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding:
+    calc(1rem + var(--safe-top))
+    calc(1rem + var(--safe-right))
+    calc(1rem + var(--safe-bottom))
+    calc(1rem + var(--safe-left));
+  background: rgba(6, 10, 16, 0.62);
+  pointer-events: auto;
+  text-shadow: none;
+}
+
+.offline-backdrop[hidden] {
+  display: none !important;
+}
+
+.offline-modal {
+  width: min(20rem, 100%);
+  padding: 1.1rem 1.15rem 1.15rem;
+  background: rgba(12, 16, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.65rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.offline-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.offline-away {
+  margin: 0.35rem 0 0.85rem;
+  color: var(--hud-muted);
+  font-size: 0.88rem;
+}
+
+.offline-rewards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.offline-rewards li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.offline-reward-label {
+  color: var(--hud-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.offline-reward-value {
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+}
+
+.offline-note {
+  margin: 0.75rem 0 0.9rem;
+  color: var(--hud-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.offline-claim {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  background: rgba(196, 165, 116, 0.28);
+  border: 1px solid rgba(196, 165, 116, 0.5);
+  cursor: pointer;
+}
+
+.offline-claim:hover,
+.offline-claim:focus-visible {
+  background: rgba(196, 165, 116, 0.4);
+  outline: none;
+}
+
 .save-indicator {
   position: absolute;
   right: calc(0.9rem + var(--safe-right));

@@ -427,6 +427,64 @@ test("passive cart digs without tapping", async ({ page }) => {
     .not.toBe("0");
 });
 
+test("offline claim grants depth and dirt", async ({ page }) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+
+  // Keep in-memory state in sync so page teardown flush cannot clobber the seed.
+  await page.evaluate(async () => {
+    const w = window as unknown as {
+      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
+      __psgeState: {
+        depth: DecLike;
+        dirt: DecLike;
+        upgrades: Record<string, number>;
+        lastPlayedAtMs: number;
+      };
+    };
+    const leftAt = Date.now() - 3_600_000;
+    w.__psgeState.upgrades = {
+      shovel: 0,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 1,
+      drill: 0,
+      crew: 0,
+    };
+    w.__psgeState.lastPlayedAtMs = leftAt;
+    await w.__psgeSaveStore.save({
+      version: 4,
+      depth: w.__psgeState.depth.toString(),
+      dirt: w.__psgeState.dirt.toString(),
+      lastPlayedAtMs: leftAt,
+      upgrades: { ...w.__psgeState.upgrades },
+    });
+  });
+
+  await page.goto("/?offlineMs=3600000");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-offline",
+    "pending",
+  );
+  await expect(page.locator("#offline-backdrop")).toBeVisible();
+  await expect(page.locator("#offline-claim")).toBeVisible();
+
+  await page.locator("#offline-claim").click();
+
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-offline",
+    "claimed",
+  );
+  await expect(page.locator("#offline-backdrop")).toBeHidden();
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .not.toBe("0");
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-dirt"))
+    .not.toBe("0");
+});
+
 test("debug=1 shows tools; default hides them", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
