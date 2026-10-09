@@ -15,6 +15,7 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
+  type BufferAttribute,
   type Scene,
 } from "three";
 import { getBlockMaterial } from "./blockMaterials.js";
@@ -33,12 +34,22 @@ export interface DigWorld {
   /** Vertical chunk index containing the logical focus. */
   getFocusChunkIndex(): number;
   getLoadedChunkCount(): number;
+  /** How far the open shaft cavity goes (positive blocks down). */
+  getExcavatedDepth(): number;
+  setExcavatedDepth(depth: number): void;
+  /** Solid-earth generation extent (positive blocks down). */
+  getWorldExtent(): number;
   dispose(): void;
 }
 
 export interface DigWorldOptions {
-  /** Pre-carved shaft depth in blocks (M1.1 scroll test). */
-  shaftDepth?: number;
+  /**
+   * How far solid earth is generated (look-ahead / debug scroll).
+   * Not the same as excavated (dug) depth.
+   */
+  worldExtent?: number;
+  /** Initial open shaft depth (normally 0 until the player digs). */
+  excavatedDepth?: number;
 }
 
 /** Half-disk grass radius extending away from the player (−Z). */
@@ -56,10 +67,32 @@ const CHUNK_SIZE = 16;
 const CHUNK_RADIUS = 3;
 /** Rebase floating origin when focus drifts this many blocks from origin. */
 const REBASE_THRESHOLD = 48;
-/** Solid earth continuing below the shaft floor so the bottom does not look clipped. */
-const BELOW_SHAFT_BLOCKS = 48;
+/** Solid earth continuing below worldExtent so the bottom does not look clipped. */
+const BELOW_EXTENT_BLOCKS = 48;
 
 const sharedBox = new BoxGeometry(1, 1, 1);
+
+/** Partial dig-face cubes with UVs that keep texel density (no squash). */
+const partialBoxCache = new Map<number, BoxGeometry>();
+
+function getPartialBox(height: number): BoxGeometry {
+  const key = Math.max(1, Math.round(height * 32));
+  let geo = partialBoxCache.get(key);
+  if (geo) return geo;
+  const h = key / 32;
+  geo = new BoxGeometry(1, h, 1);
+  // BoxGeometry faces: +x,-x,+y,-y,+z,-z — each 4 verts. Keep side texel density.
+  const uv = geo.attributes.uv as BufferAttribute;
+  for (const face of [0, 1, 4, 5]) {
+    for (let i = 0; i < 4; i++) {
+      const idx = face * 4 + i;
+      uv.setY(idx, uv.getY(idx) * h);
+    }
+  }
+  uv.needsUpdate = true;
+  partialBoxCache.set(key, geo);
+  return geo;
+}
 
 const TREE_SPOTS: Array<[number, number]> = [
   [-7, -2],
@@ -90,14 +123,16 @@ const TREE_SPOTS: Array<[number, number]> = [
 ];
 
 /**
- * Chunked cutaway world with floating-origin rebasing for deep shafts.
- * Streaming/origin math comes from `@psge/engine`; terrain content stays here.
+ * Chunked cutaway world with floating-origin rebasing.
+ * Cavity depth follows excavation; worldExtent bounds solid generation.
  */
 export function buildDigWorld(
   scene: Scene,
   options: DigWorldOptions = {},
 ): DigWorld {
-  const shaftDepth = Math.max(0, Math.floor(options.shaftDepth ?? 1000));
+  const worldExtent = Math.max(0, Math.floor(options.worldExtent ?? 1000));
+  let excavatedDepth = Math.max(0, options.excavatedDepth ?? 0);
+  excavatedDepth = Math.min(excavatedDepth, worldExtent);
 
   scene.background = createSkyColor();
   scene.fog = new Fog(new Color(0x87b7e0), 45, 100);
@@ -112,7 +147,7 @@ export function buildDigWorld(
 
   const chunkGroups = new Map<number, Group>();
 
-  let focusBlockY = -1.2;
+  let focusBlockY = -0.4;
 
   const floating = createFloatingOrigin({
     rebaseThreshold: REBASE_THRESHOLD,
@@ -131,32 +166,70 @@ export function buildDigWorld(
     return x * x + z * z <= SURFACE_RADIUS * SURFACE_RADIUS;
   };
 
+  const loadChunk = (idx: number): void => {
+    const chunk = buildChunk(
+      idx,
+      excavatedDepth,
+      worldExtent,
+      inShaft,
+      onSurfaceDisk,
+    );
+    chunkGroups.set(idx, chunk);
+    content.add(chunk);
+  };
+
+  const unloadChunk = (idx: number): void => {
+    const group = chunkGroups.get(idx);
+    if (!group) return;
+    disposeChunkGroup(group);
+    content.remove(group);
+    chunkGroups.delete(idx);
+  };
+
   const chunks = createChunkWindow({
     chunkSize: CHUNK_SIZE,
     radius: CHUNK_RADIUS,
-    load: (idx) => {
-      const chunk = buildChunk(idx, shaftDepth, inShaft, onSurfaceDisk);
-      chunkGroups.set(idx, chunk);
-      content.add(chunk);
-    },
-    unload: (idx) => {
-      const group = chunkGroups.get(idx);
-      if (!group) return;
-      disposeChunkGroup(group);
-      content.remove(group);
-      chunkGroups.delete(idx);
-    },
+    load: loadChunk,
+    unload: unloadChunk,
     // Keep surface chunk while near the top so the half-disk does not pop.
     extraKeep: (focus) =>
       focus > -CHUNK_SIZE * (CHUNK_RADIUS + 1) ? [0] : [],
   });
 
+  const reloadChunkIfLoaded = (idx: number): void => {
+    if (!chunkGroups.has(idx)) return;
+    unloadChunk(idx);
+    loadChunk(idx);
+  };
+
+  const refreshCavityRange = (prevDepth: number, nextDepth: number): void => {
+    const lo = Math.min(prevDepth, nextDepth);
+    const hi = Math.max(prevDepth, nextDepth);
+    const yStart = Math.floor(-hi) - 1;
+    const yEnd = Math.ceil(-lo) + 1;
+    const seen = new Set<number>();
+    for (let y = yStart; y <= yEnd; y++) {
+      const idx = engineChunkIndex(y, CHUNK_SIZE);
+      if (seen.has(idx)) continue;
+      seen.add(idx);
+      reloadChunkIfLoaded(idx);
+    }
+  };
+
   const setFocusBlockY = (blockY: number): void => {
-    const minY = -(shaftDepth - 1.5);
+    const minY = -(worldExtent - 1.5);
     const maxY = 2.5;
     focusBlockY = Math.min(maxY, Math.max(minY, blockY));
     floating.rebaseIfNeeded(focusBlockY);
     chunks.sync(focusBlockY);
+  };
+
+  const setExcavatedDepth = (depth: number): void => {
+    const next = Math.min(worldExtent, Math.max(0, depth));
+    if (next === excavatedDepth) return;
+    const prev = excavatedDepth;
+    excavatedDepth = next;
+    refreshCavityRange(prev, next);
   };
 
   scene.add(root);
@@ -170,6 +243,9 @@ export function buildDigWorld(
     getOriginBlockY: () => floating.getOrigin(),
     getFocusChunkIndex: () => engineChunkIndex(Math.floor(focusBlockY), CHUNK_SIZE),
     getLoadedChunkCount: () => chunks.getLoadedCount(),
+    getExcavatedDepth: () => excavatedDepth,
+    setExcavatedDepth,
+    getWorldExtent: () => worldExtent,
     dispose(): void {
       chunks.dispose();
       scene.remove(root);
@@ -188,23 +264,45 @@ function strata(y: number): BlockId {
 
 function buildChunk(
   index: number,
-  shaftDepth: number,
+  excavatedDepth: number,
+  worldExtent: number,
   inShaft: (x: number, z: number) => boolean,
   onSurfaceDisk: (x: number, z: number) => boolean,
 ): Group {
   const { min: yMin, max: yMax } = chunkRange(index, CHUNK_SIZE);
   const buckets = new Map<BlockId, Matrix4[]>();
+  const partialBuckets = new Map<BlockId, Matrix4[]>();
+  let partialHeight = 0;
   const grassCaps: Matrix4[] = [];
+  const minY = -worldExtent - BELOW_EXTENT_BLOCKS;
 
-  const add = (id: BlockId, x: number, y: number, z: number): void => {
+  const add = (
+    id: BlockId,
+    x: number,
+    y: number,
+    z: number,
+    height = 1,
+  ): void => {
     if (y < yMin || y > yMax) return;
+    if (height <= 1e-6) return;
+    const m = new Matrix4();
+    m.setPosition(x + 0.5, y + height / 2, z + 0.5);
+    if (height < 1 - 1e-6) {
+      // Dig face: dedicated geometry (UV-correct) instead of Y-scale squash.
+      partialHeight = height;
+      let list = partialBuckets.get(id);
+      if (!list) {
+        list = [];
+        partialBuckets.set(id, list);
+      }
+      list.push(m);
+      return;
+    }
     let list = buckets.get(id);
     if (!list) {
       list = [];
       buckets.set(id, list);
     }
-    const m = new Matrix4();
-    m.setPosition(x + 0.5, y + 0.5, z + 0.5);
     list.push(m);
   };
 
@@ -223,8 +321,8 @@ function buildChunk(
             add,
             grassCaps,
             inShaft,
-            shaftDepth,
-            -shaftDepth - BELOW_SHAFT_BLOCKS,
+            excavatedDepth,
+            minY,
             x,
             y,
             z,
@@ -241,15 +339,24 @@ function buildChunk(
     }
   }
 
-  // Cutaway wall strip for underground rows (through shaft floor + padding below).
-  const worldMinY = -shaftDepth - BELOW_SHAFT_BLOCKS;
+  // Cutaway wall strip for underground rows (through dig face + padding below).
   const stripMax = Math.min(yMax, -3);
-  const stripMin = Math.max(yMin, worldMinY);
+  const stripMin = Math.max(yMin, minY);
   if (stripMax >= stripMin) {
     for (let x = -WALL_HALF; x <= WALL_HALF; x++) {
       for (let z = DEEP_CUT_Z; z <= Z_FRONT; z++) {
         for (let y = stripMax; y >= stripMin; y--) {
-          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, worldMinY, x, y, z, false);
+          placeColumnBlock(
+            add,
+            grassCaps,
+            inShaft,
+            excavatedDepth,
+            minY,
+            x,
+            y,
+            z,
+            false,
+          );
         }
       }
     }
@@ -265,6 +372,19 @@ function buildChunk(
     mesh.instanceMatrix.needsUpdate = true;
     mesh.frustumCulled = false;
     group.add(mesh);
+  }
+
+  if (partialHeight > 1e-6) {
+    const geo = getPartialBox(partialHeight);
+    for (const [id, matrices] of partialBuckets) {
+      if (matrices.length === 0) continue;
+      const mesh = new InstancedMesh(geo, getBlockMaterial(id), matrices.length);
+      matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      mesh.name = "dig-face";
+      group.add(mesh);
+    }
   }
 
   if (grassCaps.length > 0) {
@@ -283,11 +403,27 @@ function buildChunk(
   return group;
 }
 
+/**
+ * Remaining height (0..1) of a shaft block at integer `blockY` given excavated depth.
+ * 0 = fully carved away; 1 = untouched; (0,1) = dig-face partial.
+ */
+export function shaftBlockRemainHeight(
+  blockY: number,
+  excavatedDepth: number,
+): number {
+  if (blockY > 0) return 1;
+  const fullDepth = Math.floor(excavatedDepth);
+  const frac = excavatedDepth - fullDepth;
+  if (blockY > -fullDepth) return 0;
+  if (frac > 1e-6 && blockY === -fullDepth) return 1 - frac;
+  return 1;
+}
+
 function placeColumnBlock(
-  add: (id: BlockId, x: number, y: number, z: number) => void,
+  add: (id: BlockId, x: number, y: number, z: number, height?: number) => void,
   grassCaps: Matrix4[],
   inShaft: (x: number, z: number) => boolean,
-  shaftDepth: number,
+  excavatedDepth: number,
   worldMinY: number,
   x: number,
   y: number,
@@ -295,8 +431,11 @@ function placeColumnBlock(
   allowGrass: boolean,
 ): void {
   if (y < worldMinY) return;
-  // Pre-carved shaft cavity only — floor and everything below use normal strata.
-  if (inShaft(x, z) && y <= 0 && y > -shaftDepth) {
+
+  if (inShaft(x, z) && y <= 0) {
+    const remain = shaftBlockRemainHeight(y, excavatedDepth);
+    if (remain <= 1e-6) return;
+    add(strata(y), x, y, z, remain);
     return;
   }
 

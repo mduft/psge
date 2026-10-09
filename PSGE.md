@@ -373,9 +373,9 @@ The same principle applies to modeling, texture creation, image processing, audi
 
 PSGE should orchestrate proven tools rather than duplicate them.
 
-## 4.8 Resolved decisions for Milestone 0 and 1
+## 4.8 Resolved decisions for Milestone 0 / 1 / 1.1 / 2
 
-The following choices are locked for implementing Milestone 0 and 1. They may still change later; see the unfrozen-API policy in §28.
+The following choices are locked for implementing these milestones. They may still change later; see the unfrozen-API policy in §28.
 
 | Topic | Decision |
 | --- | --- |
@@ -392,7 +392,11 @@ The following choices are locked for implementing Milestone 0 and 1. They may st
 | M1 presentation | Side-view **cutaway shaft**; surface extends left/right; camera ready to scroll down the shaft |
 | M1 shell UI | Full-bleed canvas (no window-in-window); transparent HUD overlays; dig = click canvas (no dedicated DIG button) |
 | Responsive | Usable on phone, tablet, desktop, and half-desktop split layouts |
-| Deep scroll (M1.1) | Vertical **chunk streaming** + **floating origin** rebasing; shaft depth via `?depth=` (default 1000) |
+| Deep scroll (M1.1) | Vertical **chunk streaming** + **floating origin** rebasing |
+| `?depth=N` (testing) | Pre-excavate to N and generate at least that far (`max(N, 1000)`); omit for normal play (dug 0) |
+| M2 dig | Straight-down only; **dig-to-reveal** cavity = excavated `depth`; camera **follows** dig face |
+| M2 input | Tap (no drag) digs; hold-drag scroll is **debug/testing** only for now |
+| M2 state | Plain game-owned `GameState` `{ version, depth, dirt, digPower }`; engine has no dig rules |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1608,22 +1612,26 @@ Out of scope for 1.1: dig-to-reveal (shaft still pre-carved for scroll testing);
 
 ## Milestone 2 — Input and state
 
-Add (first playable dig — not part of Milestone 1):
+First playable dig (locked in §4.8):
 
-- game state;
-- pointer input on the canvas;
-- one dig action (remove / deepen block layers);
-- dirt/progress counters in the HUD;
-- testable game logic.
+- plain `GameState` + pure `dig()` (Vitest, no WebGL);
+- tap canvas to dig (hold-drag scroll remains debug-only);
+- **dig-to-reveal**: shaft cavity deepens with excavated `depth` (not a pre-carved tunnel);
+- camera follows the dig face via the existing focus path;
+- Depth / Dirt HUD counters;
+- `?depth=` remains world **generation extent** for look-ahead / debug scroll.
 
 Sample:
 
 ```text
-click canvas
-→ progress increases
-→ blocks / shaft update
-→ HUD counters update
+tap canvas
+→ depth / dirt increase
+→ shaft cavity deepens
+→ camera follows dig face
+→ HUD updates
 ```
+
+Acceptance: unit tests for `dig()`; e2e tap increases Depth/Dirt and moves focus.
 
 ## Milestone 3 — Persistence
 
@@ -1815,7 +1823,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1
+## Resolved for Milestone 0 / 1 / 1.1 / 2
 
 See §4.8 for the decision table. In short:
 
@@ -1823,7 +1831,8 @@ See §4.8 for the decision table. In short:
 - Layout: monorepo with `@psge/engine` and `games/endless-dig`.
 - M1 API surface: §28.1 (`createApp`, `startLoop`, `loadGltf`, `setCamera`, `dispose`).
 - Camera/world defaults: §19.3 (Y-up, depth −Y, camera +Z, 1 block = 1 unit).
-- M1.1: vertical chunks + floating origin for deep shafts (default 1000; stress `?depth=10000`).
+- M1.1: vertical chunks + floating origin; `?depth=` = world extent (default 1000; stress `10000`).
+- M2: dig-to-reveal + camera follow; drag-scroll debug-only; game-owned `GameState`.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # The Endless Dig — Agent Guide
 
-Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 1.1).
+Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 2).
 
 ## Commands
 
@@ -9,28 +9,34 @@ From repo root: `npm run dev`, `npm run build`, `npm test`, `npm run test:e2e`.
 
 Dev URL examples:
 
-- `http://127.0.0.1:5173/` — shaft depth **1000** (default)
-- `http://127.0.0.1:5173/?depth=10000` — stress scroll
+- `http://127.0.0.1:5173/` — normal play (dug **0**, world extent **1000**)
+- `http://127.0.0.1:5173/?depth=100` — testing: start already dug to **100** m (extent at least 1000)
+- `http://127.0.0.1:5173/?depth=10000` — stress: pre-open shaft + generate to **10000**
 
-## Milestone 1.1
+## Milestone 2
 
-- Full-bleed canvas + HUD (Shaft / View / Chunk / Logical Y / Origin Y / Engine Y / Loaded)
-- Drag vertically to scroll (`src/cameraScroll.ts`)
-- Terrain / cutaway content in `src/world.ts`; streaming + origin via `@psge/engine`
-- 2×2 cutaway shaft; half-disk surface near the top only; Dig owns lighting/camera framing
+- Tap canvas to dig; HUD: **Depth**, **Dirt**, dig-power slider; camera follows dig face
+- Hold-drag scroll = debug/testing only
+- Dig-to-reveal cavity in `src/world.ts` (`excavatedDepth` vs `worldExtent`)
+- `?depth=N` pre-excavates to N for testing (omit for normal play)
+- State: `src/gameState.ts` — `createInitialState`, `dig`
+- Dig power slider: 1…256 steps of `1/32` block (default 1 = ~one screen pixel)
 
-Dev hooks: `window.__psgeApp`, `window.__psgeWorld`, `window.__psgeScroll`
+Dev hooks: `window.__psgeApp`, `window.__psgeWorld`, `window.__psgeScroll`, `window.__psgeState`
 
 Useful:
 
 ```js
-__psgeWorld.setFocusBlockY(-900)
+__psgeState.depth
+__psgeWorld.setExcavatedDepth(12)
+__psgeWorld.setFocusBlockY(-900) // debug scroll within worldExtent
 __psgeWorld.getLoadedChunkCount()
-__psgeWorld.getOriginBlockY()
 ```
 
 ## World conventions
 
-- Logical focus in **block units** (0 = surface, negative = down)
-- Render coords stay near 0 via origin rebase
+- `depth` / excavated depth: positive meters down from surface
+- Logical focus Y: `0` = surface, more negative = deeper
+- `?depth=N` = start pre-excavated to N (testing); world extent is at least `max(N, 1000)`
+- Render coords stay near 0 via floating origin
 - 1 block = 1 unit before `BLOCK_SCALE`
