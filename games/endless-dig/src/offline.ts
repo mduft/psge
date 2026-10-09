@@ -11,6 +11,7 @@ import {
   SHAFT_CROSS_SECTION,
   type GameState,
 } from "./gameState.js";
+import { applyLayerHardness } from "./geoLayers.js";
 import { softDigAmount } from "./softDig.js";
 
 /** Max offline window credited. */
@@ -65,8 +66,12 @@ export function computeOfflineReward(
   const elapsedMs = Math.min(rawElapsedMs, OFFLINE_MAX_MS);
   const softRatePerSec = softDigAmount(rate.toNumber());
   if (!(softRatePerSec > 0)) return null;
+  const hardRate = applyLayerHardness(
+    softRatePerSec,
+    state.depth.toNumber(),
+  );
 
-  const depthGained = new Decimal(softRatePerSec)
+  const depthGained = new Decimal(hardRate)
     .mul(elapsedMs / 1000)
     .mul(OFFLINE_EFFICIENCY);
   if (depthGained.lte(0)) return null;
@@ -76,7 +81,7 @@ export function computeOfflineReward(
     rawElapsedMs,
     depthGained,
     dirtGained: depthGained.mul(SHAFT_CROSS_SECTION),
-    softRatePerSec,
+    softRatePerSec: hardRate,
   };
 }
 
@@ -121,7 +126,11 @@ export function computeHiddenCatchUp(
   if (rate.lte(0)) return null;
   const softRatePerSec = softDigAmount(rate.toNumber());
   if (!(softRatePerSec > 0)) return null;
-  const depthGained = new Decimal(softRatePerSec).mul(elapsedMs / 1000);
+  const hardRate = applyLayerHardness(
+    softRatePerSec,
+    state.depth.toNumber(),
+  );
+  const depthGained = new Decimal(hardRate).mul(elapsedMs / 1000);
   if (depthGained.lte(0)) return null;
   return {
     elapsedMs,

@@ -12,6 +12,7 @@ import {
   UPGRADE_IDS,
   upgradeCost,
 } from "./upgrades.js";
+import { applyLayerHardness } from "./geoLayers.js";
 import { softDigAmount } from "./softDig.js";
 
 export { DEFAULT_DIG_POWER };
@@ -111,7 +112,10 @@ function applyDepthGain(state: GameState, gained: Decimal): void {
  */
 export function dig(state: GameState, maxDepth?: Decimal.Value): void {
   const power = Decimal.max(0, digPowerOf(state));
-  const gained = new Decimal(softDigAmount(power.toNumber()));
+  const soft = softDigAmount(power.toNumber());
+  const gained = new Decimal(
+    applyLayerHardness(soft, state.depth.toNumber()),
+  );
   let next = state.depth.plus(gained);
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
@@ -121,7 +125,8 @@ export function dig(state: GameState, maxDepth?: Decimal.Value): void {
 
 /**
  * Apply passive digging for `dt` seconds.
- * Soft-caps the nominal blocks/s the same way as tap dig power.
+ * Soft-caps the nominal blocks/s the same way as tap dig power, then applies
+ * geological layer hardness at the current depth.
  * @returns true if depth changed.
  */
 export function tickProduction(
@@ -134,7 +139,8 @@ export function tickProduction(
   if (rate.lte(0)) return false;
   const before = state.depth;
   const softRate = softDigAmount(rate.toNumber());
-  let next = state.depth.plus(new Decimal(softRate).mul(dt));
+  const hardRate = applyLayerHardness(softRate, state.depth.toNumber());
+  let next = state.depth.plus(new Decimal(hardRate).mul(dt));
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }

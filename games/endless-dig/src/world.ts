@@ -19,8 +19,16 @@ import {
   type Scene,
 } from "three";
 import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
-import { createSkyColor, type BlockId } from "./blockTextures.js";
+import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
 import { createDigParticles } from "./digParticles.js";
+import {
+  chipColorsForDepth,
+  geoLayerAt,
+  wallAccentAt,
+  wallAccentVariant,
+} from "./geoLayers.js";
+import { createShaftActors, type ShaftActors } from "./shaftActors.js";
+import type { UpgradeLevels } from "./upgrades.js";
 
 export interface DigWorld {
   /** Logical focus in block units (0 = surface, negative = down). */
@@ -45,6 +53,17 @@ export interface DigWorld {
    * Returns true when the extent grew.
    */
   ensureWorldExtent(minExtent: number): boolean;
+  /** Fog / sky / particle palette for the geo layer at `depth`. */
+  applyEnvironment(depth: number): void;
+  /**
+   * Scale authored fog near/far for the current camera distance
+   * (narrow panels pull back — without this, deep layers vanish).
+   */
+  setFogDistanceScale(scale: number): void;
+  /** Sync digger + machinery to dig face and upgrades. */
+  syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
+  playDigSwing(): void;
+  playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
   burstDigParticles(): void;
   /** Subtle chip trickle at the dig face (passive dig). */
@@ -183,8 +202,8 @@ export function buildDigWorld(
     worldExtent = Math.ceil(excavatedDepth) + WORLD_EXTENT_LOOKAHEAD;
   }
 
-  scene.background = createSkyColor();
-  scene.fog = new Fog(new Color(0x87b7e0), 45, 100);
+  scene.background = createSkyColor("soil");
+  scene.fog = new Fog(new Color(0x87b7e0), 22, 55);
 
   const root = new Group();
   root.name = "dig-world-root";
@@ -195,11 +214,38 @@ export function buildDigWorld(
   root.add(content);
 
   const particles = createDigParticles(content);
+  const actors: ShaftActors = createShaftActors(content);
   const chunkGroups = new Map<number, Group>();
   /** Dig-face partials live here so intra-block dig does not reload chunks. */
   const digFaceRoot = new Group();
   digFaceRoot.name = "dig-face-overlay";
   content.add(digFaceRoot);
+
+  let fogDistanceScale = 1;
+
+  const applyEnvironment = (depth: number): void => {
+    const layer = geoLayerAt(depth);
+    const sky = new Color(layer.mood.sky);
+    scene.background = sky;
+    if (scene.fog instanceof Fog) {
+      scene.fog.color.copy(sky);
+      const s = fogDistanceScale;
+      scene.fog.near = layer.mood.fogNear * s;
+      scene.fog.far = layer.mood.fogFar * s;
+    }
+    particles.setChipColors(chipColorsForDepth(depth));
+  };
+  applyEnvironment(excavatedDepth);
+
+  const setFogDistanceScale = (scale: number): void => {
+    const next =
+      Number.isFinite(scale) && scale > 0
+        ? Math.min(2.5, Math.max(0.5, scale))
+        : 1;
+    if (Math.abs(next - fogDistanceScale) < 1e-6) return;
+    fogDistanceScale = next;
+    applyEnvironment(excavatedDepth);
+  };
 
   let focusBlockY = -0.4;
 
@@ -295,9 +341,11 @@ export function buildDigWorld(
       }
     }
     for (const [id, matrices] of byId) {
+      // Dig face sits at one depth — use shaft-center family for the band.
+      const family = geoLayerAt(fullDepth, 0, 0).id as PaletteFamily;
       const mesh = new InstancedMesh(
         geo,
-        getDigFaceMaterials(id, remain),
+        getDigFaceMaterials(id, remain, family),
         matrices.length,
       );
       matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
@@ -347,6 +395,7 @@ export function buildDigWorld(
     // 1/32 while auto-digging through the same block (that was the stutter).
     if (structureChanged) refreshCavityRange(prev, next);
     rebuildDigFaceOverlay();
+    applyEnvironment(excavatedDepth);
   };
 
   scene.add(root);
@@ -365,6 +414,17 @@ export function buildDigWorld(
     setExcavatedDepth,
     getWorldExtent: () => worldExtent,
     ensureWorldExtent,
+    applyEnvironment,
+    setFogDistanceScale,
+    syncActors(depth: number, upgrades: UpgradeLevels): void {
+      actors.sync(depth, upgrades);
+    },
+    playDigSwing(): void {
+      actors.playDigSwing();
+    },
+    playCrewChip(): void {
+      actors.playCrewChip();
+    },
     burstDigParticles(): void {
       particles.burst(excavatedDepth);
     },
@@ -373,8 +433,10 @@ export function buildDigWorld(
     },
     update(dtSeconds: number): void {
       particles.update(dtSeconds);
+      actors.update(dtSeconds);
     },
     dispose(): void {
+      actors.dispose();
       particles.dispose();
       disposeChunkGroup(digFaceRoot);
       chunks.dispose();
@@ -484,7 +546,14 @@ function buildChunk(
   onSurfaceDisk: (x: number, z: number) => boolean,
 ): Group {
   const { min: yMin, max: yMax } = chunkRange(index, CHUNK_SIZE);
-  const buckets = new Map<BlockId, Matrix4[]>();
+  type Bucket = {
+    id: BlockId;
+    family: PaletteFamily;
+    variant: number;
+    under?: BlockId;
+    matrices: Matrix4[];
+  };
+  const buckets = new Map<string, Bucket>();
   const grassCaps: Matrix4[] = [];
   const minY = -worldExtent - BELOW_EXTENT_BLOCKS;
 
@@ -494,20 +563,28 @@ function buildChunk(
     y: number,
     z: number,
     height = 1,
+    accent?: { variant: number; under?: BlockId },
   ): void => {
     if (y < yMin || y > yMax) return;
     const h =
       height < 1 - 1e-6 ? quantizePartialHeight(height) : 1;
     // Partials are drawn by digFaceRoot overlay — skip here to avoid chunk thrash.
     if (h <= 1e-6 || h < 1 - 1e-6) return;
+    const family = geoLayerAt(Math.max(0, -y), x, z).id as PaletteFamily;
+    const variant = accent?.variant ?? 0;
+    const under = accent?.under;
+    const key =
+      id === "lava" || id === "gem"
+        ? `${family}:${id}:${variant}:${under ?? ""}`
+        : `${family}:${id}`;
     const m = new Matrix4();
     m.setPosition(x + 0.5, y + h / 2, z + 0.5);
-    let list = buckets.get(id);
-    if (!list) {
-      list = [];
-      buckets.set(id, list);
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { id, family, variant, under, matrices: [] };
+      buckets.set(key, bucket);
     }
-    list.push(m);
+    bucket.matrices.push(m);
   };
 
   const nearSurface = yMax >= -2 && yMin <= 8;
@@ -569,9 +646,13 @@ function buildChunk(
   const group = new Group();
   group.name = `chunk-${index}`;
 
-  for (const [id, matrices] of buckets) {
+  for (const { id, family, variant, under, matrices } of buckets.values()) {
     if (matrices.length === 0) continue;
-    const mesh = new InstancedMesh(sharedBox, getBlockMaterial(id), matrices.length);
+    const mesh = new InstancedMesh(
+      sharedBox,
+      getBlockMaterial(id, family, { variant, under }),
+      matrices.length,
+    );
     matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.frustumCulled = false;
@@ -581,7 +662,7 @@ function buildChunk(
   if (grassCaps.length > 0) {
     const mesh = new InstancedMesh(
       sharedBox,
-      getBlockMaterial("grass"),
+      getBlockMaterial("grass", "soil"),
       grassCaps.length,
     );
     grassCaps.forEach((m, i) => mesh.setMatrixAt(i, m));
@@ -611,7 +692,14 @@ export function shaftBlockRemainHeight(
 }
 
 function placeColumnBlock(
-  add: (id: BlockId, x: number, y: number, z: number, height?: number) => void,
+  add: (
+    id: BlockId,
+    x: number,
+    y: number,
+    z: number,
+    height?: number,
+    accent?: { variant: number; under?: BlockId },
+  ) => void,
   grassCaps: Matrix4[],
   inShaft: (x: number, z: number) => boolean,
   excavatedDepth: number,
@@ -623,6 +711,7 @@ function placeColumnBlock(
 ): void {
   if (y < worldMinY) return;
 
+  // Shaft path never gets lava/gem — accents would vanish as you dig through.
   if (inShaft(x, z) && y <= 0) {
     const remain = shaftBlockRemainHeight(y, excavatedDepth);
     if (remain <= 1e-6) return;
@@ -630,7 +719,16 @@ function placeColumnBlock(
     return;
   }
 
-  add(strataAt(x, y, z), x, y, z);
+  const base = strataAt(x, y, z);
+  const accent = wallAccentAt(x, y, z);
+  if (accent) {
+    add(accent, x, y, z, 1, {
+      variant: wallAccentVariant(x, y, z),
+      under: accent === "gem" ? base : undefined,
+    });
+  } else {
+    add(base, x, y, z);
+  }
 
   if (allowGrass && y === 0 && !inShaft(x, z)) {
     const cap = new Matrix4();

@@ -10,6 +10,11 @@ import {
   SRGBColorSpace,
   type Material,
 } from "three";
+import {
+  GEO_LAYERS,
+  tintHex,
+  type GeoLayerId,
+} from "./geoLayers.js";
 
 export type BlockId =
   | "grass"
@@ -19,7 +24,11 @@ export type BlockId =
   | "deepslate"
   | "log"
   | "leaves"
-  | "cobble";
+  | "cobble"
+  | "lava"
+  | "gem";
+
+export type PaletteFamily = GeoLayerId;
 
 interface BlockPalette {
   top: string;
@@ -28,7 +37,7 @@ interface BlockPalette {
   noise: number;
 }
 
-const PALETTES: Record<BlockId, BlockPalette> = {
+const BASE_PALETTES: Record<BlockId, BlockPalette> = {
   grass: { top: "#5d9b3a", side: "#8b5a2b", bottom: "#6b4424", noise: 28 },
   dirt: { top: "#8b5a2b", side: "#7a4e24", bottom: "#6b4424", noise: 22 },
   stone: { top: "#8a8a8a", side: "#7a7a7a", bottom: "#6a6a6a", noise: 30 },
@@ -37,7 +46,41 @@ const PALETTES: Record<BlockId, BlockPalette> = {
   log: { top: "#6b4f2a", side: "#5a3f22", bottom: "#4a3218", noise: 18 },
   leaves: { top: "#3f8f3a", side: "#347a30", bottom: "#2a6628", noise: 35 },
   cobble: { top: "#7d7d7d", side: "#6e6e6e", bottom: "#5f5f5f", noise: 40 },
+  lava: { top: "#ff6622", side: "#ee4400", bottom: "#cc2200", noise: 8 },
+  gem: { top: "#2affc8", side: "#1ad4a8", bottom: "#0fb890", noise: 10 },
 };
+
+/** Distinct procedural patterns for lava / gem wall accents. */
+export const ACCENT_VARIANTS = 4;
+
+const ABYSS_TINT = { h: -0.12, s: -0.22, l: -0.18 };
+
+function tintForFamily(family: PaletteFamily): {
+  h: number;
+  s: number;
+  l: number;
+} {
+  if (family === "abyss") return ABYSS_TINT;
+  const layer = GEO_LAYERS.find((l) => l.id === family);
+  return layer?.paletteTint ?? { h: 0, s: 0, l: 0 };
+}
+
+function skyForFamily(family: PaletteFamily): number {
+  if (family === "abyss") return 0x0a0e14;
+  const layer = GEO_LAYERS.find((l) => l.id === family);
+  return layer?.mood.sky ?? 0x87b7e0;
+}
+
+function paletteFor(id: BlockId, family: PaletteFamily): BlockPalette {
+  const base = BASE_PALETTES[id];
+  const tint = tintForFamily(family);
+  return {
+    top: tintHex(base.top, tint),
+    side: tintHex(base.side, tint),
+    bottom: tintHex(base.bottom, tint),
+    noise: base.noise,
+  };
+}
 
 const FACE_SIZE = 16;
 
@@ -143,9 +186,183 @@ function makeFaceTexture(hex: string, noise: number, seed = 1): CanvasTexture {
   return canvasToTexture(canvas);
 }
 
+const LAVA_PALETTE = [
+  "#3a0800",
+  "#7a1400",
+  "#cc2200",
+  "#ff4400",
+  "#ff6a10",
+  "#ff9a28",
+  "#ffcc55",
+] as const;
+
+function lavaColor(i: number): string {
+  return LAVA_PALETTE[((i % LAVA_PALETTE.length) + LAVA_PALETTE.length) % LAVA_PALETTE.length]!;
+}
+
+/**
+ * Procedural lava — one shared recipe (mottled crust + hot pockets).
+ * Seed only shifts blotch placement / heat so variants stay in the same family.
+ */
+function paintLavaFace(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  seed: number,
+): void {
+  ctx.fillStyle = lavaColor(1);
+  ctx.fillRect(0, 0, size, size);
+
+  // Mid-tone crust noise (same density for every variant).
+  for (let i = 0; i < 36; i++) {
+    const x = (hash01(i, 1, seed) * size) | 0;
+    const y = (hash01(i, 2, seed) * size) | 0;
+    ctx.fillStyle = lavaColor(2 + ((hash01(i, 3, seed) * 2) | 0)); // 2…3
+    ctx.fillRect(x, y, 1 + ((hash01(i, 4, seed) * 2) | 0), 1);
+  }
+
+  // Darker cooler patches
+  for (let i = 0; i < 8; i++) {
+    const x = (hash01(i, 5, seed) * size) | 0;
+    const y = (hash01(i, 6, seed) * size) | 0;
+    const r = 1 + ((hash01(i, 7, seed) * 2) | 0);
+    ctx.fillStyle = lavaColor(0 + ((hash01(i, 8, seed) * 2) | 0)); // 0…1
+    ctx.fillRect(x, y, r + 1, r);
+  }
+
+  // Hotter magma pockets (count + spot vary; shape stays soft squares)
+  const pockets = 3 + ((hash01(0, 9, seed) * 3) | 0); // 3…5
+  for (let i = 0; i < pockets; i++) {
+    const x = 1 + ((hash01(i, 10, seed) * (size - 4)) | 0);
+    const y = 1 + ((hash01(i, 11, seed) * (size - 4)) | 0);
+    const w = 2 + ((hash01(i, 12, seed) * 2) | 0);
+    const h = 2 + ((hash01(i, 13, seed) * 2) | 0);
+    ctx.fillStyle = lavaColor(4 + ((hash01(i, 14, seed) * 2) | 0)); // 4…5
+    ctx.fillRect(x, y, w, h);
+    // Bright core
+    ctx.fillStyle = lavaColor(5 + ((hash01(i, 15, seed) * 2) | 0)); // 5…6
+    ctx.fillRect(x + ((w / 2) | 0), y + ((h / 2) | 0), 1, 1);
+  }
+
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
+}
+
+const GEM_COLORS = [
+  "#1ad4a8",
+  "#2affc8",
+  "#40ffe0",
+  "#80ffee",
+  "#00cc99",
+  "#a8ffe8",
+] as const;
+
+function paintGemShape(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  shape: number,
+  color: string,
+): void {
+  ctx.fillStyle = color;
+  const s = shape % 5;
+  if (s === 0) {
+    // Tiny square
+    ctx.fillRect(x, y, 2, 2);
+  } else if (s === 1) {
+    // Diamond (plus)
+    ctx.fillRect(x + 1, y, 1, 3);
+    ctx.fillRect(x, y + 1, 3, 1);
+  } else if (s === 2) {
+    // L-piece
+    ctx.fillRect(x, y, 1, 3);
+    ctx.fillRect(x, y + 2, 2, 1);
+  } else if (s === 3) {
+    // Horizontal bar
+    ctx.fillRect(x, y, 3, 1);
+    ctx.fillRect(x + 1, y + 1, 1, 1);
+  } else {
+    // Single bright fleck + neighbor
+    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x + 1, y, 1, 1);
+    ctx.fillRect(x, y + 1, 1, 1);
+  }
+}
+
+/**
+ * Underlying rock face with scattered smaller gemstones (not full-block gems).
+ */
+function paintGemFace(
+  ctx: CanvasRenderingContext2D,
+  under: BlockPalette,
+  size: number,
+  seed: number,
+): void {
+  paintFace(ctx, under.side, under.noise, size, seed + 40);
+  const count = 2 + ((hash01(0, 30, seed) * 4) | 0); // 2…5
+  for (let i = 0; i < count; i++) {
+    const gw = 2 + ((hash01(i, 31, seed) * 2) | 0);
+    const gh = 2 + ((hash01(i, 32, seed) * 2) | 0);
+    const x = 1 + ((hash01(i, 33, seed) * Math.max(1, size - gw - 1)) | 0);
+    const y = 1 + ((hash01(i, 34, seed) * Math.max(1, size - gh - 1)) | 0);
+    const color =
+      GEM_COLORS[(hash01(i, 35, seed) * GEM_COLORS.length) | 0]!;
+    const shape = (hash01(i, 36, seed) * 5) | 0;
+    paintGemShape(ctx, x, y, shape, color);
+    // Hot core highlight
+    if (hash01(i, 37, seed) > 0.35) {
+      ctx.fillStyle = "#e8fff8";
+      ctx.fillRect(x + ((gw / 2) | 0), y + ((gh / 2) | 0), 1, 1);
+    }
+  }
+}
+
+function makeLavaTexture(variant: number): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = FACE_SIZE;
+  canvas.height = FACE_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D canvas unavailable");
+  paintLavaFace(ctx, FACE_SIZE, 0x1a7a00 + variant * 97);
+  return canvasToTexture(canvas);
+}
+
+function makeGemTexture(
+  underId: BlockId,
+  family: PaletteFamily,
+  variant: number,
+): CanvasTexture {
+  const under = paletteFor(underId === "gem" || underId === "lava" ? "deepslate" : underId, family);
+  const canvas = document.createElement("canvas");
+  canvas.width = FACE_SIZE;
+  canvas.height = FACE_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D canvas unavailable");
+  paintGemFace(ctx, under, FACE_SIZE, 0x6e1100 + variant * 131);
+  return canvasToTexture(canvas);
+}
+
+function makeGlowMaterial(
+  map: CanvasTexture,
+  emissive: number,
+  intensity: number,
+): MeshLambertMaterial {
+  return new MeshLambertMaterial({
+    map,
+    color: 0xffffff,
+    emissive,
+    emissiveMap: map,
+    emissiveIntensity: intensity,
+  });
+}
+
 /** Wear 0…31 dig-face top texture (border fixed, interior densifies). */
-export function makeDigWearTopTexture(id: BlockId, wear: number): CanvasTexture {
-  const p = PALETTES[id];
+export function makeDigWearTopTexture(
+  id: BlockId,
+  wear: number,
+  family: PaletteFamily = "soil",
+): CanvasTexture {
+  const p = paletteFor(id, family);
   const w = Math.max(0, Math.min(31, wear | 0));
   const canvas = document.createElement("canvas");
   canvas.width = FACE_SIZE;
@@ -154,14 +371,44 @@ export function makeDigWearTopTexture(id: BlockId, wear: number): CanvasTexture 
   if (!ctx) {
     throw new Error("2D canvas unavailable");
   }
-  const seed = id.split("").reduce((a, ch) => a + ch.charCodeAt(0), 17);
+  const seed =
+    id.split("").reduce((a, ch) => a + ch.charCodeAt(0), 17) +
+    family.split("").reduce((a, ch) => a + ch.charCodeAt(0), 0);
   paintDigWearTop(ctx, p.top, p.noise, w, FACE_SIZE, seed);
   return canvasToTexture(canvas);
 }
 
+export interface AccentMaterialOpts {
+  /** 0…ACCENT_VARIANTS-1 pattern index. */
+  variant?: number;
+  /** Rock under gem flecks (ignored for lava). */
+  under?: BlockId;
+}
+
 /** Minecraft-style materials: [right, left, top, bottom, front, back] */
-export function createBlockMaterials(id: BlockId): Material[] {
-  const p = PALETTES[id];
+export function createBlockMaterials(
+  id: BlockId,
+  family: PaletteFamily = "soil",
+  opts: AccentMaterialOpts = {},
+): Material[] {
+  const variant = Math.max(
+    0,
+    Math.min(ACCENT_VARIANTS - 1, (opts.variant ?? 0) | 0),
+  );
+
+  if (id === "lava") {
+    const map = makeLavaTexture(variant);
+    const mat = makeGlowMaterial(map, 0xff5500, 2.4);
+    return [mat, mat, mat, mat, mat, mat];
+  }
+  if (id === "gem") {
+    const under = opts.under ?? "deepslate";
+    const map = makeGemTexture(under, family, variant);
+    const mat = makeGlowMaterial(map, 0x40ffd0, 2.1);
+    return [mat, mat, mat, mat, mat, mat];
+  }
+
+  const p = paletteFor(id, family);
   const top = makeFaceTexture(p.top, p.noise, 1);
   const side = makeFaceTexture(p.side, p.noise, 2);
   const bottom = makeFaceTexture(p.bottom, Math.max(8, p.noise - 6), 3);
@@ -171,6 +418,6 @@ export function createBlockMaterials(id: BlockId): Material[] {
   return [mk(side), mk(side), mk(top), mk(bottom), mk(side), mk(side)];
 }
 
-export function createSkyColor(): Color {
-  return new Color(0x87b7e0);
+export function createSkyColor(family: PaletteFamily = "soil"): Color {
+  return new Color(skyForFamily(family));
 }

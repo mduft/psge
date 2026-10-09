@@ -31,6 +31,13 @@
               </span>
               <span class="value" data-stat="depth">0 m</span>
             </div>
+            <div class="stat stat-layer">
+              <span class="label">
+                <span class="label-full">Layer</span>
+                <span class="label-abbr" aria-hidden="true">Lay</span>
+              </span>
+              <span class="value" data-stat="layer">Topsoil</span>
+            </div>
             <div class="stat">
               <span class="label">
                 <span class="label-full">Dirt</span>
@@ -141,7 +148,19 @@
                   >
                     +1M
                   </button>
+                  <button
+                    type="button"
+                    class="hud-reset"
+                    data-give-dirt="inf"
+                    title="Set dirt to a huge amount"
+                  >
+                    ∞
+                  </button>
                 </span>
+              </div>
+              <div class="debug-jumps">
+                <span class="label">Layer −5 m</span>
+                <span class="debug-jump-row" id="debug-layer-jumps"></span>
               </div>
               <label class="debug-scroll-toggle">
                 <input type="checkbox" id="debug-scroll" />
@@ -154,6 +173,15 @@
           </aside>
         </div>
 
+        <div
+          id="layer-toast"
+          class="layer-toast"
+          aria-live="polite"
+          aria-hidden="true"
+        >
+          <span class="layer-toast-eyebrow">New layer</span>
+          <span class="layer-toast-name" data-layer-toast-name>Topsoil</span>
+        </div>
         <div id="save-indicator" class="save-indicator" aria-hidden="true">
           Saved
         </div>

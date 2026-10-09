@@ -2,7 +2,7 @@
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification
-> Status: Milestone 0–5 implemented — decisions locked in §4.8; API unfrozen (§28)
+> Status: Milestone 0–6 implemented — decisions locked in §4.8; API unfrozen (§28)
 > Core goal: make small browser games **pleasantly simple to build, test, run, and evolve — including by autonomous agents**.
 
 ---
@@ -410,6 +410,9 @@ The following choices are locked for implementing these milestones. They may sti
 | M5 offline | Depth **and** dirt; soft-capped live auto rate × **1/6**; max **24h**; claim modal when away ≥**30s** (tab hide or unload); shorter hides get full-rate catch-up |
 | M5 clock | Persist `lastPlayedAtMs` (save version **4**; v2/v3 migrate with clock `0`); pure `computeOfflineReward(state, last, now)` |
 | M5 testing | Injectable `nowMs` in unit tests; `?offlineMs=N` forces an offline window in the browser |
+| M6 geo layers | km-scale named bands (Topsoil→Abyss); hardness after soft-cap; HUD label + enter toast |
+| M6 mood | Fog/sky/lights + palette-family tints + layer chip colors |
+| M6 actors | Procedural digger (tool swap) + cart/drill/crew props; no camera polish |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1706,14 +1709,13 @@ Locked (see also §4.8):
 
 ## Milestone 6 — Excavation presentation
 
-Add:
+Locked (see also §4.8):
 
-- geological layers;
-- digging animation;
-- particles;
-- machinery;
-- smooth camera descent;
-- environmental progression.
+- **Geo layers:** Topsoil 0–1 000 m → Packed clay → Bedrock → Deep crust → Ancient rock → The Abyss; hardness multiplies soft-capped dig.
+- **Mood:** fog / sky / lights + block palette family per layer; dig chips tint to the layer.
+- **Actors:** procedural digger (swing on tap, tool from upgrades) + cart / drill / crew props.
+- Particles (burst/trickle) already from earlier milestones; camera left as-is (already good).
+- Tests: `geoLayers` helpers + hardness on dig; e2e `data-psge-layer` at depth ≥ 1000.
 
 The camera remains fixed in orientation throughout.
 
@@ -1937,7 +1939,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6
 
 See §4.8 for the decision table. In short:
 
@@ -1950,6 +1952,7 @@ See §4.8 for the decision table. In short:
 - M3: `SaveStore` / `createLocalSaveStore`; 1s debounce + 30s max autosave; `?nosave=1` clears.
 - M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` give dirt / Reset / drag-scroll.
 - M5: offline claim at soft auto rate × 1/6 (max 24h); save v4 `lastPlayedAtMs`; `?offlineMs=`.
+- M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

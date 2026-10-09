@@ -8,11 +8,20 @@ import {
   type LightingOptions,
 } from "@psge/engine";
 import Decimal from "decimal.js";
+import { DirectionalLight, HemisphereLight } from "three";
 import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
-import { digCameraFraming } from "./digCamera.js";
+import {
+  digCameraFraming,
+  fogScaleForCameraDistance,
+} from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { formatAmount, formatMeters } from "./formatAmount.js";
+import {
+  geoLayerApproachDepths,
+  geoLayerAt,
+  type GeoLayerId,
+} from "./geoLayers.js";
 import { focusForDepth, softDigAmount } from "./softDig.js";
 import {
   buyUpgrade,
@@ -49,6 +58,7 @@ import {
 
 const DEFAULT_WORLD_EXTENT = 1000;
 const SAVE_INDICATOR_MS = 1800;
+const LAYER_TOAST_MS = 2800;
 
 /** Outdoor cutaway lighting — Dig-specific, not engine defaults. */
 const DIG_LIGHTING: LightingOptions = {
@@ -190,13 +200,61 @@ async function boot(): Promise<() => void> {
       position: [xOffset * BLOCK_SCALE + panX, focusY + yLift, distance],
       lookAt: [panX, focusY - 1.5, -6 * BLOCK_SCALE],
     });
+    // Narrow Cursor browser / phone pulls the camera back; scale fog so
+    // authored near/far (tuned for ~16:9) still leave the cutaway visible.
+    world.setFogDistanceScale(fogScaleForCameraDistance(distance));
   };
 
   const depthEl = document.querySelector('[data-stat="depth"]');
+  const layerEl = document.querySelector('[data-stat="layer"]');
   const dirtEl = document.querySelector('[data-stat="dirt"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const passiveEl = document.querySelector('[data-stat="passive"]');
+  const layerToast = document.querySelector<HTMLElement>("#layer-toast");
+  const layerToastName = document.querySelector("[data-layer-toast-name]");
   const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
+
+  const hemiLight = app.scene.children.find(
+    (c): c is HemisphereLight => c instanceof HemisphereLight,
+  );
+  const dirLights = app.scene.children.filter(
+    (c): c is DirectionalLight => c instanceof DirectionalLight,
+  );
+
+  let lastLayerId: GeoLayerId | null = null;
+  let layerToastTimer = 0;
+
+  const showLayerToast = (name: string): void => {
+    if (!layerToast) return;
+    if (layerToastName) layerToastName.textContent = name;
+    layerToast.classList.add("is-visible");
+    layerToast.setAttribute("aria-hidden", "false");
+    if (layerToastTimer !== 0) clearTimeout(layerToastTimer);
+    layerToastTimer = window.setTimeout(() => {
+      layerToastTimer = 0;
+      layerToast.classList.remove("is-visible");
+      layerToast.setAttribute("aria-hidden", "true");
+    }, LAYER_TOAST_MS);
+  };
+
+  const applyLayerMood = (depth: number): void => {
+    const layer = geoLayerAt(depth);
+    world.applyEnvironment(depth);
+    if (hemiLight) {
+      hemiLight.color.setHex(layer.mood.hemiSky);
+      hemiLight.groundColor.setHex(layer.mood.hemiGround);
+      hemiLight.intensity = layer.mood.hemiIntensity;
+    }
+    if (dirLights[0]) {
+      dirLights[0].color.setHex(layer.mood.dirColor);
+      dirLights[0].intensity = layer.mood.dirIntensity;
+    }
+    if (layer.id !== lastLayerId) {
+      const prev = lastLayerId;
+      lastLayerId = layer.id;
+      if (prev !== null) showLayerToast(layer.name);
+    }
+  };
   const debugFab = document.querySelector<HTMLButtonElement>("#debug-fab");
   const debugClose = document.querySelector<HTMLButtonElement>("#debug-close");
   const debugBackdrop = document.querySelector<HTMLElement>("#debug-backdrop");
@@ -343,12 +401,18 @@ async function boot(): Promise<() => void> {
   const updateHud = (): void => {
     const power = digPowerOf(state);
     const passive = passiveRateOf(state);
+    const depth = depthNumber(state);
+    const layer = geoLayerAt(depth);
     if (depthEl) depthEl.textContent = `${formatAmount(state.depth)} m`;
+    if (layerEl) layerEl.textContent = layer.name;
     if (dirtEl) dirtEl.textContent = formatAmount(state.dirt);
     if (digPowerEl) digPowerEl.textContent = formatDigPower(power);
     if (passiveEl) {
       passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
+    document.documentElement.dataset.psgeLayer = layer.id;
+    applyLayerMood(depth);
+    world.syncActors(depth, state.upgrades);
 
     let anyAffordable = false;
     for (const def of UPGRADE_DEFS) {
@@ -480,10 +544,16 @@ async function boot(): Promise<() => void> {
 
   const onGiveDirt = (e: Event): void => {
     const btn = e.currentTarget as HTMLButtonElement;
-    const amount = Number.parseFloat(btn.dataset.giveDirt ?? "");
-    if (!Number.isFinite(amount) || amount <= 0) return;
+    const raw = btn.dataset.giveDirt ?? "";
     e.preventDefault();
     e.stopPropagation();
+    if (raw === "inf") {
+      state.dirt = new Decimal("1e100");
+      applyPlayView();
+      return;
+    }
+    const amount = Number.parseFloat(raw);
+    if (!Number.isFinite(amount) || amount <= 0) return;
     state.dirt = state.dirt.plus(amount);
     applyPlayView();
   };
@@ -493,6 +563,42 @@ async function boot(): Promise<() => void> {
   for (const btn of giveDirtButtons) {
     btn.addEventListener("click", onGiveDirt);
     btn.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  }
+
+  const jumpLayerButtons: HTMLButtonElement[] = [];
+  const jumpRow = document.querySelector<HTMLElement>("#debug-layer-jumps");
+  if (debug && jumpRow) {
+    const shortLabel = (name: string): string => {
+      if (name === "Packed clay") return "Clay";
+      if (name === "Deep crust") return "Crust";
+      if (name === "Ancient rock") return "Ancient";
+      if (name === "The Abyss") return "Abyss";
+      return name;
+    };
+    const onJumpLayer = (e: Event): void => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const depth = Number.parseFloat(btn.dataset.jumpDepth ?? "");
+      if (!Number.isFinite(depth) || depth < 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      state.depth = new Decimal(depth);
+      state.dirt = new Decimal(depth * SHAFT_CROSS_SECTION);
+      applyPlayView();
+      autosave.markDirty();
+    };
+    for (const target of geoLayerApproachDepths(5)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "hud-reset";
+      btn.dataset.jumpDepth = String(target.depth);
+      btn.dataset.jumpLayer = target.id;
+      btn.title = `${target.name} (−${5} m → ${target.depth} m)`;
+      btn.textContent = shortLabel(target.name);
+      btn.addEventListener("click", onJumpLayer);
+      btn.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+      jumpRow.append(btn);
+      jumpLayerButtons.push(btn);
+    }
   }
 
   const onReset = (e: Event): void => {
@@ -521,6 +627,7 @@ async function boot(): Promise<() => void> {
       document.documentElement.dataset.psgeDigIntent = "1";
       applyPlayView();
       world.burstDigParticles();
+      world.playDigSwing();
       autosave.markDirty();
     },
   });
@@ -616,6 +723,7 @@ async function boot(): Promise<() => void> {
     autosave.markDirty();
     if (trickleCooldown <= 0) {
       world.trickleDigParticles();
+      world.playCrewChip();
       const rate = softDigAmount(passiveRateOf(state).toNumber());
       // ~3–12 Hz depending on soft passive rate; stays visibly quieter than taps.
       trickleCooldown = Math.min(0.32, Math.max(0.08, 0.28 / Math.sqrt(1 + rate)));
@@ -636,7 +744,7 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "5";
+  document.documentElement.dataset.psgeMilestone = "6";
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -658,7 +766,11 @@ async function boot(): Promise<() => void> {
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);
     }
+    for (const btn of jumpLayerButtons) {
+      btn.remove();
+    }
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
+    if (layerToastTimer !== 0) clearTimeout(layerToastTimer);
     void autosave.flush().finally(() => {
       autosave.dispose();
     });

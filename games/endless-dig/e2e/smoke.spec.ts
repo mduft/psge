@@ -427,6 +427,13 @@ test("passive cart digs without tapping", async ({ page }) => {
     .not.toBe("0");
 });
 
+test("geo layer updates at 1000m", async ({ page }) => {
+  await page.goto("/?nosave=1&depth=1000");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-layer", "clay");
+  await expect(page.locator('[data-stat="layer"]')).toHaveText("Packed clay");
+});
+
 test("offline claim grants depth and dirt", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
@@ -504,6 +511,12 @@ test("debug=1 shows tools; default hides them", async ({ page }) => {
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-dirt"))
     .toBe("100");
+
+  await expect(page.locator('[data-jump-layer="clay"]')).toBeVisible();
+  await page.locator('[data-jump-layer="clay"]').click();
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .toBe("995");
 });
 
 test("narrow debug opens as a sheet", async ({ page }) => {

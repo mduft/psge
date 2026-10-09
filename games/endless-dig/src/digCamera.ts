@@ -16,6 +16,20 @@ export interface DigCameraFraming {
 }
 
 /**
+ * Fog near/far in geo moods are authored against this camera distance
+ * (16:9 framing). Narrow Cursor/phone panels pull the camera farther —
+ * scale fog by `distance / DIG_CAMERA_FOG_REF_DISTANCE` or the cutaway
+ * sits past fogFar and vanishes into the sky color.
+ */
+export const DIG_CAMERA_FOG_REF_DISTANCE = 20;
+
+/** Multiply authored fog near/far so haze matches the current framing. */
+export function fogScaleForCameraDistance(distance: number): number {
+  if (!(distance > 0) || !Number.isFinite(distance)) return 1;
+  return distance / DIG_CAMERA_FOG_REF_DISTANCE;
+}
+
+/**
  * Pick dig-camera framing for the current canvas aspect (width / height).
  * Wider viewports move closer so the cutaway fills the frame.
  */
@@ -35,7 +49,7 @@ export function digCameraFraming(aspect: number): DigCameraFraming {
   }
   // Full HD / 16:9 fullscreen.
   if (a < 2.2) {
-    return { distance: 20, xOffset: 3.0, panXBlocks: -0.7 };
+    return { distance: DIG_CAMERA_FOG_REF_DISTANCE, xOffset: 3.0, panXBlocks: -0.7 };
   }
   // Ultrawide.
   return { distance: 17, xOffset: 3.2, panXBlocks: -0.75 };

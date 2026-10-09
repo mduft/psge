@@ -16,8 +16,10 @@ const BURST_COUNT = 24;
 const TRICKLE_COUNT = 3;
 const PARTICLE_SIZE = 0.22;
 
-/** Dirt / stone chip colors (sRGB hex). */
-const CHIP_COLORS = [0x8b5a2b, 0x7a4e24, 0x6b4424, 0x9a7a55, 0x5a4a3a];
+/** Default dirt / stone chip colors (sRGB hex). */
+const DEFAULT_CHIP_COLORS = [
+  0x8b5a2b, 0x7a4e24, 0x6b4424, 0x9a7a55, 0x5a4a3a,
+];
 
 export type DigParticleStyle = "burst" | "trickle";
 
@@ -26,6 +28,8 @@ export interface DigParticles {
   burst(excavatedDepth: number): void;
   /** Subtle passive-dig chips — fewer, slower, shorter-lived. */
   trickle(excavatedDepth: number): void;
+  /** Override chip palette (geo layer). */
+  setChipColors(colors: readonly number[]): void;
   update(dtSeconds: number): void;
   dispose(): void;
 }
@@ -40,6 +44,7 @@ export function createDigParticles(parent: Group): DigParticles {
   const ages = new Float32Array(MAX_PARTICLES);
   const lifetimes = new Float32Array(MAX_PARTICLES);
   let alive = 0;
+  let chipPalette: readonly number[] = DEFAULT_CHIP_COLORS;
 
   const geometry = new BufferGeometry();
   const posAttr = new BufferAttribute(positions, 3);
@@ -85,7 +90,9 @@ export function createDigParticles(parent: Group): DigParticles {
       lifetimes[i] = 0.55 + Math.random() * 0.4;
     }
 
-    const hex = CHIP_COLORS[Math.floor(Math.random() * CHIP_COLORS.length)]!;
+    const palette =
+      chipPalette.length > 0 ? chipPalette : DEFAULT_CHIP_COLORS;
+    const hex = palette[Math.floor(Math.random() * palette.length)]!;
     // Trickle chips a touch darker / dustier.
     const dim = style === "trickle" ? 0.82 : 1;
     colors[i * 3] = (((hex >> 16) & 255) / 255) * dim;
@@ -112,6 +119,10 @@ export function createDigParticles(parent: Group): DigParticles {
 
     trickle(excavatedDepth: number): void {
       emit(excavatedDepth, "trickle", TRICKLE_COUNT);
+    },
+
+    setChipColors(next: readonly number[]): void {
+      chipPalette = next.length > 0 ? next : DEFAULT_CHIP_COLORS;
     },
 
     update(dtSeconds: number): void {
