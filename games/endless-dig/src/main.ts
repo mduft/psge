@@ -1,6 +1,16 @@
-import { createApp } from "@psge/engine";
+import { createApp, type LightingOptions } from "@psge/engine";
 import { createShaftScroll } from "./cameraScroll.js";
 import { BLOCK_SCALE, buildDigWorld } from "./world.js";
+
+/** Outdoor cutaway lighting — Dig-specific, not engine defaults. */
+const DIG_LIGHTING: LightingOptions = {
+  hemisphere: { sky: 0xe8f2ff, ground: 0x4a3424, intensity: 0.85 },
+  ambient: { color: 0xffffff, intensity: 0.45 },
+  directional: [
+    { color: 0xfff2d8, intensity: 1.25, position: [10, 28, 18] },
+    { color: 0xb8d4ff, intensity: 0.35, position: [-12, 10, 8] },
+  ],
+};
 
 function readShaftDepth(): number {
   const params = new URLSearchParams(window.location.search);
@@ -10,14 +20,20 @@ function readShaftDepth(): number {
   return Number.isFinite(n) && n >= 0 ? n : 1000;
 }
 
-function main(): void {
+function main(): () => void {
   const canvas = document.querySelector<HTMLCanvasElement>("#game-canvas");
   if (!canvas) {
     throw new Error("Expected #game-canvas");
   }
 
   const shaftDepth = readShaftDepth();
-  const app = createApp({ canvas, background: 0x87b7e0, fov: 30 });
+  const app = createApp({
+    canvas,
+    background: 0x87b7e0,
+    antialias: false,
+    lighting: DIG_LIGHTING,
+    camera: { fov: 30, far: 400 },
+  });
   const world = buildDigWorld(app.scene, { shaftDepth });
 
   const applyCamera = (): void => {
@@ -71,7 +87,8 @@ function main(): void {
     },
   });
 
-  window.addEventListener("resize", () => scroll.apply());
+  const onResize = (): void => scroll.apply();
+  window.addEventListener("resize", onResize);
   updateHud();
 
   app.startLoop();
@@ -88,10 +105,23 @@ function main(): void {
   document.documentElement.dataset.psgeReady = "true";
   document.documentElement.dataset.psgeMilestone = "1.1";
   document.documentElement.dataset.psgeShaftDepth = String(shaftDepth);
+
+  return () => {
+    window.removeEventListener("resize", onResize);
+    scroll.dispose();
+    world.dispose();
+    app.dispose();
+    delete dbg.__psgeApp;
+    delete dbg.__psgeWorld;
+    delete dbg.__psgeScroll;
+  };
 }
 
 try {
-  main();
+  const dispose = main();
+  const hot = (import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } })
+    .hot;
+  hot?.dispose(() => dispose());
 } catch (err) {
   console.error(err);
   document.documentElement.dataset.psgeError = "true";

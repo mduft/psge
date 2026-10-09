@@ -30,9 +30,9 @@ First-time e2e: `npx playwright install chromium`
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD; dig = canvas click (M2).
 
-**M1.1:** Vertical **chunk streaming** + **floating origin**. Default shaft `?depth=1000`; stress with `?depth=10000`. Drag-scroll uses the same path.
+**M1.1:** Vertical **chunk streaming** + **floating origin** (engine primitives; Dig supplies terrain). Default shaft `?depth=1000`; stress with `?depth=10000`. Hold-drag scroll uses the same focus path.
 
-Engine: `createApp`, `startLoop`, `loadGltf`, `setCamera`, `dispose`, `clampDelta`, `createSeededRng`.
+Engine: `createApp`, `startLoop`, `stopLoop`, `loadGltf`, `setCamera`, `dispose`, `clampDelta`, `createSeededRng`, `createFloatingOrigin`, `createChunkWindow`, `chunkIndex`, `createHoldDragScroll`.
 
 ## Visual verification
 

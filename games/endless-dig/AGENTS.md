@@ -15,8 +15,8 @@ Dev URL examples:
 
 - Full-bleed canvas + HUD (Shaft / View / Chunk / Logical Y / Origin Y / Engine Y / Loaded)
 - Drag vertically to scroll (`src/cameraScroll.ts`)
-- **Chunk streaming** + **floating origin** (`src/world.ts`)
-- 2×2 cutaway shaft; half-disk surface near the top only
+- Terrain / cutaway content in `src/world.ts`; streaming + origin via `@psge/engine`
+- 2×2 cutaway shaft; half-disk surface near the top only; Dig owns lighting/camera framing
 
 Dev hooks: `window.__psgeApp`, `window.__psgeWorld`, `window.__psgeScroll`
 

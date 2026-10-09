@@ -13,17 +13,43 @@ import {
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clampDelta } from "./time.js";
 
+export type Vec3 = readonly [number, number, number];
+
+export interface CameraBootstrapOptions {
+  fov?: number;
+  near?: number;
+  far?: number;
+  position?: Vec3;
+  lookAt?: Vec3;
+  up?: Vec3;
+}
+
+export interface LightingOptions {
+  /** Soft sky/ground hemisphere. */
+  hemisphere?: { sky?: number; ground?: number; intensity?: number };
+  ambient?: { color?: number; intensity?: number };
+  /** Key + optional fill directional lights. */
+  directional?: Array<{
+    color?: number;
+    intensity?: number;
+    position: Vec3;
+  }>;
+}
+
 export interface CreateAppOptions {
   canvas: HTMLCanvasElement;
-  /** CSS or hex background color. */
+  /** CSS or hex background color. Default transparent black (0x000000). */
   background?: string | number;
-  /** Vertical field of view in degrees. */
-  fov?: number;
+  antialias?: boolean;
+  /** When false/undefined, no lights are added — the game owns lighting. */
+  lighting?: false | LightingOptions;
+  camera?: CameraBootstrapOptions;
 }
 
 export interface SetCameraOptions {
-  position: readonly [number, number, number];
-  lookAt: readonly [number, number, number];
+  position: Vec3;
+  lookAt: Vec3;
+  up?: Vec3;
 }
 
 export interface PsgeApp {
@@ -32,21 +58,46 @@ export interface PsgeApp {
   readonly renderer: WebGLRenderer;
   readonly canvas: HTMLCanvasElement;
   startLoop(update?: (deltaSeconds: number) => void): void;
+  stopLoop(): void;
   loadGltf(url: string): Promise<Group>;
   setCamera(options: SetCameraOptions): void;
   dispose(): void;
 }
 
+function applyLighting(scene: Scene, lighting: LightingOptions): void {
+  if (lighting.hemisphere) {
+    const h = lighting.hemisphere;
+    scene.add(
+      new HemisphereLight(h.sky ?? 0xffffff, h.ground ?? 0x444444, h.intensity ?? 0.8),
+    );
+  }
+  if (lighting.ambient) {
+    const a = lighting.ambient;
+    scene.add(new AmbientLight(a.color ?? 0xffffff, a.intensity ?? 0.4));
+  }
+  for (const d of lighting.directional ?? []) {
+    const light = new DirectionalLight(d.color ?? 0xffffff, d.intensity ?? 1);
+    light.position.set(d.position[0], d.position[1], d.position[2]);
+    scene.add(light);
+  }
+}
+
 /**
- * Create a browser app with Three.js renderer, scene, and locked camera.
- * World convention: Y-up, excavation depth along −Y.
+ * Create a browser app with Three.js renderer, scene, and perspective camera.
+ * World convention: Y-up. Games own lighting, art direction, and camera framing.
  */
 export function createApp(options: CreateAppOptions): PsgeApp {
-  const { canvas, background = 0x87b7e0, fov = 36 } = options;
+  const {
+    canvas,
+    background = 0x000000,
+    antialias = true,
+    lighting = false,
+    camera: camOpts = {},
+  } = options;
 
   const renderer = new WebGLRenderer({
     canvas,
-    antialias: false, // chunky pixels read better for block style
+    antialias,
     alpha: false,
     powerPreference: "high-performance",
   });
@@ -56,19 +107,20 @@ export function createApp(options: CreateAppOptions): PsgeApp {
   const scene = new Scene();
   scene.background = new Color(background);
 
-  const camera = new PerspectiveCamera(fov, 1, 0.1, 400);
-  camera.up.set(0, 1, 0);
-  camera.position.set(8, -2, 22);
-  camera.lookAt(0, -4, -2);
+  const fov = camOpts.fov ?? 50;
+  const near = camOpts.near ?? 0.1;
+  const far = camOpts.far ?? 1000;
+  const camera = new PerspectiveCamera(fov, 1, near, far);
+  const up = camOpts.up ?? ([0, 1, 0] as const);
+  camera.up.set(up[0], up[1], up[2]);
+  const pos = camOpts.position ?? ([0, 0, 10] as const);
+  const look = camOpts.lookAt ?? ([0, 0, 0] as const);
+  camera.position.set(pos[0], pos[1], pos[2]);
+  camera.lookAt(look[0], look[1], look[2]);
 
-  scene.add(new HemisphereLight(0xe8f2ff, 0x4a3424, 0.85));
-  scene.add(new AmbientLight(0xffffff, 0.45));
-  const sun = new DirectionalLight(0xfff2d8, 1.25);
-  sun.position.set(10, 28, 18);
-  scene.add(sun);
-  const fill = new DirectionalLight(0xb8d4ff, 0.35);
-  fill.position.set(-12, 10, 8);
-  scene.add(fill);
+  if (lighting) {
+    applyLighting(scene, lighting);
+  }
 
   const loader = new GLTFLoader();
   let rafId = 0;
@@ -88,6 +140,12 @@ export function createApp(options: CreateAppOptions): PsgeApp {
 
   resize();
   window.addEventListener("resize", resize);
+
+  const stopLoop = (): void => {
+    running = false;
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  };
 
   const app: PsgeApp = {
     scene,
@@ -116,13 +174,16 @@ export function createApp(options: CreateAppOptions): PsgeApp {
       rafId = requestAnimationFrame(tick);
     },
 
+    stopLoop,
+
     async loadGltf(url: string): Promise<Group> {
       const gltf = await loader.loadAsync(url);
       return gltf.scene;
     },
 
-    setCamera({ position, lookAt }: SetCameraOptions): void {
-      camera.up.set(0, 1, 0);
+    setCamera({ position, lookAt, up: nextUp }: SetCameraOptions): void {
+      const u = nextUp ?? ([0, 1, 0] as const);
+      camera.up.set(u[0], u[1], u[2]);
       camera.position.set(position[0], position[1], position[2]);
       camera.lookAt(new Vector3(lookAt[0], lookAt[1], lookAt[2]));
       camera.updateMatrixWorld();
@@ -133,9 +194,9 @@ export function createApp(options: CreateAppOptions): PsgeApp {
         return;
       }
       disposed = true;
-      running = false;
-      cancelAnimationFrame(rafId);
+      stopLoop();
       window.removeEventListener("resize", resize);
+      // Caller owns scene content (meshes, materials). Renderer only.
       renderer.dispose();
     },
   };

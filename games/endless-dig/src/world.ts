@@ -1,4 +1,10 @@
 import {
+  chunkIndex as engineChunkIndex,
+  chunkRange,
+  createChunkWindow,
+  createFloatingOrigin,
+} from "@psge/engine";
+import {
   BoxGeometry,
   Color,
   DynamicDrawUsage,
@@ -26,6 +32,7 @@ export interface DigWorld {
   /** Vertical chunk index containing the logical focus. */
   getFocusChunkIndex(): number;
   getLoadedChunkCount(): number;
+  dispose(): void;
 }
 
 export interface DigWorldOptions {
@@ -81,6 +88,7 @@ const TREE_SPOTS: Array<[number, number]> = [
 
 /**
  * Chunked cutaway world with floating-origin rebasing for deep shafts.
+ * Streaming/origin math comes from `@psge/engine`; terrain content stays here.
  */
 export function buildDigWorld(
   scene: Scene,
@@ -99,10 +107,17 @@ export function buildDigWorld(
   content.scale.setScalar(BLOCK_SCALE);
   root.add(content);
 
-  const loaded = new Map<number, Group>();
+  const chunkGroups = new Map<number, Group>();
 
   let focusBlockY = -1.2;
-  let originBlockY = 0;
+
+  const floating = createFloatingOrigin({
+    rebaseThreshold: REBASE_THRESHOLD,
+    scale: BLOCK_SCALE,
+    onApply: (origin) => {
+      root.position.y = -origin * BLOCK_SCALE;
+    },
+  });
 
   const inShaft = (x: number, z: number): boolean =>
     (SHAFT_XS as readonly number[]).includes(x) &&
@@ -113,75 +128,53 @@ export function buildDigWorld(
     return x * x + z * z <= SURFACE_RADIUS * SURFACE_RADIUS;
   };
 
-  const applyOrigin = (): void => {
-    // Logical block Y is in `content` space; shift root so origin stays near focus.
-    root.position.y = -originBlockY * BLOCK_SCALE;
-  };
-
-  const rebaseIfNeeded = (): void => {
-    if (Math.abs(focusBlockY - originBlockY) <= REBASE_THRESHOLD) return;
-    originBlockY = focusBlockY;
-    applyOrigin();
-  };
-
-  const syncChunks = (): void => {
-    const center = chunkIndex(Math.floor(focusBlockY));
-    const needed = new Set<number>();
-    for (let i = center - CHUNK_RADIUS; i <= center + CHUNK_RADIUS; i++) {
-      needed.add(i);
-    }
-    // Always keep surface chunk while near the top so the half-disk does not pop.
-    if (focusBlockY > -CHUNK_SIZE * (CHUNK_RADIUS + 1)) {
-      needed.add(0);
-    }
-
-    for (const [idx, group] of loaded) {
-      if (!needed.has(idx)) {
-        disposeChunkGroup(group);
-        content.remove(group);
-        loaded.delete(idx);
-      }
-    }
-
-    for (const idx of needed) {
-      if (loaded.has(idx)) continue;
+  const chunks = createChunkWindow({
+    chunkSize: CHUNK_SIZE,
+    radius: CHUNK_RADIUS,
+    load: (idx) => {
       const chunk = buildChunk(idx, shaftDepth, inShaft, onSurfaceDisk);
-      loaded.set(idx, chunk);
+      chunkGroups.set(idx, chunk);
       content.add(chunk);
-    }
-  };
+    },
+    unload: (idx) => {
+      const group = chunkGroups.get(idx);
+      if (!group) return;
+      disposeChunkGroup(group);
+      content.remove(group);
+      chunkGroups.delete(idx);
+    },
+    // Keep surface chunk while near the top so the half-disk does not pop.
+    extraKeep: (focus) =>
+      focus > -CHUNK_SIZE * (CHUNK_RADIUS + 1) ? [0] : [],
+  });
 
   const setFocusBlockY = (blockY: number): void => {
     const minY = -(shaftDepth - 1.5);
     const maxY = 2.5;
     focusBlockY = Math.min(maxY, Math.max(minY, blockY));
-    rebaseIfNeeded();
-    syncChunks();
+    floating.rebaseIfNeeded(focusBlockY);
+    chunks.sync(focusBlockY);
   };
 
   scene.add(root);
-  applyOrigin();
-  syncChunks();
+  floating.setOrigin(0);
+  chunks.sync(focusBlockY);
 
   return {
     group: root,
     getShaftDepth: () => shaftDepth,
     getFocusBlockY: () => focusBlockY,
     setFocusBlockY,
-    getRenderFocusY: () => (focusBlockY - originBlockY) * BLOCK_SCALE,
-    getOriginBlockY: () => originBlockY,
-    getFocusChunkIndex: () => chunkIndex(Math.floor(focusBlockY)),
-    getLoadedChunkCount: () => loaded.size,
+    getRenderFocusY: () => floating.toRender(focusBlockY),
+    getOriginBlockY: () => floating.getOrigin(),
+    getFocusChunkIndex: () => engineChunkIndex(Math.floor(focusBlockY), CHUNK_SIZE),
+    getLoadedChunkCount: () => chunks.getLoadedCount(),
+    dispose(): void {
+      chunks.dispose();
+      scene.remove(root);
+      scene.fog = null;
+    },
   };
-}
-
-export function chunkIndex(blockY: number): number {
-  return Math.floor(blockY / CHUNK_SIZE);
-}
-
-function chunkYRange(index: number): { yMin: number; yMax: number } {
-  const yMin = index * CHUNK_SIZE;
-  return { yMin, yMax: yMin + CHUNK_SIZE - 1 };
 }
 
 function strata(y: number): BlockId {
@@ -198,7 +191,7 @@ function buildChunk(
   inShaft: (x: number, z: number) => boolean,
   onSurfaceDisk: (x: number, z: number) => boolean,
 ): Group {
-  const { yMin, yMax } = chunkYRange(index);
+  const { min: yMin, max: yMax } = chunkRange(index, CHUNK_SIZE);
   const buckets = new Map<BlockId, Matrix4[]>();
   const grassCaps: Matrix4[] = [];
 
@@ -358,10 +351,11 @@ function placeHouse(
 }
 
 function disposeChunkGroup(group: Group): void {
-  for (const child of group.children) {
+  for (const child of [...group.children]) {
     if (child instanceof InstancedMesh) {
-      child.geometry = sharedBox; // shared — do not dispose
-      // material is cached — do not dispose
+      // Shared geometry + cached materials — do not dispose those.
+      child.count = 0;
+      group.remove(child);
     }
   }
   group.clear();

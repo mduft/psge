@@ -1450,15 +1450,29 @@ setCamera({ position, lookAt }) → orientation stays locked to side-view conven
 dispose()
 ```
 
-Out of the Milestone 1 engine API on purpose: input, SaveStore, GameAgentInterface, follow-depth camera, full assets registry.
+Out of the Milestone 1 engine API on purpose: SaveStore, GameAgentInterface, follow-depth camera, full assets registry.
+Hold-drag scroll (`createHoldDragScroll`) was promoted with M1.1 because deep-shaft testing required it; richer input stays for later milestones.
 
-## 28.2 Likely later first-class concepts
+## 28.2 Milestone 1.1 engine primitives (unfrozen)
+
+Extracted because they are not Dig-specific:
+
+```text
+createFloatingOrigin({ rebaseThreshold, scale?, onApply? })
+createChunkWindow({ chunkSize, radius, load, unload, extraKeep? })
+chunkIndex(coord, chunkSize) / chunkRange(index, chunkSize)
+createHoldDragScroll({ element, onScroll, … })
+```
+
+`createApp` options also include `antialias`, `lighting` (default off), and `camera` bootstrap — games own art-direction defaults.
+
+## 28.3 Likely later first-class concepts
 
 ```text
 Game
 Game State
 Time
-Input
+Input (beyond hold-drag)
 SaveStore
 Assets
 2D Renderer
@@ -1500,7 +1514,8 @@ PSGE should initially avoid:
 - custom UI frameworks;
 - sophisticated asset pipelines;
 - console/native deployment;
-- large-world streaming.
+- general open-world / horizontal streaming frameworks
+  (a **1D vertical chunk window + floating origin** is allowed — see M1.1 / §28.2).
 
 These can be reconsidered only when a real game requires them.
 
