@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>The Endless Dig</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="The Endless Dig game view"></canvas>
+      <div id="hud" aria-live="polite">
+        <header class="hud-top">
+          <h1>The Endless Dig</h1>
+          <p class="tagline">Something is down there.</p>
+        </header>
+        <aside class="hud-stats">
+          <div class="stat">
+            <span class="label">Depth</span>
+            <span class="value" data-stat="depth">—</span>
+          </div>
+          <div class="stat">
+            <span class="label">Dirt</span>
+            <span class="value" data-stat="dirt">0</span>
+          </div>
+        </aside>
+        <p class="hud-hint">Drag up/down to look along the shaft · tap to dig (soon)</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "id": "endless-dig",
+  "name": "The Endless Dig",
+  "engine": "psge",
+  "entry": "src/main.ts"
+}

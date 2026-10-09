@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+.vite/
+*.tsbuildinfo
+games/endless-dig/e2e/screenshots/

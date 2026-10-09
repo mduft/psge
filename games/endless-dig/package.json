@@ -1,0 +1,21 @@
+{
+  "name": "@psge/endless-dig",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:assets": "node scripts/generate-surface-prop.mjs",
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@psge/engine": "*",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}
