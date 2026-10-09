@@ -68,3 +68,17 @@ export function formatAmount(value: Decimal.Value): string {
   }
   return `${body}${tierSuffix(tier - NAMED_SUFFIXES.length)}`;
 }
+
+/**
+ * Depth in meters (1 block = 1 m). Keeps a few decimals below 1 m so early
+ * dig power reads as "0.031" instead of an opaque fraction like 1/32.
+ */
+export function formatMeters(value: Decimal.Value): string {
+  const n = value instanceof Decimal ? value : new Decimal(value);
+  if (!n.isFinite()) return "∞";
+  if (n.isZero()) return "0";
+  if (n.isNeg()) return `-${formatMeters(n.abs())}`;
+  if (n.gte(1)) return formatAmount(n);
+  const fixed = n.toFixed(3);
+  return fixed.replace(/\.?0+$/, "") || "0";
+}

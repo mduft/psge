@@ -12,13 +12,12 @@ import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
 import { digCameraFraming } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
-import { formatAmount } from "./formatAmount.js";
+import { formatAmount, formatMeters } from "./formatAmount.js";
 import { focusForDepth, softDigAmount } from "./softDig.js";
 import {
   buyUpgrade,
   canBuyUpgrade,
   createInitialState,
-  DEFAULT_DIG_POWER,
   dig,
   digPowerOf,
   passiveRateOf,
@@ -29,6 +28,7 @@ import {
 } from "./gameState.js";
 import { DIG_SAVE_KEY, loadGameState, saveGameState } from "./persist.js";
 import {
+  SHOP_SECTIONS,
   UPGRADE_DEFS,
   upgradeCost,
   type UpgradeId,
@@ -101,11 +101,9 @@ function depthNumber(state: GameState): number {
   return state.depth.toNumber();
 }
 
+/** Dig power as meters of depth per tap (matches Depth / Auto units). */
 function formatDigPower(power: Decimal): string {
-  const steps = power.div(DEFAULT_DIG_POWER).round().toNumber();
-  if (steps <= 1) return "1/32";
-  if (steps % 32 === 0) return `${steps / 32}`;
-  return `${steps}/32`;
+  return `${formatMeters(power)} m`;
 }
 
 async function boot(): Promise<() => void> {
@@ -267,7 +265,7 @@ async function boot(): Promise<() => void> {
     if (dirtEl) dirtEl.textContent = formatAmount(state.dirt);
     if (digPowerEl) digPowerEl.textContent = formatDigPower(power);
     if (passiveEl) {
-      passiveEl.textContent = `${formatAmount(passive)}/s`;
+      passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
 
     let anyAffordable = false;
@@ -307,37 +305,54 @@ async function boot(): Promise<() => void> {
     if (!shopList) return;
     shopList.replaceChildren();
     shopButtons.clear();
-    for (const def of UPGRADE_DEFS) {
-      const row = document.createElement("div");
-      row.className = "shop-row";
-      row.dataset.upgrade = def.id;
+    for (const section of SHOP_SECTIONS) {
+      const group = document.createElement("section");
+      group.className = "shop-section";
+      group.dataset.shopSection = section.kind;
 
-      const meta = document.createElement("div");
-      meta.className = "shop-meta";
-      const name = document.createElement("span");
-      name.className = "shop-name";
-      name.textContent = def.name;
-      const effect = document.createElement("span");
-      effect.className = "shop-effect";
-      effect.dataset.shopEffect = def.id;
-      meta.append(name, effect);
+      const heading = document.createElement("h3");
+      heading.className = "shop-section-title";
+      heading.textContent = section.title;
+      const hint = document.createElement("p");
+      hint.className = "shop-section-hint";
+      hint.textContent = section.hint;
+      group.append(heading, hint);
 
-      const buy = document.createElement("button");
-      buy.type = "button";
-      buy.className = "shop-buy";
-      buy.dataset.shopBuy = def.id;
-      buy.addEventListener("pointerdown", (e) => e.stopPropagation());
-      buy.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!buyUpgrade(state, def.id)) return;
-        applyPlayView();
-        autosave.markDirty();
-      });
+      for (const def of UPGRADE_DEFS) {
+        if (def.kind !== section.kind) continue;
+        const row = document.createElement("div");
+        row.className = "shop-row";
+        row.dataset.upgrade = def.id;
+        row.dataset.upgradeKind = def.kind;
 
-      row.append(meta, buy);
-      shopList.append(row);
-      shopButtons.set(def.id, buy);
+        const meta = document.createElement("div");
+        meta.className = "shop-meta";
+        const name = document.createElement("span");
+        name.className = "shop-name";
+        name.textContent = def.name;
+        const effect = document.createElement("span");
+        effect.className = "shop-effect";
+        effect.dataset.shopEffect = def.id;
+        meta.append(name, effect);
+
+        const buy = document.createElement("button");
+        buy.type = "button";
+        buy.className = "shop-buy";
+        buy.dataset.shopBuy = def.id;
+        buy.addEventListener("pointerdown", (e) => e.stopPropagation());
+        buy.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!buyUpgrade(state, def.id)) return;
+          applyPlayView();
+          autosave.markDirty();
+        });
+
+        row.append(meta, buy);
+        group.append(row);
+        shopButtons.set(def.id, buy);
+      }
+      shopList.append(group);
     }
   };
 

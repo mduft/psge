@@ -23,9 +23,13 @@ export type UpgradeId = (typeof UPGRADE_IDS)[number];
 
 export type UpgradeLevels = Record<UpgradeId, number>;
 
+/** Tap upgrades raise dig power; auto upgrades raise passive depth/s. */
+export type UpgradeKind = "tap" | "auto";
+
 export interface UpgradeDef {
   id: UpgradeId;
   name: string;
+  kind: UpgradeKind;
   /** Dig power added per level (blocks per tap). */
   digPowerPerLevel: number;
   /** Passive depth per second added per level. */
@@ -43,56 +47,79 @@ export const UPGRADE_DEFS: readonly UpgradeDef[] = [
   {
     id: "shovel",
     name: "Shovel",
+    kind: "tap",
     digPowerPerLevel: DEFAULT_DIG_POWER, // +1/32 → first buy doubles
     passivePerLevel: 0,
     baseCost: 20,
     costMult: 1.45,
-    effectLabel: "+1/32 dig",
+    effectLabel: "+0.031 m/tap",
   },
   {
     id: "pickaxe",
     name: "Pickaxe",
+    kind: "tap",
     digPowerPerLevel: 2 * DEFAULT_DIG_POWER, // +2/32
     passivePerLevel: 0,
     baseCost: 250,
     costMult: 1.55,
-    effectLabel: "+2/32 dig",
+    effectLabel: "+0.063 m/tap",
   },
   {
     id: "jackhammer",
     name: "Jackhammer",
+    kind: "tap",
     digPowerPerLevel: 8 * DEFAULT_DIG_POWER, // +8/32 = +0.25
     passivePerLevel: 0,
     baseCost: 2_000,
     costMult: 1.65,
-    effectLabel: "+8/32 dig",
+    effectLabel: "+0.25 m/tap",
   },
   {
     id: "cart",
     name: "Hand cart",
+    kind: "auto",
     digPowerPerLevel: 0,
     passivePerLevel: 0.05,
     baseCost: 100,
     costMult: 1.5,
-    effectLabel: "+0.05/s",
+    effectLabel: "+0.05 m/s",
   },
   {
     id: "drill",
     name: "Drill",
+    kind: "auto",
     digPowerPerLevel: 0,
     passivePerLevel: 0.5,
     baseCost: 5_000,
     costMult: 1.6,
-    effectLabel: "+0.5/s",
+    effectLabel: "+0.5 m/s",
   },
   {
     id: "crew",
     name: "Dig crew",
+    kind: "auto",
     digPowerPerLevel: 0,
     passivePerLevel: 3,
     baseCost: 40_000,
     costMult: 1.7,
-    effectLabel: "+3/s",
+    effectLabel: "+3 m/s",
+  },
+] as const;
+
+export const SHOP_SECTIONS: readonly {
+  kind: UpgradeKind;
+  title: string;
+  hint: string;
+}[] = [
+  {
+    kind: "tap",
+    title: "Per tap",
+    hint: "Meters of depth each click",
+  },
+  {
+    kind: "auto",
+    title: "Auto dig",
+    hint: "Meters of depth every second",
   },
 ] as const;
 

@@ -4,7 +4,7 @@
  */
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { formatAmount, tierSuffix } from "../src/formatAmount.js";
+import { formatAmount, formatMeters, tierSuffix } from "../src/formatAmount.js";
 
 describe("tierSuffix", () => {
   it("starts at aa and advances", () => {
@@ -41,5 +41,18 @@ describe("formatAmount", () => {
 
   it("handles negatives", () => {
     expect(formatAmount(-2100)).toBe("-2.1K");
+  });
+});
+
+describe("formatMeters", () => {
+  it("keeps readable decimals below one meter", () => {
+    expect(formatMeters(1 / 32)).toBe("0.031");
+    expect(formatMeters(2 / 32)).toBe("0.063");
+    expect(formatMeters(0.25)).toBe("0.25");
+  });
+
+  it("uses compact amounts from one meter up", () => {
+    expect(formatMeters(1)).toBe("1");
+    expect(formatMeters(2100)).toBe("2.1K");
   });
 });
