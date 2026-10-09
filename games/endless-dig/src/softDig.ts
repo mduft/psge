@@ -6,16 +6,24 @@
  * removes (§7.1). Independent of current depth — only the instantaneous
  * power or rate matters.
  *
- * Near the base step (1/32) the map stays ~linear; higher power/rate grows
- * like a log so stacked gear feels faster without becoming a blur.
+ * Blend of log-softening and a residual linear floor:
+ *   floor·raw + (1−floor)·s·asinh(raw/s)
+ * Early taps stay ~full strength; high stacks bend below linear but each
+ * upgrade still contributes at least `SOFT_DIG_LINEAR_FLOOR` of its nominal
+ * amount so late buys never feel pointless.
  */
 
 /**
- * Characteristic power/rate (blocks per tap or per second) where the soft
- * curve is ~0.7× linear. Sized for passive rates (cart → crews) so a few
- * dig crews still feel brisk; tap dig at 1–2/32 stays essentially full.
+ * Characteristic power/rate where the asinh branch is ~0.7× linear.
+ * Sized so a dig crew and mid tap gear stay brisk before the floor dominates.
  */
-export const SOFT_DIG_SCALE = 2;
+export const SOFT_DIG_SCALE = 3;
+
+/**
+ * Minimum fraction of nominal power/rate that always applies.
+ * As raw → ∞, marginal gain → this value (never zero).
+ */
+export const SOFT_DIG_LINEAR_FLOOR = 0.25;
 
 /**
  * Map raw dig power (blocks/tap) or passive rate (blocks/s) → effective
@@ -24,10 +32,13 @@ export const SOFT_DIG_SCALE = 2;
 export function softDigAmount(
   raw: number,
   scale: number = SOFT_DIG_SCALE,
+  linearFloor: number = SOFT_DIG_LINEAR_FLOOR,
 ): number {
   if (!(raw > 0) || !Number.isFinite(raw)) return 0;
   if (!(scale > 0) || !Number.isFinite(scale)) return raw;
-  return scale * Math.asinh(raw / scale);
+  const floor = Math.min(1, Math.max(0, linearFloor));
+  const soft = scale * Math.asinh(raw / scale);
+  return floor * raw + (1 - floor) * soft;
 }
 
 /** Focus slightly above the dig face so the floor stays in frame. */

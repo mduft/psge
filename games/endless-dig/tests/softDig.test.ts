@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_DIG_POWER } from "../src/upgrades.js";
 import {
+  SOFT_DIG_LINEAR_FLOOR,
   SOFT_DIG_SCALE,
   focusForDepth,
   softDigAmount,
@@ -23,13 +24,21 @@ describe("softDigAmount", () => {
 
   it("keeps a single dig crew nearly full strength", () => {
     const crew = 3;
-    expect(softDigAmount(crew) / crew).toBeGreaterThan(0.75);
+    expect(softDigAmount(crew) / crew).toBeGreaterThan(0.85);
   });
 
   it("still soft-caps very high passive rates", () => {
     const crewHeavy = 30;
     expect(softDigAmount(crewHeavy)).toBeLessThan(crewHeavy);
     expect(softDigAmount(crewHeavy)).toBeGreaterThan(SOFT_DIG_SCALE);
+  });
+
+  it("keeps a notable marginal gain at high stacks (linear floor)", () => {
+    const raw = 30;
+    const gained = softDigAmount(raw + 3) - softDigAmount(raw);
+    // Pure asinh at scale 2 only added ~0.19 here; floor keeps buys meaningful.
+    expect(gained).toBeGreaterThan(0.7);
+    expect(gained).toBeGreaterThan(SOFT_DIG_LINEAR_FLOOR * 3 * 0.9);
   });
 
   it("is monotonic in raw power", () => {

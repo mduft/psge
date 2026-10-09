@@ -561,7 +561,7 @@ The player is operating an excavation.
 
 Early digging should feel tiny: with the initial gear, each dig advances the excavation by roughly **a pixel** on screen. As equipment and production improve, visible descent should speed up **slowly**, until late-game motion looks and feels very fast.
 
-Endless Dig: nominal dig power / passive rate (sum of upgrades) is applied through `softDigAmount` in `softDig.ts` — `s · asinh(raw / s)` (`SOFT_DIG_SCALE`, currently 2) — so early taps and a dig crew stay nearly full strength while very high stacked rates bend below linear. **Current depth does not affect dig speed**; only instantaneous power/rate does. Shaft and camera follow the resulting depth 1:1. Pickaxe / jackhammer per-level steps are `+2/32` / `+8/32`.
+Endless Dig: nominal dig power / passive rate (sum of upgrades) is applied through `softDigAmount` in `softDig.ts` — `floor·raw + (1−floor)·s·asinh(raw/s)` (`SOFT_DIG_SCALE` 3, `SOFT_DIG_LINEAR_FLOOR` 0.25) — so early taps stay nearly full strength, high stacks bend below linear, and each upgrade still contributes at least ~25% of its nominal amount. **Current depth does not affect dig speed** beyond geo-layer hardness (M6); only instantaneous power/rate feeds the soft map. Shaft and camera follow the resulting depth 1:1. Pickaxe / jackhammer per-level steps are `+2/32` / `+8/32`.
 
 ---
 
