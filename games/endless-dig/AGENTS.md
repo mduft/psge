@@ -21,7 +21,7 @@ Dev URL examples:
 
 - Tap to dig; HUD stats + separate shop panel; camera follows dig face
 - Wide: stats panel + shop panel stacked (top-right)
-- Narrow (≤520px): one-line abbreviated stats; floating shop FAB → bottom sheet (dot when something is affordable)
+- Narrow (≤520px): one-line abbreviated stats; floating shop FAB → bottom sheet (dot when something is affordable); `?debug=1` uses a floating debug FAB → sheet (wide keeps the rail panel)
 - Camera framing is aspect-aware (`digCamera.ts`) — closer on wide / fullscreen so sky does not show past the cutaway
 - Dig/passive amounts soft-capped via `softDigAmount` (`softDig.ts`) so high gear speeds up without linear blur
 - Manual dig: punchy chip burst; passive dig: quieter trickle FX at the dig face

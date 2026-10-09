@@ -431,6 +431,7 @@ test("debug=1 shows tools; default hides them", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("#debug-panel")).toBeHidden();
+  await expect(page.locator("#debug-fab")).toBeHidden();
   await expect(page.locator("html")).not.toHaveAttribute("data-psge-debug", "1");
 
   await page.goto("/?nosave=1&debug=1");
@@ -442,6 +443,30 @@ test("debug=1 shows tools; default hides them", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Reset" })).toBeVisible();
 
   await page.locator('[data-give-dirt="100"]').click();
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-dirt"))
+    .toBe("100");
+});
+
+test("narrow debug opens as a sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?nosave=1&debug=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("#debug-fab")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-debug-sheet",
+    "closed",
+  );
+
+  await page.locator("#debug-fab").click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-debug-sheet",
+    "open",
+  );
+  await expect(page.locator("#debug-scroll")).toBeVisible();
+  await page.locator('[data-give-dirt="100"]').evaluate((el) =>
+    (el as HTMLButtonElement).click(),
+  );
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-dirt"))
     .toBe("100");

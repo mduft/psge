@@ -169,6 +169,9 @@ async function boot(): Promise<() => void> {
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const passiveEl = document.querySelector('[data-stat="passive"]');
   const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
+  const debugFab = document.querySelector<HTMLButtonElement>("#debug-fab");
+  const debugClose = document.querySelector<HTMLButtonElement>("#debug-close");
+  const debugBackdrop = document.querySelector<HTMLElement>("#debug-backdrop");
   const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
   const shopList = document.querySelector<HTMLElement>("#shop-list");
   const shopToggle =
@@ -181,7 +184,22 @@ async function boot(): Promise<() => void> {
     document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
 
+  const setDebugSheetOpen = (open: boolean): void => {
+    if (open) {
+      document.documentElement.dataset.psgeShop = "closed";
+      shopToggle?.setAttribute("aria-expanded", "false");
+      shopBackdrop?.setAttribute("hidden", "");
+    }
+    document.documentElement.dataset.psgeDebugSheet = open ? "open" : "closed";
+    debugFab?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (debugBackdrop) {
+      if (open) debugBackdrop.removeAttribute("hidden");
+      else debugBackdrop.setAttribute("hidden", "");
+    }
+  };
+
   const setShopOpen = (open: boolean): void => {
+    if (open) setDebugSheetOpen(false);
     document.documentElement.dataset.psgeShop = open ? "open" : "closed";
     shopToggle?.setAttribute("aria-expanded", open ? "true" : "false");
     if (shopBackdrop) {
@@ -189,13 +207,17 @@ async function boot(): Promise<() => void> {
       else shopBackdrop.setAttribute("hidden", "");
     }
   };
+
   setShopOpen(false);
+  setDebugSheetOpen(false);
 
   if (debug) {
     debugPanel?.removeAttribute("hidden");
+    debugFab?.removeAttribute("hidden");
     document.documentElement.dataset.psgeDebug = "1";
   } else {
     debugPanel?.setAttribute("hidden", "");
+    debugFab?.setAttribute("hidden", "");
     delete document.documentElement.dataset.psgeDebug;
   }
 
@@ -331,6 +353,18 @@ async function boot(): Promise<() => void> {
     e.stopPropagation();
     setShopOpen(false);
   };
+  const onDebugFabToggle = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDebugSheetOpen(
+      document.documentElement.dataset.psgeDebugSheet !== "open",
+    );
+  };
+  const onDebugSheetClose = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDebugSheetOpen(false);
+  };
   shopToggle?.addEventListener("click", onShopToggle);
   shopToggle?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   shopClose?.addEventListener("click", onShopClose);
@@ -339,6 +373,13 @@ async function boot(): Promise<() => void> {
   shopBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   const shopSheet = document.querySelector<HTMLElement>("#shop-sheet");
   shopSheet?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  debugFab?.addEventListener("click", onDebugFabToggle);
+  debugFab?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  debugClose?.addEventListener("click", onDebugSheetClose);
+  debugClose?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  debugBackdrop?.addEventListener("click", onDebugSheetClose);
+  debugBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  debugPanel?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const onGiveDirt = (e: Event): void => {
     const btn = e.currentTarget as HTMLButtonElement;
@@ -459,6 +500,9 @@ async function boot(): Promise<() => void> {
     shopToggle?.removeEventListener("click", onShopToggle);
     shopClose?.removeEventListener("click", onShopClose);
     shopBackdrop?.removeEventListener("click", onShopClose);
+    debugFab?.removeEventListener("click", onDebugFabToggle);
+    debugClose?.removeEventListener("click", onDebugSheetClose);
+    debugBackdrop?.removeEventListener("click", onDebugSheetClose);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);

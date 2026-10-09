@@ -134,21 +134,26 @@ body {
   font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
 }
 
-/* Floating shop control — narrow only. */
-.shop-fab {
+/* Floating FABs / sheet chrome — narrow only. */
+.shop-fab,
+.debug-fab {
   display: none;
 }
 
 .shop-close,
-.shop-backdrop {
+.debug-close,
+.shop-backdrop,
+.debug-backdrop {
   display: none;
 }
 
-.hud-shop {
+.hud-shop,
+.hud-debug {
   pointer-events: none;
 }
 
-.hud-shop > * {
+.hud-shop > *,
+.hud-debug > * {
   pointer-events: auto;
 }
 
@@ -276,7 +281,7 @@ body {
   font-size: 0.7rem;
 }
 
-.debug-toggle {
+.debug-scroll-toggle {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -285,7 +290,7 @@ body {
   cursor: pointer;
 }
 
-.debug-toggle input {
+.debug-scroll-toggle input {
   margin: 0;
   accent-color: #c4a574;
   cursor: pointer;
@@ -409,16 +414,17 @@ body {
     font-size: 0.78rem;
   }
 
-  .hud-shop {
+  .hud-shop,
+  .hud-debug {
     position: contents;
   }
 
-  .shop-fab {
+  .shop-fab,
+  .debug-fab:not([hidden]) {
     display: flex;
     align-items: center;
     justify-content: center;
     position: fixed;
-    right: calc(0.9rem + var(--safe-right));
     bottom: calc(4.25rem + var(--safe-bottom));
     z-index: 3;
     width: 3.1rem;
@@ -434,8 +440,19 @@ body {
     pointer-events: auto;
   }
 
+  .shop-fab {
+    right: calc(0.9rem + var(--safe-right));
+  }
+
+  .debug-fab:not([hidden]) {
+    left: calc(0.9rem + var(--safe-left));
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
   .shop-fab:hover,
-  .shop-fab:focus-visible {
+  .shop-fab:focus-visible,
+  .debug-fab:hover,
+  .debug-fab:focus-visible {
     background: rgba(196, 165, 116, 0.28);
     outline: none;
   }
@@ -444,7 +461,8 @@ body {
     border-color: rgba(196, 165, 116, 0.9);
   }
 
-  .shop-fab-icon {
+  .shop-fab-icon,
+  .debug-fab-icon {
     display: block;
   }
 
@@ -525,8 +543,63 @@ body {
     max-height: min(52vh, 20rem);
   }
 
-  .debug-panel {
-    padding: 0.45rem 0.55rem;
+  .debug-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    background: rgba(6, 8, 12, 0.45);
+    pointer-events: auto;
+  }
+
+  html[data-psge-debug-sheet="open"] .debug-backdrop {
+    display: block;
+  }
+
+  /* Narrow: collapse debug into a sheet (wide keeps the rail panel). */
+  .debug-panel:not([hidden]) {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    margin: 0;
+    padding:
+      0.75rem
+      calc(0.9rem + var(--safe-right))
+      calc(0.85rem + var(--safe-bottom))
+      calc(0.9rem + var(--safe-left));
+    max-height: min(72vh, 28rem);
+    background: rgba(10, 14, 20, 0.94);
+    border-radius: 0.75rem 0.75rem 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
+    display: flex;
+  }
+
+  .debug-close {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.5rem;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--hud-ink);
+    text-shadow: none;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    cursor: pointer;
+  }
+
+  .debug-close:hover,
+  .debug-close:focus-visible {
+    background: rgba(255, 255, 255, 0.14);
+    outline: none;
   }
 }
 
