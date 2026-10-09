@@ -279,23 +279,33 @@ export function buildDigWorld(
     const remain = quantizePartialHeight(1 - frac);
     if (remain <= 1e-6) return;
     const blockY = -fullDepth;
-    const id = strata(blockY);
     const geo = getPartialBox(remain);
-    const mats = getDigFaceMaterials(id, remain);
-    const count = SHAFT_XS.length * SHAFT_ZS.length;
-    const mesh = new InstancedMesh(geo, mats, count);
-    let i = 0;
+    const byId = new Map<BlockId, Matrix4[]>();
     for (const x of SHAFT_XS) {
       for (const z of SHAFT_ZS) {
+        const id = strataAt(x, blockY, z);
         const m = new Matrix4();
         m.setPosition(x + 0.5, blockY + remain / 2, z + 0.5);
-        mesh.setMatrixAt(i++, m);
+        let list = byId.get(id);
+        if (!list) {
+          list = [];
+          byId.set(id, list);
+        }
+        list.push(m);
       }
     }
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.frustumCulled = false;
-    mesh.name = "dig-face";
-    digFaceRoot.add(mesh);
+    for (const [id, matrices] of byId) {
+      const mesh = new InstancedMesh(
+        geo,
+        getDigFaceMaterials(id, remain),
+        matrices.length,
+      );
+      matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      mesh.name = "dig-face";
+      digFaceRoot.add(mesh);
+    }
   };
 
   const ensureWorldExtent = (minExtent: number): boolean => {
@@ -374,12 +384,96 @@ export function buildDigWorld(
   };
 }
 
-function strata(y: number): BlockId {
-  if (y >= -3) return "dirt";
-  if (y >= -7) return "stone";
-  if (y >= -11) return "granite";
-  const band = Math.floor((-y - 12) / 8) % 4;
-  return (["deepslate", "stone", "granite", "cobble"] as const)[band]!;
+/** Minimum thickness kept when independent boundary warps would cross. */
+const MIN_LAYER_THICKNESS = 2;
+
+const DEEP_BANDS = ["deepslate", "stone", "granite", "cobble"] as const;
+
+type WarpProfile = { cell: number; amp: number; seed: number };
+
+/** Named contacts — each gets its own frequency/seed so seams do not stack. */
+const BOUNDARY_DIRT_STONE: WarpProfile = { cell: 6, amp: 2.5, seed: 0x11a3 };
+const BOUNDARY_STONE_GRANITE: WarpProfile = { cell: 11, amp: 4, seed: 0x22b7 };
+const BOUNDARY_GRANITE_DEEP: WarpProfile = { cell: 9, amp: 3.5, seed: 0x33c1 };
+
+function deepBoundaryProfile(bandIndex: number): WarpProfile {
+  // Vary wavelength per deep contact so repeating bands do not rhyme.
+  const cell = 7 + ((bandIndex * 3) % 6); // 7…12
+  return {
+    cell,
+    amp: cell * 0.45,
+    seed: 0x500 + Math.imul(bandIndex + 1, 0x9e3779b1),
+  };
+}
+
+function layerLatticeHash(ix: number, iz: number, seed: number): number {
+  let n =
+    Math.imul(ix | 0, 374761393) +
+    Math.imul(iz | 0, 668265263) +
+    (seed | 0);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * Per-boundary depth offset. Bilinear value noise with amp ≤ cell/2 keeps
+ * |Δ| ≤ 1 for 4-neighbors; total undulation may span several blocks.
+ */
+export function boundaryWarp(
+  x: number,
+  z: number,
+  profile: WarpProfile,
+): number {
+  const cell = profile.cell;
+  const amp = Math.min(profile.amp, cell / 2);
+  const fx = x / cell;
+  const fz = z / cell;
+  const x0 = Math.floor(fx);
+  const z0 = Math.floor(fz);
+  const tx = fx - x0;
+  const tz = fz - z0;
+  const v = (ix: number, iz: number) =>
+    (layerLatticeHash(ix, iz, profile.seed) * 2 - 1) * amp;
+  const a = v(x0, z0) + (v(x0 + 1, z0) - v(x0, z0)) * tx;
+  const b = v(x0, z0 + 1) + (v(x0 + 1, z0 + 1) - v(x0, z0 + 1)) * tx;
+  return a + (b - a) * tz;
+}
+
+/** Dirt/stone contact warp (test helper / single-field sample). */
+export function layerWarp(x: number, z: number): number {
+  return boundaryWarp(x, z, BOUNDARY_DIRT_STONE);
+}
+
+/**
+ * Block material at (x,y,z). Each geological contact undulates independently
+ * (different seed/wavelength); contacts are clamped so layers cannot invert.
+ */
+export function strataAt(x: number, y: number, z: number): BlockId {
+  const d = -y;
+  const tDirt =
+    3 + boundaryWarp(x, z, BOUNDARY_DIRT_STONE);
+  const tStone = Math.max(
+    tDirt + MIN_LAYER_THICKNESS,
+    7 + boundaryWarp(x, z, BOUNDARY_STONE_GRANITE),
+  );
+  const tGranite = Math.max(
+    tStone + MIN_LAYER_THICKNESS,
+    12 + boundaryWarp(x, z, BOUNDARY_GRANITE_DEEP),
+  );
+  if (d <= tDirt) return "dirt";
+  if (d <= tStone) return "stone";
+  if (d < tGranite) return "granite";
+
+  let lo = tGranite;
+  for (let i = 0; i < 512; i++) {
+    const hi = Math.max(
+      lo + MIN_LAYER_THICKNESS,
+      12 + 8 * (i + 1) + boundaryWarp(x, z, deepBoundaryProfile(i)),
+    );
+    if (d < hi) return DEEP_BANDS[i & 3]!;
+    lo = hi;
+  }
+  return "cobble";
 }
 
 function buildChunk(
@@ -532,11 +626,11 @@ function placeColumnBlock(
   if (inShaft(x, z) && y <= 0) {
     const remain = shaftBlockRemainHeight(y, excavatedDepth);
     if (remain <= 1e-6) return;
-    add(strata(y), x, y, z, remain);
+    add(strataAt(x, y, z), x, y, z, remain);
     return;
   }
 
-  add(strata(y), x, y, z);
+  add(strataAt(x, y, z), x, y, z);
 
   if (allowGrass && y === 0 && !inShaft(x, z)) {
     const cap = new Matrix4();
