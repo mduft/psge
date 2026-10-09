@@ -11,7 +11,8 @@ import {
   type Material,
 } from "three";
 import {
-  GEO_LAYERS,
+  geoPaletteTint,
+  geoSkyColor,
   tintHex,
   type GeoLayerId,
 } from "./geoLayers.js";
@@ -53,22 +54,16 @@ const BASE_PALETTES: Record<BlockId, BlockPalette> = {
 /** Distinct procedural patterns for lava / gem wall accents. */
 export const ACCENT_VARIANTS = 4;
 
-const ABYSS_TINT = { h: -0.12, s: -0.22, l: -0.18 };
-
 function tintForFamily(family: PaletteFamily): {
   h: number;
   s: number;
   l: number;
 } {
-  if (family === "abyss") return ABYSS_TINT;
-  const layer = GEO_LAYERS.find((l) => l.id === family);
-  return layer?.paletteTint ?? { h: 0, s: 0, l: 0 };
+  return geoPaletteTint(family);
 }
 
 function skyForFamily(family: PaletteFamily): number {
-  if (family === "abyss") return 0x0a0e14;
-  const layer = GEO_LAYERS.find((l) => l.id === family);
-  return layer?.mood.sky ?? 0x87b7e0;
+  return geoSkyColor(family);
 }
 
 function paletteFor(id: BlockId, family: PaletteFamily): BlockPalette {

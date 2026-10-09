@@ -47,6 +47,19 @@ describe("computeOfflineReward", () => {
     expect(reward!.elapsedMs).toBe(elapsed);
   });
 
+  it("applies layer hardness at depth (packed clay × 0.72)", () => {
+    const state = createInitialState({
+      depth: 2000,
+      upgrades: { cart: 1 },
+    });
+    const elapsed = 120_000;
+    const reward = computeOfflineReward(state, now - elapsed, now);
+    expect(reward).not.toBeNull();
+    const soft = softDigAmount(0.05);
+    const expected = soft * 0.72 * (elapsed / 1000) * OFFLINE_EFFICIENCY;
+    expect(reward!.depthGained.toNumber()).toBeCloseTo(expected, 8);
+  });
+
   it("caps credited time at 24h", () => {
     const state = createInitialState({ upgrades: { cart: 1 } });
     const raw = OFFLINE_MAX_MS + 3 * 60 * 60 * 1000;
@@ -90,6 +103,18 @@ describe("computeHiddenCatchUp", () => {
     const catchUp = computeHiddenCatchUp(state, now - elapsed, now);
     expect(catchUp).not.toBeNull();
     const expected = softDigAmount(0.05) * (elapsed / 1000);
+    expect(catchUp!.depthGained.toNumber()).toBeCloseTo(expected, 8);
+  });
+
+  it("scales catch-up by layer hardness at depth", () => {
+    const state = createInitialState({
+      depth: 2000,
+      upgrades: { cart: 1 },
+    });
+    const elapsed = 10_000;
+    const catchUp = computeHiddenCatchUp(state, now - elapsed, now);
+    expect(catchUp).not.toBeNull();
+    const expected = softDigAmount(0.05) * 0.72 * (elapsed / 1000);
     expect(catchUp!.depthGained.toNumber()).toBeCloseTo(expected, 8);
   });
 

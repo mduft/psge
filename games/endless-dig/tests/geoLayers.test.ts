@@ -8,6 +8,8 @@ import {
   geoBoundaryWarp,
   geoLayerApproachDepths,
   geoLayerAt,
+  geoPaletteTint,
+  geoSkyColor,
   hardnessAt,
   wallAccentAt,
 } from "../src/geoLayers.js";
@@ -92,9 +94,7 @@ describe("wallAccentAt", () => {
   it("places gems in ancient rock and lava in the abyss", () => {
     let gems = 0;
     let lavas = 0;
-    // Wall strip only (exclude shaft xz −1/0) — shaft never places accents.
     for (let x = -16; x <= 16; x++) {
-      if (x === -1 || x === 0) continue;
       for (const z of [-2] as const) {
         for (let y = -50_000; y >= -50_040; y--) {
           if (wallAccentAt(x, y, z) === "gem") gems += 1;
@@ -107,5 +107,25 @@ describe("wallAccentAt", () => {
     expect(gems).toBeGreaterThan(0);
     expect(lavas).toBeGreaterThan(0);
     expect(wallAccentAt(0, -10, 0)).toBeNull();
+  });
+
+  it("never accents the dig-shaft footprint even in the abyss", () => {
+    let shaftLava = 0;
+    for (const x of [-1, 0]) {
+      for (const z of [-1, 0]) {
+        for (let y = -130_000; y >= -130_200; y--) {
+          if (wallAccentAt(x, y, z) === "lava") shaftLava += 1;
+        }
+      }
+    }
+    expect(shaftLava).toBe(0);
+  });
+});
+
+describe("geo visual helpers", () => {
+  it("keeps abyss palette/sky on the geo-layer source of truth", () => {
+    const abyss = geoLayerAt(150_000);
+    expect(geoPaletteTint("abyss")).toEqual(abyss.paletteTint);
+    expect(geoSkyColor("abyss")).toBe(abyss.mood.sky);
   });
 });

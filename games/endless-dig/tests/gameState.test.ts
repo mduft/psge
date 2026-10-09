@@ -10,6 +10,8 @@ import {
   dig,
   digPowerOf,
   DEFAULT_DIG_POWER,
+  effectiveDigPowerOf,
+  effectivePassiveRateOf,
   passiveRateOf,
   SHAFT_CROSS_SECTION,
   tickProduction,
@@ -95,5 +97,26 @@ describe("tickProduction", () => {
     const state = createInitialState();
     expect(tickProduction(state, 1)).toBe(false);
     expect(state.depth.isZero()).toBe(true);
+  });
+});
+
+describe("effective dig rates", () => {
+  it("matches dig/tick after soft-cap and layer hardness", () => {
+    const surface = createInitialState({ upgrades: { shovel: 7, cart: 1 } });
+    expect(effectiveDigPowerOf(surface)).toBeCloseTo(
+      softDigAmount(digPowerOf(surface).toNumber()),
+    );
+    expect(effectivePassiveRateOf(surface)).toBeCloseTo(
+      softDigAmount(0.05),
+    );
+
+    const deep = createInitialState({
+      depth: 2000,
+      upgrades: { shovel: 7, cart: 1 },
+    });
+    expect(effectiveDigPowerOf(deep)).toBeCloseTo(
+      softDigAmount(digPowerOf(deep).toNumber()) * 0.72,
+    );
+    expect(effectivePassiveRateOf(deep)).toBeCloseTo(softDigAmount(0.05) * 0.72);
   });
 });

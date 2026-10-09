@@ -99,6 +99,28 @@ export function passiveRateOf(state: GameState): Decimal {
   return rate;
 }
 
+/**
+ * Soft-capped then hardness-scaled dig (m/tap) — what `dig()` actually applies.
+ * Prefer for HUD so deep layers do not overstate power.
+ */
+export function effectiveDigPowerOf(state: GameState): number {
+  return applyLayerHardness(
+    softDigAmount(digPowerOf(state).toNumber()),
+    state.depth.toNumber(),
+  );
+}
+
+/**
+ * Soft-capped then hardness-scaled passive rate (m/s) — what `tickProduction`
+ * actually applies.
+ */
+export function effectivePassiveRateOf(state: GameState): number {
+  return applyLayerHardness(
+    softDigAmount(passiveRateOf(state).toNumber()),
+    state.depth.toNumber(),
+  );
+}
+
 function applyDepthGain(state: GameState, gained: Decimal): void {
   if (gained.lte(0)) return;
   state.depth = state.depth.plus(gained);

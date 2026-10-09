@@ -20,6 +20,7 @@ import {
 } from "three";
 import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
+import { DIG_SHAFT_XS, DIG_SHAFT_ZS, isDigShaftCell } from "./digShaft.js";
 import { createDigParticles } from "./digParticles.js";
 import {
   chipColorsForDepth,
@@ -105,8 +106,6 @@ export function roundWorldExtentUp(minExtent: number): number {
 /** Half-disk grass radius extending away from the player (−Z). */
 const SURFACE_RADIUS = 40;
 const Z_FRONT = 0;
-const SHAFT_XS = [-1, 0] as const;
-const SHAFT_ZS = [-1, 0] as const;
 const DEEP_CUT_Z = -2;
 /** Cutaway wall strip half-width (blocks) — wide enough for fullscreen HD. */
 const WALL_HALF = 16;
@@ -277,9 +276,7 @@ export function buildDigWorld(
     },
   });
 
-  const inShaft = (x: number, z: number): boolean =>
-    (SHAFT_XS as readonly number[]).includes(x) &&
-    (SHAFT_ZS as readonly number[]).includes(z);
+  const inShaft = isDigShaftCell;
 
   const onSurfaceDisk = (x: number, z: number): boolean => {
     if (z > Z_FRONT) return false;
@@ -347,8 +344,8 @@ export function buildDigWorld(
     const blockY = -fullDepth;
     const geo = getPartialBox(remain);
     const byId = new Map<BlockId, Matrix4[]>();
-    for (const x of SHAFT_XS) {
-      for (const z of SHAFT_ZS) {
+    for (const x of DIG_SHAFT_XS) {
+      for (const z of DIG_SHAFT_ZS) {
         const id = strataAt(x, blockY, z);
         const m = new Matrix4();
         m.setPosition(x + 0.5, blockY + remain / 2, z + 0.5);
@@ -417,7 +414,8 @@ export function buildDigWorld(
     // 1/32 while auto-digging through the same block (that was the stutter).
     if (structureChanged) refreshCavityRange(prev, next);
     rebuildDigFaceOverlay();
-    applyEnvironment(excavatedDepth);
+    // Fog / sky / chips: owned by main.applyLayerMood → applyEnvironment so
+    // lights and fog stay on one path (avoid double-apply every dig).
   };
 
   scene.add(root);

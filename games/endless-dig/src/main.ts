@@ -22,14 +22,14 @@ import {
   geoLayerAt,
   type GeoLayerId,
 } from "./geoLayers.js";
-import { focusForDepth, softDigAmount } from "./softDig.js";
+import { focusForDepth } from "./softDig.js";
 import {
   buyUpgrade,
   canBuyUpgrade,
   createInitialState,
   dig,
-  digPowerOf,
-  passiveRateOf,
+  effectiveDigPowerOf,
+  effectivePassiveRateOf,
   resetProgress,
   SHAFT_CROSS_SECTION,
   tickProduction,
@@ -130,7 +130,7 @@ function depthNumber(state: GameState): number {
 }
 
 /** Dig power as meters of depth per tap (matches Depth / Auto units). */
-function formatDigPower(power: Decimal): string {
+function formatDigPower(power: number): string {
   return `${formatMeters(power)} m`;
 }
 
@@ -399,9 +399,9 @@ async function boot(): Promise<() => void> {
   };
 
   const updateHud = (): void => {
-    const power = digPowerOf(state);
-    const passive = passiveRateOf(state);
     const depth = depthNumber(state);
+    const power = effectiveDigPowerOf(state);
+    const passive = effectivePassiveRateOf(state);
     const layer = geoLayerAt(depth);
     if (depthEl) depthEl.textContent = `${formatAmount(state.depth)} m`;
     if (layerEl) layerEl.textContent = layer.name;
@@ -724,8 +724,8 @@ async function boot(): Promise<() => void> {
     if (trickleCooldown <= 0) {
       world.trickleDigParticles();
       world.playCrewChip();
-      const rate = softDigAmount(passiveRateOf(state).toNumber());
-      // ~3–12 Hz depending on soft passive rate; stays visibly quieter than taps.
+      const rate = effectivePassiveRateOf(state);
+      // ~3–12 Hz depending on effective passive rate; stays visibly quieter than taps.
       trickleCooldown = Math.min(0.32, Math.max(0.08, 0.28 / Math.sqrt(1 + rate)));
     }
   });

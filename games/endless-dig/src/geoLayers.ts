@@ -5,6 +5,7 @@
  * Kilometer-scale geological layers (M6). Separate from fine block strata mix.
  */
 import { Color } from "three";
+import { isDigShaftCell } from "./digShaft.js";
 
 export type GeoLayerId =
   | "soil"
@@ -18,9 +19,9 @@ export interface GeoLayerMood {
   /** Scene background / fog base. */
   sky: number;
   /**
-   * Linear fog in scene units (blocks × BLOCK_SCALE ≈ 1.55).
-   * Dig camera sits ~17–34 units out — ranges must sit inside that frustum
-   * or the cutaway never hazes.
+   * Linear fog in scene units, authored for the 16:9 dig camera (~20 units
+   * out). Narrow views pull the camera farther — `main` multiplies these by
+   * `fogScaleForCameraDistance` so the cutaway does not vanish into fogFar.
    */
   fogNear: number;
   fogFar: number;
@@ -257,6 +258,24 @@ export function chipColorsForDepth(depth: number): readonly number[] {
   return geoLayerAt(depth).chipColors;
 }
 
+/** Palette HSL tint for a geo family (Abyss included — single source). */
+export function geoPaletteTint(id: GeoLayerId): {
+  h: number;
+  s: number;
+  l: number;
+} {
+  if (id === "abyss") return { ...ABYSS_BASE.paletteTint };
+  return (
+    GEO_LAYERS.find((l) => l.id === id)?.paletteTint ?? { h: 0, s: 0, l: 0 }
+  );
+}
+
+/** Sky / fog base color for a geo family (Abyss included — single source). */
+export function geoSkyColor(id: GeoLayerId): number {
+  if (id === "abyss") return ABYSS_BASE.mood.sky;
+  return GEO_LAYERS.find((l) => l.id === id)?.mood.sky ?? 0x87b7e0;
+}
+
 /** Depths just above each layer seam (for debug jump buttons). */
 export function geoLayerApproachDepths(
   beforeMeters = 5,
@@ -290,8 +309,9 @@ export function tintHex(
 }
 
 /**
- * Sparse glowing accents on cutaway walls (never the dig shaft — see world).
+ * Sparse glowing accents on cutaway walls.
  * Ancient → gem (often singles / pairs). Abyss → lava (runs of 1–3).
+ * Never on the dig-shaft footprint (accents would vanish as you dig).
  */
 export function wallAccentAt(
   x: number,
@@ -299,6 +319,7 @@ export function wallAccentAt(
   z: number,
 ): "lava" | "gem" | null {
   if (y > -3) return null;
+  if (isDigShaftCell(x, z)) return null;
   const layer = geoLayerAt(Math.max(0, -y), x, z);
   if (layer.id === "abyss") {
     return inAccentRun(x, y, z, 0x1a7a00, 0.03, 3) ? "lava" : null;
