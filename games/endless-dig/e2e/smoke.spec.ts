@@ -363,6 +363,46 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   expect(digPowerAfter).not.toBe(digPowerBefore);
 });
 
+test("narrow shop opens as a sheet before buy", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "closed");
+
+  await page.evaluate(() => {
+    const s = (
+      window as unknown as {
+        __psgeState: { dirt: DecLike };
+      }
+    ).__psgeState;
+    const D = Object.getPrototypeOf(s.dirt).constructor as new (
+      n: number,
+    ) => DecLike;
+    (s as { dirt: DecLike }).dirt = new D(100);
+    window.dispatchEvent(new Event("resize"));
+  });
+
+  await expect(page.locator("#shop-toggle")).toBeVisible();
+  await expect(page.locator('[data-shop-afford]')).toBeVisible();
+  await page.locator("#shop-toggle").click();
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
+  const buyShovel = page.locator('#shop-sheet [data-shop-buy="shovel"]');
+  await expect(buyShovel).toBeEnabled();
+  await buyShovel.evaluate((el) => (el as HTMLButtonElement).click());
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __psgeState: { upgrades: { shovel: number } };
+            }
+          ).__psgeState.upgrades.shovel,
+      ),
+    )
+    .toBe(1);
+});
+
 test("passive cart digs without tapping", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");

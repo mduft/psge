@@ -19,7 +19,9 @@ Dev URL examples:
 
 ## Milestone 4
 
-- Tap to dig; HUD Depth / Dirt / Shop; camera follows dig face
+- Tap to dig; HUD stats + separate shop panel; camera follows dig face
+- Wide: stats panel + shop panel stacked (top-right)
+- Narrow (≤520px): one-line abbreviated stats; floating shop FAB → bottom sheet (dot when something is affordable)
 - Dig/passive amounts soft-capped via `softDigAmount` (`softDig.ts`) so high gear speeds up without linear blur
 - Shop: spend dirt on shovel / pickaxe / jackhammer (dig power) and cart / drill / crew (depth/s)
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)

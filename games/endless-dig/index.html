@@ -21,31 +21,82 @@
           <h1>The Endless Dig</h1>
           <p class="tagline">Something is down there.</p>
         </header>
-        <aside class="hud-panel">
-          <div class="stat">
-            <span class="label">Depth</span>
-            <span class="value" data-stat="depth">0 m</span>
-          </div>
-          <div class="stat">
-            <span class="label">Dirt</span>
-            <span class="value" data-stat="dirt">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Dig power</span>
-            <span class="value" data-stat="dig-power">1/32</span>
-          </div>
-          <div class="stat">
-            <span class="label">Auto</span>
-            <span class="value" data-stat="passive">0/s</span>
-          </div>
-          <section class="shop" aria-label="Shop">
-            <h2 class="shop-title">Shop</h2>
-            <div id="shop-list" class="shop-list"></div>
-          </section>
+
+        <div class="hud-rail">
+          <aside class="hud-stats" aria-label="Stats">
+            <div class="stat">
+              <span class="label">
+                <span class="label-full">Depth</span>
+                <span class="label-abbr" aria-hidden="true">Dep</span>
+              </span>
+              <span class="value" data-stat="depth">0 m</span>
+            </div>
+            <div class="stat">
+              <span class="label">
+                <span class="label-full">Dirt</span>
+                <span class="label-abbr" aria-hidden="true">Dirt</span>
+              </span>
+              <span class="value" data-stat="dirt">0</span>
+            </div>
+            <div class="stat">
+              <span class="label">
+                <span class="label-full">Dig power</span>
+                <span class="label-abbr" aria-hidden="true">Dig</span>
+              </span>
+              <span class="value" data-stat="dig-power">1/32</span>
+            </div>
+            <div class="stat">
+              <span class="label">
+                <span class="label-full">Auto</span>
+                <span class="label-abbr" aria-hidden="true">Auto</span>
+              </span>
+              <span class="value" data-stat="passive">0/s</span>
+            </div>
+          </aside>
+
+          <aside class="hud-shop" aria-label="Shop controls">
+            <button
+              type="button"
+              id="shop-toggle"
+              class="shop-fab"
+              aria-label="Shop"
+              aria-expanded="false"
+              aria-controls="shop-sheet"
+            >
+              <svg
+                class="shop-fab-icon"
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  fill="currentColor"
+                  d="M6 8V6a6 6 0 1 1 12 0v2h2.2c.7 0 1.2.6 1.1 1.3l-1.5 10A1.25 1.25 0 0 1 18.6 21H5.4a1.25 1.25 0 0 1-1.2-1.7l-1.5-10A1.1 1.1 0 0 1 3.8 8H6zm2 0h8V6a4 4 0 1 0-8 0v2z"
+                />
+              </svg>
+              <span class="shop-afford-dot" data-shop-afford hidden></span>
+            </button>
+            <div id="shop-backdrop" class="shop-backdrop" hidden></div>
+            <section class="shop" id="shop-sheet">
+              <header class="shop-header">
+                <h2 class="shop-title">Shop</h2>
+                <button type="button" id="shop-close" class="shop-close">
+                  Close
+                </button>
+              </header>
+              <div id="shop-list" class="shop-list"></div>
+            </section>
+          </aside>
+
           <section class="debug-panel" id="debug-panel" hidden>
             <h2 class="shop-title">Debug</h2>
             <div class="debug-dirt">
-              <span class="label">Give dirt</span>
+              <span class="label">
+                <span class="label-full">Give dirt</span>
+                <span class="label-abbr" aria-hidden="true">Dirt+</span>
+              </span>
               <span class="debug-dirt-row">
                 <button type="button" class="hud-reset" data-give-dirt="100">
                   +100
@@ -66,7 +117,8 @@
               Reset
             </button>
           </section>
-        </aside>
+        </div>
+
         <div id="save-indicator" class="save-indicator" aria-hidden="true">
           Saved
         </div>

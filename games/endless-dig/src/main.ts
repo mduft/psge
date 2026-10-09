@@ -171,9 +171,25 @@ async function boot(): Promise<() => void> {
   const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
   const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
   const shopList = document.querySelector<HTMLElement>("#shop-list");
+  const shopToggle =
+    document.querySelector<HTMLButtonElement>("#shop-toggle");
+  const shopClose = document.querySelector<HTMLButtonElement>("#shop-close");
+  const shopBackdrop = document.querySelector<HTMLElement>("#shop-backdrop");
+  const shopAffordDot =
+    document.querySelector<HTMLElement>("[data-shop-afford]");
   const resetButton =
     document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
+
+  const setShopOpen = (open: boolean): void => {
+    document.documentElement.dataset.psgeShop = open ? "open" : "closed";
+    shopToggle?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (shopBackdrop) {
+      if (open) shopBackdrop.removeAttribute("hidden");
+      else shopBackdrop.setAttribute("hidden", "");
+    }
+  };
+  setShopOpen(false);
 
   if (debug) {
     debugPanel?.removeAttribute("hidden");
@@ -232,9 +248,12 @@ async function boot(): Promise<() => void> {
       passiveEl.textContent = `${formatAmount(passive)}/s`;
     }
 
+    let anyAffordable = false;
     for (const def of UPGRADE_DEFS) {
       const level = state.upgrades[def.id];
       const cost = upgradeCost(def.id, level);
+      const affordable = canBuyUpgrade(state, def.id);
+      if (affordable) anyAffordable = true;
       const effect = shopList?.querySelector(`[data-shop-effect="${def.id}"]`);
       if (effect) {
         effect.textContent = `Lv ${level} · ${def.effectLabel} · ${formatAmount(cost)} dirt`;
@@ -242,9 +261,14 @@ async function boot(): Promise<() => void> {
       const buy = shopButtons.get(def.id);
       if (buy) {
         buy.textContent = "Buy";
-        buy.disabled = !canBuyUpgrade(state, def.id);
+        buy.disabled = !affordable;
       }
     }
+    if (shopAffordDot) {
+      if (anyAffordable) shopAffordDot.removeAttribute("hidden");
+      else shopAffordDot.setAttribute("hidden", "");
+    }
+    shopToggle?.classList.toggle("has-affordable", anyAffordable);
 
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
@@ -296,6 +320,25 @@ async function boot(): Promise<() => void> {
   };
 
   buildShop();
+
+  const onShopToggle = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShopOpen(document.documentElement.dataset.psgeShop !== "open");
+  };
+  const onShopClose = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShopOpen(false);
+  };
+  shopToggle?.addEventListener("click", onShopToggle);
+  shopToggle?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  shopClose?.addEventListener("click", onShopClose);
+  shopClose?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  shopBackdrop?.addEventListener("click", onShopClose);
+  shopBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  const shopSheet = document.querySelector<HTMLElement>("#shop-sheet");
+  shopSheet?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const onGiveDirt = (e: Event): void => {
     const btn = e.currentTarget as HTMLButtonElement;
@@ -404,6 +447,9 @@ async function boot(): Promise<() => void> {
     window.removeEventListener("resize", onResize);
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibility);
+    shopToggle?.removeEventListener("click", onShopToggle);
+    shopClose?.removeEventListener("click", onShopClose);
+    shopBackdrop?.removeEventListener("click", onShopClose);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);
