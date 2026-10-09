@@ -10,6 +10,7 @@ import {
 import Decimal from "decimal.js";
 import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
+import { digCameraFraming } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { formatAmount } from "./formatAmount.js";
 import { focusForDepth } from "./softDig.js";
@@ -151,10 +152,9 @@ async function boot(): Promise<() => void> {
 
   const applyCamera = (): void => {
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-    const distance = aspect < 0.85 ? 34 : aspect < 1.15 ? 30 : 27;
-    const xOffset = aspect < 0.85 ? 1.4 : 2.6;
+    const { distance, xOffset, panXBlocks } = digCameraFraming(aspect);
     /** Pan only (same delta on eye + lookAt) so side-view angle stays fixed. */
-    const panX = (aspect < 0.85 ? -0.3 : -0.6) * BLOCK_SCALE;
+    const panX = panXBlocks * BLOCK_SCALE;
     const yLift = 8.5;
     const focusY = world.getRenderFocusY();
 

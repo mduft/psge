@@ -66,13 +66,13 @@ export interface DigWorldOptions {
 export const WORLD_EXTENT_LOOKAHEAD = 64;
 
 /** Half-disk grass radius extending away from the player (−Z). */
-const SURFACE_RADIUS = 32;
+const SURFACE_RADIUS = 40;
 const Z_FRONT = 0;
 const SHAFT_XS = [-1, 0] as const;
 const SHAFT_ZS = [-1, 0] as const;
 const DEEP_CUT_Z = -2;
-/** Narrow wall strip for deep cutaway chunks. */
-const WALL_HALF = 10;
+/** Cutaway wall strip half-width (blocks) — wide enough for fullscreen HD. */
+const WALL_HALF = 16;
 export const BLOCK_SCALE = 1.55;
 
 const CHUNK_SIZE = 16;
