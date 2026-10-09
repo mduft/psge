@@ -44,12 +44,14 @@ function main(): () => void {
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
     const distance = aspect < 0.85 ? 34 : aspect < 1.15 ? 30 : 27;
     const xOffset = aspect < 0.85 ? 1.4 : 2.6;
+    /** Pan only (same delta on eye + lookAt) so side-view angle stays fixed. */
+    const panX = (aspect < 0.85 ? -0.3 : -0.6) * BLOCK_SCALE;
     const yLift = 8.5;
     const focusY = world.getRenderFocusY();
 
     app.setCamera({
-      position: [xOffset * BLOCK_SCALE, focusY + yLift, distance],
-      lookAt: [0, focusY - 1.5, -6 * BLOCK_SCALE],
+      position: [xOffset * BLOCK_SCALE + panX, focusY + yLift, distance],
+      lookAt: [panX, focusY - 1.5, -6 * BLOCK_SCALE],
     });
   };
 
