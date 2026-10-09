@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 import { createHoldDragScroll, type HoldDragScroll } from "@psge/engine";
 import type { DigWorld } from "./world.js";
 

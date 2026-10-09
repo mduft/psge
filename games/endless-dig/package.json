@@ -2,6 +2,8 @@
   "name": "@psge/endless-dig",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
+  "author": "Markus Duft",
   "type": "module",
   "scripts": {
     "dev": "vite",

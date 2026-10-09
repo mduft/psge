@@ -1,4 +1,6 @@
 {
+  // Copyright (c) 2026 Markus Duft
+  // SPDX-License-Identifier: MIT
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",

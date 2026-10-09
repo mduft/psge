@@ -1,6 +1,8 @@
+<!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # PSGE — Agent Guide
 
 Pleasantly Simple Game Engine monorepo. Spec: [PSGE.md](./PSGE.md).
+License: [MIT](./LICENSE) — Copyright (c) 2026 Markus Duft.
 
 ## Unfrozen API
 

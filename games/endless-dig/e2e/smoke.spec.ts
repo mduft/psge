@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 import { expect, test } from "@playwright/test";
 
 test("full-bleed chunked cutaway boots", async ({ page }) => {

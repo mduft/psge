@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 export interface HoldDragScrollOptions {
   element: HTMLElement;
   /** Scroll axis in screen space. Default "y". */

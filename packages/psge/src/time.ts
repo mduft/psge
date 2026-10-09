@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 /** Default max simulation step in seconds (prevents huge pauses). */
 export const DEFAULT_MAX_DELTA = 1 / 20;
 

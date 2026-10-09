@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 import { describe, expect, it } from "vitest";
 import { createSeededRng } from "../src/rng.js";
 

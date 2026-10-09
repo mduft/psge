@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 import { MeshLambertMaterial, type Material } from "three";
 import { createBlockMaterials, type BlockId } from "./blockTextures.js";
 

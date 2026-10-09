@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 import { createApp, type LightingOptions } from "@psge/engine";
 import { createShaftScroll } from "./cameraScroll.js";
 import { BLOCK_SCALE, buildDigWorld } from "./world.js";

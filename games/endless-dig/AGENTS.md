@@ -1,3 +1,4 @@
+<!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # The Endless Dig — Agent Guide
 
 Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 1.1).

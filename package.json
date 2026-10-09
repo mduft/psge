@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "description": "Pleasantly Simple Game Engine monorepo",
+  "license": "MIT",
+  "author": "Markus Duft",
   "workspaces": [
     "packages/*",
     "games/*"

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Markus Duft
+# SPDX-License-Identifier: MIT
+
 node_modules/
 dist/
 coverage/

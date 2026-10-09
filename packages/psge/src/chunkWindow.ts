@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 export interface ChunkWindowOptions {
   chunkSize: number;
   /** Chunks kept above and below the focus chunk (inclusive window radius). */

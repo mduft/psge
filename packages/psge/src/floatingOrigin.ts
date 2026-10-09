@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 export interface FloatingOriginOptions {
   /** Rebase when |focus - origin| exceeds this (same units as focus). */
   rebaseThreshold: number;

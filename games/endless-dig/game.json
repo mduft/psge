@@ -2,5 +2,7 @@
   "id": "endless-dig",
   "name": "The Endless Dig",
   "engine": "psge",
-  "entry": "src/main.ts"
+  "entry": "src/main.ts",
+  "license": "MIT",
+  "author": "Markus Duft"
 }

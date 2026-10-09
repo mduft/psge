@@ -1,4 +1,8 @@
 /**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
+/**
  * @psge/engine — public API is unfrozen. Milestone exports may change.
  *
  * Bootstrap: createApp / startLoop / stopLoop / loadGltf / setCamera / dispose

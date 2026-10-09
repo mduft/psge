@@ -1,6 +1,9 @@
+<!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # `@psge/engine`
 
 Pleasantly Simple Game Engine — browser helpers for small Three.js games.
+
+**License:** MIT — Copyright (c) 2026 Markus Duft (see [LICENSE](../../LICENSE)).
 
 **The public API is never frozen.** Prefer refactoring over preserving premature contracts.
 

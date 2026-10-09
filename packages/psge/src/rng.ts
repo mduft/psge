@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2026 Markus Duft
+ * SPDX-License-Identifier: MIT
+ */
 export interface SeededRng {
   /** Returns a float in [0, 1). */
   next(): number;

@@ -1,3 +1,4 @@
+<!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification

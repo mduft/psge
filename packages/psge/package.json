@@ -2,6 +2,8 @@
   "name": "@psge/engine",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
+  "author": "Markus Duft",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
