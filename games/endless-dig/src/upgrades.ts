@@ -52,20 +52,20 @@ export const UPGRADE_DEFS: readonly UpgradeDef[] = [
   {
     id: "pickaxe",
     name: "Pickaxe",
-    digPowerPerLevel: 4 * DEFAULT_DIG_POWER, // +4/32
+    digPowerPerLevel: 2 * DEFAULT_DIG_POWER, // +2/32
     passivePerLevel: 0,
     baseCost: 250,
     costMult: 1.55,
-    effectLabel: "+4/32 dig",
+    effectLabel: "+2/32 dig",
   },
   {
     id: "jackhammer",
     name: "Jackhammer",
-    digPowerPerLevel: 16 * DEFAULT_DIG_POWER, // +16/32 = +0.5
+    digPowerPerLevel: 8 * DEFAULT_DIG_POWER, // +8/32 = +0.25
     passivePerLevel: 0,
     baseCost: 2_000,
     costMult: 1.65,
-    effectLabel: "+16/32 dig",
+    effectLabel: "+8/32 dig",
   },
   {
     id: "cart",

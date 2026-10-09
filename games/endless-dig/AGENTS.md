@@ -7,17 +7,20 @@ Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE
 
 From repo root: `npm run dev`, `npm run build`, `npm test`, `npm run test:e2e`.
 
+Dev server listens on `0.0.0.0:5173` with `allowedHosts: true` (any hostname/IP). Use localhost, LAN IP, or the PC hostname from a phone.
+
 Dev URL examples:
 
-- `http://127.0.0.1:5173/` — load save if present, else dug **0**; extent ≥ `ceil(savedDepth)`
-- `http://127.0.0.1:5173/?depth=100` — pre-dig to 100 only when **no** save; extent ≥ 1000
-- `http://127.0.0.1:5173/?nosave=1` — clear save, fresh run
-- `http://127.0.0.1:5173/?nosave=1&depth=10000` — reset + stress shaft
-- `http://127.0.0.1:5173/?debug=1` — debug panel (give dirt, drag-scroll opt-in, Reset)
+- `http://<host>:5173/` — load save if present, else dug **0**; extent ≥ `ceil(savedDepth)`
+- `http://<host>:5173/?depth=100` — pre-dig to 100 only when **no** save; extent ≥ 1000
+- `http://<host>:5173/?nosave=1` — clear save, fresh run
+- `http://<host>:5173/?nosave=1&depth=10000` — reset + stress shaft
+- `http://<host>:5173/?debug=1` — debug panel (give dirt, drag-scroll opt-in, Reset)
 
 ## Milestone 4
 
 - Tap to dig; HUD Depth / Dirt / Shop; camera follows dig face
+- Dig/passive amounts soft-capped via `softDigAmount` (`softDig.ts`) so high gear speeds up without linear blur
 - Shop: spend dirt on shovel / pickaxe / jackhammer (dig power) and cart / drill / crew (depth/s)
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)
 - Canvas cursor: spoon → shovel → pickaxe → jackhammer (`assets/textures/cursors/*.png`; hotspots in `src/digCursor.ts`)

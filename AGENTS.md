@@ -21,7 +21,7 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 | Command | Purpose |
 | --- | --- |
 | `npm install` | Install workspace dependencies |
-| `npm run dev` | Launch Endless Dig at http://127.0.0.1:5173 |
+| `npm run dev` | Launch Endless Dig on `0.0.0.0:5173` (localhost + LAN) |
 | `npm run build` | Build engine + game |
 | `npm test` | Vitest unit tests |
 | `npm run test:e2e` | Playwright (Chromium) |

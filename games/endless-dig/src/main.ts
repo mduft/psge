@@ -12,6 +12,7 @@ import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { formatAmount } from "./formatAmount.js";
+import { focusForDepth } from "./softDig.js";
 import {
   buyUpgrade,
   canBuyUpgrade,
@@ -86,11 +87,6 @@ function readQueryFlags(): {
     nosave,
     debug,
   };
-}
-
-/** Focus slightly above the dig face so the floor stays in frame. */
-function focusForDepth(depth: number): number {
-  return -depth + 0.35;
 }
 
 function freshState(excavatedDepth: number): GameState {

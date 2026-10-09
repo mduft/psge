@@ -15,39 +15,44 @@ import {
   tickProduction,
 } from "../src/gameState.js";
 import { upgradeCost } from "../src/upgrades.js";
+import { softDigAmount } from "../src/softDig.js";
 
 describe("dig", () => {
-  it("increases depth by digPower and dirt by cross-section", () => {
-    // 15 shovels → dig power = 16/32 = 0.5
+  it("increases depth by soft-capped dig power and dirt by cross-section", () => {
+    // 15 shovels → nominal 16/32 = 0.5, applied through softDigAmount
     const state = createInitialState({ upgrades: { shovel: 15 } });
+    const gained = softDigAmount(0.5);
     dig(state);
-    expect(state.depth.toNumber()).toBeCloseTo(0.5);
-    expect(state.dirt.toNumber()).toBeCloseTo(0.5 * SHAFT_CROSS_SECTION);
+    expect(state.depth.toNumber()).toBeCloseTo(gained);
+    expect(state.dirt.toNumber()).toBeCloseTo(gained * SHAFT_CROSS_SECTION);
+    expect(gained).toBeLessThan(0.5);
   });
 
   it("uses default dig power from createInitialState", () => {
     const state = createInitialState();
     dig(state);
-    expect(state.depth.toNumber()).toBeCloseTo(DEFAULT_DIG_POWER);
+    expect(state.depth.toNumber()).toBeCloseTo(
+      softDigAmount(DEFAULT_DIG_POWER),
+    );
   });
 
   it("caps depth at maxDepth", () => {
-    // ~10 dig power via jackhammers
     const state = createInitialState({
-      depth: 8,
-      upgrades: { jackhammer: 20 },
+      depth: 9.9,
+      upgrades: { jackhammer: 1 },
     });
     dig(state, 10);
     expect(state.depth.toNumber()).toBe(10);
-    expect(state.dirt.toNumber()).toBeCloseTo(2 * SHAFT_CROSS_SECTION);
+    expect(state.dirt.toNumber()).toBeCloseTo(0.1 * SHAFT_CROSS_SECTION);
   });
 
   it("is deterministic across many digs", () => {
-    // 7 shovels → 8/32 = 0.25
+    // 7 shovels → nominal 8/32 = 0.25
     const state = createInitialState({ upgrades: { shovel: 7 } });
+    const perDig = softDigAmount(0.25);
     for (let i = 0; i < 40; i++) dig(state);
-    expect(state.depth.toNumber()).toBeCloseTo(10);
-    expect(state.dirt.toNumber()).toBeCloseTo(10 * SHAFT_CROSS_SECTION);
+    expect(state.depth.toNumber()).toBeCloseTo(40 * perDig);
+    expect(state.dirt.toNumber()).toBeCloseTo(40 * perDig * SHAFT_CROSS_SECTION);
   });
 });
 
@@ -77,12 +82,13 @@ describe("upgrades", () => {
 });
 
 describe("tickProduction", () => {
-  it("applies passive depth from cart", () => {
+  it("applies soft-capped passive depth from cart", () => {
     const state = createInitialState({ upgrades: { cart: 1 } });
     expect(passiveRateOf(state).toNumber()).toBeCloseTo(0.05);
     expect(tickProduction(state, 2)).toBe(true);
-    expect(state.depth.toNumber()).toBeCloseTo(0.1);
-    expect(state.dirt.toNumber()).toBeCloseTo(0.1 * SHAFT_CROSS_SECTION);
+    const gained = softDigAmount(0.05) * 2;
+    expect(state.depth.toNumber()).toBeCloseTo(gained);
+    expect(state.dirt.toNumber()).toBeCloseTo(gained * SHAFT_CROSS_SECTION);
   });
 
   it("no-ops without generators", () => {

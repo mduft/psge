@@ -12,6 +12,7 @@ import {
   UPGRADE_IDS,
   upgradeCost,
 } from "./upgrades.js";
+import { softDigAmount } from "./softDig.js";
 
 export { DEFAULT_DIG_POWER };
 
@@ -93,10 +94,12 @@ function applyDepthGain(state: GameState, gained: Decimal): void {
 /**
  * Straight-down dig. Mutates `state` in place.
  * Caps depth at `maxDepth` when provided (world generation extent).
+ * Nominal dig power is soft-capped so high gear does not remove linearly.
  */
 export function dig(state: GameState, maxDepth?: Decimal.Value): void {
   const power = Decimal.max(0, digPowerOf(state));
-  let next = state.depth.plus(power);
+  const gained = new Decimal(softDigAmount(power.toNumber()));
+  let next = state.depth.plus(gained);
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }
@@ -105,6 +108,7 @@ export function dig(state: GameState, maxDepth?: Decimal.Value): void {
 
 /**
  * Apply passive digging for `dt` seconds.
+ * Soft-caps the nominal blocks/s the same way as tap dig power.
  * @returns true if depth changed.
  */
 export function tickProduction(
@@ -116,7 +120,8 @@ export function tickProduction(
   const rate = passiveRateOf(state);
   if (rate.lte(0)) return false;
   const before = state.depth;
-  let next = state.depth.plus(rate.mul(dt));
+  const softRate = softDigAmount(rate.toNumber());
+  let next = state.depth.plus(new Decimal(softRate).mul(dt));
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }
