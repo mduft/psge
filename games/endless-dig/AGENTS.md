@@ -24,6 +24,7 @@ Dev URL examples:
 - Narrow (≤520px): one-line abbreviated stats; floating shop FAB → bottom sheet (dot when something is affordable)
 - Camera framing is aspect-aware (`digCamera.ts`) — closer on wide / fullscreen so sky does not show past the cutaway
 - Dig/passive amounts soft-capped via `softDigAmount` (`softDig.ts`) so high gear speeds up without linear blur
+- Manual dig: punchy chip burst; passive dig: quieter trickle FX at the dig face
 - Shop: spend dirt on shovel / pickaxe / jackhammer (dig power) and cart / drill / crew (depth/s)
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)
 - Canvas cursor: spoon → shovel → pickaxe → jackhammer (`assets/textures/cursors/*.png`; hotspots in `src/digCursor.ts`)

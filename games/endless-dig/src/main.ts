@@ -13,7 +13,7 @@ import { createShaftScroll } from "./cameraScroll.js";
 import { digCameraFraming } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { formatAmount } from "./formatAmount.js";
-import { focusForDepth } from "./softDig.js";
+import { focusForDepth, softDigAmount } from "./softDig.js";
 import {
   buyUpgrade,
   canBuyUpgrade,
@@ -413,13 +413,22 @@ async function boot(): Promise<() => void> {
   document.addEventListener("visibilitychange", onVisibility);
 
   applyPlayView();
+  /** Pace subtle passive chips so high rates don't look like tap bursts. */
+  let trickleCooldown = 0;
   app.startLoop((dt) => {
     world.update(dt);
+    trickleCooldown = Math.max(0, trickleCooldown - dt);
     if (!tickProduction(state, dt)) return;
     syncFromState();
     applyCamera();
     updateHud();
     autosave.markDirty();
+    if (trickleCooldown <= 0) {
+      world.trickleDigParticles();
+      const rate = softDigAmount(passiveRateOf(state).toNumber());
+      // ~3–12 Hz depending on soft passive rate; stays visibly quieter than taps.
+      trickleCooldown = Math.min(0.32, Math.max(0.08, 0.28 / Math.sqrt(1 + rate)));
+    }
   });
 
   const dbg = window as Window & {

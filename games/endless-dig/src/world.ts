@@ -45,8 +45,10 @@ export interface DigWorld {
    * Returns true when the extent grew.
    */
   ensureWorldExtent(minExtent: number): boolean;
-  /** Dirt-chip burst at the current dig face. */
+  /** Dirt-chip burst at the current dig face (manual dig). */
   burstDigParticles(): void;
+  /** Subtle chip trickle at the dig face (passive dig). */
+  trickleDigParticles(): void;
   /** Advance particle lifetimes (call each frame). */
   update(dtSeconds: number): void;
   dispose(): void;
@@ -289,6 +291,9 @@ export function buildDigWorld(
     ensureWorldExtent,
     burstDigParticles(): void {
       particles.burst(excavatedDepth);
+    },
+    trickleDigParticles(): void {
+      particles.trickle(excavatedDepth);
     },
     update(dtSeconds: number): void {
       particles.update(dtSeconds);
