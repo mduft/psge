@@ -74,10 +74,10 @@ describe("saveGameState / loadGameState", () => {
     expect(loaded?.upgrades.shovel).toBe(1);
   });
 
-  it("serialize omits debugDigPower", () => {
-    const state = createInitialState({ debugDigPower: 8 });
+  it("serialize omits legacy digPower", () => {
+    const state = createInitialState({ upgrades: { shovel: 1 } });
     const blob = serializeGameState(state);
-    expect(blob).not.toHaveProperty("debugDigPower");
     expect(blob).not.toHaveProperty("digPower");
+    expect(blob.upgrades.shovel).toBe(1);
   });
 });

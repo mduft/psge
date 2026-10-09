@@ -13,7 +13,7 @@ Dev URL examples:
 - `http://127.0.0.1:5173/?depth=100` — pre-dig to 100 only when **no** save; extent ≥ 1000
 - `http://127.0.0.1:5173/?nosave=1` — clear save, fresh run
 - `http://127.0.0.1:5173/?nosave=1&depth=10000` — reset + stress shaft
-- `http://127.0.0.1:5173/?debug=1` — debug panel (dig-power override, give dirt, drag-scroll, Reset)
+- `http://127.0.0.1:5173/?debug=1` — debug panel (give dirt, drag-scroll opt-in, Reset)
 
 ## Milestone 4
 
@@ -22,7 +22,7 @@ Dev URL examples:
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)
 - Passive dig via `startLoop`; Decimal depth/dirt; idle `formatAmount` (`2.1K`, `2.1aa`, …)
 - World extent **grows** with dig (not capped at 1000); chunk streaming + floating origin
-- `?debug=1`: dig-power slider, give-dirt buttons, drag-scroll toggle, Reset (clears save)
+- `?debug=1`: give-dirt buttons, drag-scroll (default off), Reset (clears save)
 - Autosave: 1s debounce, 30s max-while-dirty, flush on hide; fading **Saved**
 - Save key: `psge:endless-dig:save` via `createLocalSaveStore` (version **3**; v2 migrates)
 

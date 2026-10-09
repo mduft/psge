@@ -18,7 +18,8 @@ import { upgradeCost } from "../src/upgrades.js";
 
 describe("dig", () => {
   it("increases depth by digPower and dirt by cross-section", () => {
-    const state = createInitialState({ debugDigPower: 0.5 });
+    // 15 shovels → dig power = 16/32 = 0.5
+    const state = createInitialState({ upgrades: { shovel: 15 } });
     dig(state);
     expect(state.depth.toNumber()).toBeCloseTo(0.5);
     expect(state.dirt.toNumber()).toBeCloseTo(0.5 * SHAFT_CROSS_SECTION);
@@ -31,14 +32,19 @@ describe("dig", () => {
   });
 
   it("caps depth at maxDepth", () => {
-    const state = createInitialState({ debugDigPower: 10, depth: 8 });
+    // ~10 dig power via jackhammers
+    const state = createInitialState({
+      depth: 8,
+      upgrades: { jackhammer: 20 },
+    });
     dig(state, 10);
     expect(state.depth.toNumber()).toBe(10);
     expect(state.dirt.toNumber()).toBeCloseTo(2 * SHAFT_CROSS_SECTION);
   });
 
   it("is deterministic across many digs", () => {
-    const state = createInitialState({ debugDigPower: 0.25 });
+    // 7 shovels → 8/32 = 0.25
+    const state = createInitialState({ upgrades: { shovel: 7 } });
     for (let i = 0; i < 40; i++) dig(state);
     expect(state.depth.toNumber()).toBeCloseTo(10);
     expect(state.dirt.toNumber()).toBeCloseTo(10 * SHAFT_CROSS_SECTION);

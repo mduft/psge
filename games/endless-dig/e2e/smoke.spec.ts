@@ -397,8 +397,8 @@ test("debug=1 shows tools; default hides them", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute("data-psge-debug", "1");
   await expect(page.locator("#debug-panel")).toBeVisible();
-  await expect(page.locator("#dig-power")).toBeVisible();
   await expect(page.locator("#debug-scroll")).toBeVisible();
+  await expect(page.locator("#debug-scroll")).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Reset" })).toBeVisible();
 
   await page.locator('[data-give-dirt="100"]').click();

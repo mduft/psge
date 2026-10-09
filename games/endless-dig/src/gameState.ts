@@ -29,11 +29,6 @@ export interface GameState {
   dirt: Decimal;
   /** Owned upgrade levels. */
   upgrades: UpgradeLevels;
-  /**
-   * Debug-only dig power override (not persisted).
-   * When set, replaces derived dig power for taps.
-   */
-  debugDigPower?: number;
 }
 
 export function toDecimal(value: Decimal.Value): Decimal {
@@ -46,7 +41,6 @@ export function createInitialState(
     depth?: Decimal.Value;
     dirt?: Decimal.Value;
     upgrades?: Partial<UpgradeLevels>;
-    debugDigPower?: number;
   } = {},
 ): GameState {
   const upgrades = emptyUpgrades();
@@ -63,20 +57,10 @@ export function createInitialState(
     depth: toDecimal(overrides.depth ?? 0),
     dirt: toDecimal(overrides.dirt ?? 0),
     upgrades,
-    ...(overrides.debugDigPower !== undefined
-      ? { debugDigPower: overrides.debugDigPower }
-      : {}),
   };
 }
 
 export function digPowerOf(state: GameState): Decimal {
-  if (
-    state.debugDigPower !== undefined &&
-    Number.isFinite(state.debugDigPower) &&
-    state.debugDigPower > 0
-  ) {
-    return new Decimal(state.debugDigPower);
-  }
   let power = new Decimal(DEFAULT_DIG_POWER);
   for (const id of UPGRADE_IDS) {
     const def = getUpgradeDef(id);
@@ -156,7 +140,7 @@ export function buyUpgrade(state: GameState, id: UpgradeId): boolean {
   return true;
 }
 
-/** Reset progress fields (keeps debugDigPower if any). */
+/** Reset progress fields. */
 export function resetProgress(state: GameState): void {
   state.depth = new Decimal(0);
   state.dirt = new Decimal(0);

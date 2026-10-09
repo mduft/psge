@@ -109,42 +109,10 @@ body {
   letter-spacing: 0.06em;
 }
 
-.stat .value,
-.dig-power .value {
+.stat .value {
   font-weight: 700;
   font-size: 0.92rem;
   font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
-}
-
-.dig-power {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.15rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  cursor: default;
-}
-
-.dig-power .label {
-  color: var(--hud-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.dig-power-row {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.dig-power input[type="range"] {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  accent-color: #c4a574;
-  cursor: pointer;
 }
 
 .shop {

@@ -36,8 +36,6 @@ import {
   WORLD_EXTENT_LOOKAHEAD,
 } from "./world.js";
 
-/** Slider uses integer steps of DEFAULT_DIG_POWER (1 = 1/32 block). */
-const DIG_POWER_SLIDER_MAX = 256;
 const DEFAULT_WORLD_EXTENT = 1000;
 const SAVE_INDICATOR_MS = 1800;
 
@@ -174,10 +172,6 @@ async function boot(): Promise<() => void> {
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const passiveEl = document.querySelector('[data-stat="passive"]');
   const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
-  const digPowerInput = document.querySelector<HTMLInputElement>("#dig-power");
-  const debugDigPowerEl = document.querySelector(
-    '[data-stat="debug-dig-power"]',
-  );
   const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
   const shopList = document.querySelector<HTMLElement>("#shop-list");
   const resetButton =
@@ -190,7 +184,6 @@ async function boot(): Promise<() => void> {
   } else {
     debugPanel?.setAttribute("hidden", "");
     delete document.documentElement.dataset.psgeDebug;
-    delete state.debugDigPower;
   }
 
   const ensureExtentForPlay = (): void => {
@@ -240,15 +233,6 @@ async function boot(): Promise<() => void> {
     if (digPowerEl) digPowerEl.textContent = formatDigPower(power);
     if (passiveEl) {
       passiveEl.textContent = `${formatAmount(passive)}/s`;
-    }
-    if (debug && digPowerInput) {
-      const steps = Math.round(power.toNumber() / DEFAULT_DIG_POWER);
-      digPowerInput.value = String(
-        Math.min(DIG_POWER_SLIDER_MAX, Math.max(1, steps)),
-      );
-      const label = formatDigPower(power);
-      digPowerInput.setAttribute("aria-valuetext", `${label} block`);
-      if (debugDigPowerEl) debugDigPowerEl.textContent = label;
     }
 
     for (const def of UPGRADE_DEFS) {
@@ -315,18 +299,6 @@ async function boot(): Promise<() => void> {
 
   buildShop();
 
-  const onDigPowerInput = (): void => {
-    if (!debug || !digPowerInput) return;
-    const steps = Math.min(
-      DIG_POWER_SLIDER_MAX,
-      Math.max(1, Number.parseInt(digPowerInput.value, 10) || 1),
-    );
-    state.debugDigPower = steps * DEFAULT_DIG_POWER;
-    updateHud();
-  };
-  digPowerInput?.addEventListener("input", onDigPowerInput);
-  digPowerInput?.addEventListener("pointerdown", (e) => e.stopPropagation());
-
   const onGiveDirt = (e: Event): void => {
     const btn = e.currentTarget as HTMLButtonElement;
     const amount = Number.parseFloat(btn.dataset.giveDirt ?? "");
@@ -349,7 +321,6 @@ async function boot(): Promise<() => void> {
     e.stopPropagation();
     void (async () => {
       resetProgress(state);
-      if (debug) delete state.debugDigPower;
       applyPlayView();
       await store.clear();
       await saveGameState(store, state);
@@ -364,18 +335,19 @@ async function boot(): Promise<() => void> {
     canvas,
     applyCamera,
     onFocusBlockY: updateHud,
-    // Drag-scroll is debug tooling; default off unless ?debug=1 keeps checkbox on.
-    scrollEnabled: debug,
+    // Drag-scroll is debug-only and off by default (opt in via checkbox).
+    scrollEnabled: false,
     onTap: () => {
       dig(state);
       document.documentElement.dataset.psgeDigIntent = "1";
       applyPlayView();
+      world.burstDigParticles();
       autosave.markDirty();
     },
   });
 
   if (debug && debugScroll) {
-    debugScroll.checked = scroll.isScrollEnabled();
+    debugScroll.checked = false;
     const onScrollToggle = (): void => {
       scroll.setScrollEnabled(debugScroll.checked);
     };
@@ -401,6 +373,7 @@ async function boot(): Promise<() => void> {
 
   applyPlayView();
   app.startLoop((dt) => {
+    world.update(dt);
     if (!tickProduction(state, dt)) return;
     syncFromState();
     applyCamera();
@@ -433,7 +406,6 @@ async function boot(): Promise<() => void> {
     window.removeEventListener("resize", onResize);
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibility);
-    digPowerInput?.removeEventListener("input", onDigPowerInput);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);

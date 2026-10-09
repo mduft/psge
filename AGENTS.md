@@ -36,7 +36,7 @@ First-time e2e: `npx playwright install chromium`
 
 **Numbers:** Game-owned `decimal.js`; HUD idle suffixes (`K M B T` then `aa ab …`).
 
-**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. `?debug=1` = dig-power override, give dirt, drag-scroll, Reset. Stress: `?nosave=1&depth=10000`.
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save. `?debug=1` = give dirt, drag-scroll (off by default), Reset. Stress: `?nosave=1&depth=10000`.
 
 Engine: `createApp`, loop, camera, `clampDelta`, `createSeededRng`, floating origin / chunk window, `createHoldDragScroll`, `createLocalSaveStore`, `decideAutosave`.
 

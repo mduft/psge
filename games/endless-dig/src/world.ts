@@ -20,6 +20,7 @@ import {
 } from "three";
 import { getBlockMaterial } from "./blockMaterials.js";
 import { createSkyColor, type BlockId } from "./blockTextures.js";
+import { createDigParticles } from "./digParticles.js";
 
 export interface DigWorld {
   /** Logical focus in block units (0 = surface, negative = down). */
@@ -44,6 +45,10 @@ export interface DigWorld {
    * Returns true when the extent grew.
    */
   ensureWorldExtent(minExtent: number): boolean;
+  /** Dirt-chip burst at the current dig face. */
+  burstDigParticles(): void;
+  /** Advance particle lifetimes (call each frame). */
+  update(dtSeconds: number): void;
   dispose(): void;
 }
 
@@ -161,6 +166,7 @@ export function buildDigWorld(
   content.scale.setScalar(BLOCK_SCALE);
   root.add(content);
 
+  const particles = createDigParticles(content);
   const chunkGroups = new Map<number, Group>();
 
   let focusBlockY = -0.4;
@@ -281,7 +287,14 @@ export function buildDigWorld(
     setExcavatedDepth,
     getWorldExtent: () => worldExtent,
     ensureWorldExtent,
+    burstDigParticles(): void {
+      particles.burst(excavatedDepth);
+    },
+    update(dtSeconds: number): void {
+      particles.update(dtSeconds);
+    },
     dispose(): void {
+      particles.dispose();
       chunks.dispose();
       scene.remove(root);
       scene.fog = null;
