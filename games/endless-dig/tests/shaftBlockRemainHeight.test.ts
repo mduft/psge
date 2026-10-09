@@ -4,6 +4,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  cavityStructureKey,
+  digFaceWearLevel,
+  quantizeExcavatedDepth,
   quantizePartialHeight,
   shaftBlockRemainHeight,
 } from "../src/world.js";
@@ -45,3 +48,33 @@ describe("quantizePartialHeight", () => {
   });
 });
 
+describe("quantizeExcavatedDepth", () => {
+  it("snaps to 1/32 and clamps non-positive", () => {
+    expect(quantizeExcavatedDepth(0)).toBe(0);
+    expect(quantizeExcavatedDepth(5 / 32)).toBeCloseTo(5 / 32);
+    expect(quantizeExcavatedDepth(0.26)).toBeCloseTo(8 / 32);
+  });
+});
+
+describe("cavityStructureKey", () => {
+  it("stays stable while digging through the same partial block", () => {
+    expect(cavityStructureKey(0.1)).toBe(cavityStructureKey(0.9));
+    expect(cavityStructureKey(1.1)).toBe(cavityStructureKey(1.5));
+  });
+
+  it("changes when a layer is completed or a partial begins", () => {
+    expect(cavityStructureKey(1)).not.toBe(cavityStructureKey(1.1));
+    expect(cavityStructureKey(0)).not.toBe(cavityStructureKey(0.1));
+    expect(cavityStructureKey(0.9)).not.toBe(cavityStructureKey(1));
+  });
+});
+
+describe("digFaceWearLevel", () => {
+  it("is coarse (0…7) and stable within a band", () => {
+    expect(digFaceWearLevel(1)).toBe(0);
+    // 28/32 and 25/32 both sit in wear band 1 (dug 4…7).
+    expect(digFaceWearLevel(28 / 32)).toBe(1);
+    expect(digFaceWearLevel(25 / 32)).toBe(1);
+    expect(digFaceWearLevel(1 / 32)).toBe(7);
+  });
+});

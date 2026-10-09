@@ -18,7 +18,7 @@ import {
   type BufferAttribute,
   type Scene,
 } from "three";
-import { getBlockMaterial } from "./blockMaterials.js";
+import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId } from "./blockTextures.js";
 import { createDigParticles } from "./digParticles.js";
 
@@ -95,6 +95,31 @@ export function quantizePartialHeight(height: number): number {
   return Math.round(height * 32) / 32;
 }
 
+/** Snap excavated depth to the dig-face geometry grid (1/32 block). */
+export function quantizeExcavatedDepth(depth: number): number {
+  if (!(depth > 0) || !Number.isFinite(depth)) return 0;
+  return Math.round(depth * 32) / 32;
+}
+
+/**
+ * Coarse dig-face wear 0…7 from remaining height. Intentionally coarser than
+ * the 1/32 geometry grid so the top texture does not thrash during auto-dig.
+ */
+export function digFaceWearLevel(height: number): number {
+  const h = quantizePartialHeight(height);
+  const step = Math.max(0, Math.min(32, Math.round(h * 32)));
+  const dug = 32 - step;
+  return Math.min(7, Math.floor(dug / 4));
+}
+
+/** Chunk solid structure key — changes only when layers appear/disappear. */
+export function cavityStructureKey(depth: number): string {
+  const q = quantizeExcavatedDepth(depth);
+  const full = Math.floor(q);
+  const partial = q - full > 1e-6 ? 1 : 0;
+  return `${full}:${partial}`;
+}
+
 function getPartialBox(height: number): BoxGeometry {
   const h = quantizePartialHeight(height);
   const key = Math.round(h * 32);
@@ -102,6 +127,7 @@ function getPartialBox(height: number): BoxGeometry {
   if (geo) return geo;
   geo = new BoxGeometry(1, h, 1);
   // Side faces only (+x,-x,+z,-z = indices 0,1,4,5). Keep texel density.
+  // Top UVs stay full 0–1 so the painted block border never slides.
   const uv = geo.attributes.uv as BufferAttribute;
   for (const face of [0, 1, 4, 5]) {
     for (let i = 0; i < 4; i++) {
@@ -151,7 +177,7 @@ export function buildDigWorld(
   options: DigWorldOptions = {},
 ): DigWorld {
   let worldExtent = Math.max(0, Math.floor(options.worldExtent ?? 1000));
-  let excavatedDepth = Math.max(0, options.excavatedDepth ?? 0);
+  let excavatedDepth = quantizeExcavatedDepth(options.excavatedDepth ?? 0);
   // Allow cavity deeper than initial extent; ensureWorldExtent expands solid earth.
   if (excavatedDepth > worldExtent) {
     worldExtent = Math.ceil(excavatedDepth) + WORLD_EXTENT_LOOKAHEAD;
@@ -170,6 +196,10 @@ export function buildDigWorld(
 
   const particles = createDigParticles(content);
   const chunkGroups = new Map<number, Group>();
+  /** Dig-face partials live here so intra-block dig does not reload chunks. */
+  const digFaceRoot = new Group();
+  digFaceRoot.name = "dig-face-overlay";
+  content.add(digFaceRoot);
 
   let focusBlockY = -0.4;
 
@@ -240,6 +270,34 @@ export function buildDigWorld(
     }
   };
 
+  const rebuildDigFaceOverlay = (): void => {
+    disposeChunkGroup(digFaceRoot);
+    const q = excavatedDepth;
+    const fullDepth = Math.floor(q);
+    const frac = q - fullDepth;
+    if (frac <= 1e-6) return;
+    const remain = quantizePartialHeight(1 - frac);
+    if (remain <= 1e-6) return;
+    const blockY = -fullDepth;
+    const id = strata(blockY);
+    const geo = getPartialBox(remain);
+    const mats = getDigFaceMaterials(id, remain);
+    const count = SHAFT_XS.length * SHAFT_ZS.length;
+    const mesh = new InstancedMesh(geo, mats, count);
+    let i = 0;
+    for (const x of SHAFT_XS) {
+      for (const z of SHAFT_ZS) {
+        const m = new Matrix4();
+        m.setPosition(x + 0.5, blockY + remain / 2, z + 0.5);
+        mesh.setMatrixAt(i++, m);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.frustumCulled = false;
+    mesh.name = "dig-face";
+    digFaceRoot.add(mesh);
+  };
+
   const ensureWorldExtent = (minExtent: number): boolean => {
     const safe = Math.min(
       Number.MAX_SAFE_INTEGER - WORLD_EXTENT_LOOKAHEAD - 1,
@@ -252,6 +310,7 @@ export function buildDigWorld(
     for (const idx of [...chunkGroups.keys()]) {
       reloadChunkIfLoaded(idx);
     }
+    rebuildDigFaceOverlay();
     return true;
   };
 
@@ -264,19 +323,26 @@ export function buildDigWorld(
   };
 
   const setExcavatedDepth = (depth: number): void => {
-    const next = Math.max(0, depth);
-    if (next > worldExtent - WORLD_EXTENT_LOOKAHEAD) {
-      ensureWorldExtent(next + WORLD_EXTENT_LOOKAHEAD);
+    const raw = Math.max(0, depth);
+    if (raw > worldExtent - WORLD_EXTENT_LOOKAHEAD) {
+      ensureWorldExtent(raw + WORLD_EXTENT_LOOKAHEAD);
     }
+    const next = quantizeExcavatedDepth(raw);
     if (next === excavatedDepth) return;
     const prev = excavatedDepth;
+    const structureChanged =
+      cavityStructureKey(prev) !== cavityStructureKey(next);
     excavatedDepth = next;
-    refreshCavityRange(prev, next);
+    // Full chunk reload only when solid layers appear/disappear — not every
+    // 1/32 while auto-digging through the same block (that was the stutter).
+    if (structureChanged) refreshCavityRange(prev, next);
+    rebuildDigFaceOverlay();
   };
 
   scene.add(root);
   floating.setOrigin(0);
   chunks.sync(focusBlockY);
+  rebuildDigFaceOverlay();
 
   return {
     getFocusBlockY: () => focusBlockY,
@@ -300,6 +366,7 @@ export function buildDigWorld(
     },
     dispose(): void {
       particles.dispose();
+      disposeChunkGroup(digFaceRoot);
       chunks.dispose();
       scene.remove(root);
       scene.fog = null;
@@ -324,8 +391,6 @@ function buildChunk(
 ): Group {
   const { min: yMin, max: yMax } = chunkRange(index, CHUNK_SIZE);
   const buckets = new Map<BlockId, Matrix4[]>();
-  const partialBuckets = new Map<BlockId, Matrix4[]>();
-  let partialHeight = 0;
   const grassCaps: Matrix4[] = [];
   const minY = -worldExtent - BELOW_EXTENT_BLOCKS;
 
@@ -339,20 +404,10 @@ function buildChunk(
     if (y < yMin || y > yMax) return;
     const h =
       height < 1 - 1e-6 ? quantizePartialHeight(height) : 1;
-    if (h <= 1e-6) return;
+    // Partials are drawn by digFaceRoot overlay — skip here to avoid chunk thrash.
+    if (h <= 1e-6 || h < 1 - 1e-6) return;
     const m = new Matrix4();
     m.setPosition(x + 0.5, y + h / 2, z + 0.5);
-    if (h < 1 - 1e-6) {
-      // Dig face: UV-correct geometry; matrix uses the same quantized height.
-      partialHeight = h;
-      let list = partialBuckets.get(id);
-      if (!list) {
-        list = [];
-        partialBuckets.set(id, list);
-      }
-      list.push(m);
-      return;
-    }
     let list = buckets.get(id);
     if (!list) {
       list = [];
@@ -427,19 +482,6 @@ function buildChunk(
     mesh.instanceMatrix.needsUpdate = true;
     mesh.frustumCulled = false;
     group.add(mesh);
-  }
-
-  if (partialHeight > 1e-6) {
-    const geo = getPartialBox(partialHeight);
-    for (const [id, matrices] of partialBuckets) {
-      if (matrices.length === 0) continue;
-      const mesh = new InstancedMesh(geo, getBlockMaterial(id), matrices.length);
-      matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.frustumCulled = false;
-      mesh.name = "dig-face";
-      group.add(mesh);
-    }
   }
 
   if (grassCaps.length > 0) {
