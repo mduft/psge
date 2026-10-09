@@ -1,22 +1,35 @@
 # The Endless Dig — Agent Guide
 
-Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0 art direction).
+Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 1.1).
 
 ## Commands
 
 From repo root: `npm run dev`, `npm run build`, `npm test`, `npm run test:e2e`.
 
-## Milestone 1
+Dev URL examples:
 
-- Full-bleed WebGL canvas + transparent HUD (title, Depth/Dirt placeholders)
-- No DIG button — canvas click is the dig affordance (M2)
-- Block cutaway world in `src/world.ts` + `src/blockTextures.ts`
-- Camera on +Z with slight X offset
-- **Drag vertically** on the canvas to scroll the camera up/down the shaft (`src/cameraScroll.ts`)
+- `http://127.0.0.1:5173/` — shaft depth **1000** (default)
+- `http://127.0.0.1:5173/?depth=10000` — stress scroll
+
+## Milestone 1.1
+
+- Full-bleed canvas + HUD (Shaft / View / Chunk / Logical Y / Origin Y / Engine Y / Loaded)
+- Drag vertically to scroll (`src/cameraScroll.ts`)
+- **Chunk streaming** + **floating origin** (`src/world.ts`)
+- 2×2 cutaway shaft; half-disk surface near the top only
 
 Dev hooks: `window.__psgeApp`, `window.__psgeWorld`, `window.__psgeScroll`
 
+Useful:
+
+```js
+__psgeWorld.setFocusBlockY(-900)
+__psgeWorld.getLoadedChunkCount()
+__psgeWorld.getOriginBlockY()
+```
+
 ## World conventions
 
-- 1 block = 1 unit; Y-up; depth along −Y
-- Shaft cut open toward camera; terrain extends ±X
+- Logical focus in **block units** (0 = surface, negative = down)
+- Render coords stay near 0 via origin rebase
+- 1 block = 1 unit before `BLOCK_SCALE`

@@ -1,83 +1,95 @@
-import type { PsgeApp } from "@psge/engine";
-import { BLOCK_SCALE } from "./world.js";
+import type { DigWorld } from "./world.js";
 
 export interface ShaftScrollOptions {
-  app: PsgeApp;
+  world: DigWorld;
   canvas: HTMLCanvasElement;
-  /** Initial focus Y (world space, already scaled). */
-  initialFocusY: number;
-  /** Shaft depth in blocks (unscaled). */
-  shaftDepthBlocks: number;
-  /** Called whenever focus Y changes (after clamp). */
-  onFocusY?: (focusY: number) => void;
-  /** Dig tap when pointer up without a drag. */
+  /** Apply camera for current world render focus (resize-safe). */
+  applyCamera: () => void;
   onTap?: () => void;
+  onFocusBlockY?: (blockY: number) => void;
 }
 
 export interface ShaftScrollController {
-  getFocusY(): number;
-  /** Re-apply camera for current focus (e.g. after resize). */
+  getFocusBlockY(): number;
   apply(): void;
   dispose(): void;
 }
 
 /**
- * Drag vertically on the canvas to move the locked camera up/down the shaft.
- * Orientation stays fixed; only the focus height changes.
+ * Drag vertically to scroll logical focus; DigWorld handles chunks + floating origin.
+ * Holding after a drag keeps scrolling at a speed based on distance from the press point.
  */
 export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollController {
-  const { app, canvas, shaftDepthBlocks, onFocusY, onTap } = options;
+  const { world, canvas, applyCamera, onTap, onFocusBlockY } = options;
 
-  // Surface apron slightly above ground; bottom near the shaft floor.
-  const maxFocusY = 2.5 * BLOCK_SCALE;
-  const minFocusY = -(shaftDepthBlocks - 1.5) * BLOCK_SCALE;
-
-  let focusY = clamp(options.initialFocusY, minFocusY, maxFocusY);
   let dragging = false;
   let dragged = false;
-  let lastClientY = 0;
+  let pressClientY = 0;
+  let holdClientY = 0;
   let pointerId: number | null = null;
+  let rafId = 0;
+  let lastTs = 0;
 
-  // World units per pixel — tuned so a short drag covers a useful stretch of shaft.
-  const sensitivity = 0.045 * BLOCK_SCALE;
+  const deadzonePx = 8;
+  /** Block units per second at 100px hold offset. */
+  const speedAt100px = 120;
+  const dragThresholdPx = 6;
 
   const apply = (): void => {
-    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-    const distance = aspect < 0.85 ? 34 : aspect < 1.15 ? 30 : 27;
-    const xOffset = aspect < 0.85 ? 1.4 : 2.6;
-    const yLift = 8.5;
-
-    app.setCamera({
-      position: [xOffset * BLOCK_SCALE, focusY + yLift, distance],
-      lookAt: [0, focusY - 1.5, -6 * BLOCK_SCALE],
-    });
-    onFocusY?.(focusY);
+    applyCamera();
+    onFocusBlockY?.(world.getFocusBlockY());
   };
 
-  const setFocusY = (next: number): void => {
-    const clamped = clamp(next, minFocusY, maxFocusY);
-    if (clamped === focusY) return;
-    focusY = clamped;
-    apply();
+  const stopHoldLoop = (): void => {
+    if (rafId !== 0) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    lastTs = 0;
+  };
+
+  const holdTick = (ts: number): void => {
+    if (!dragging) {
+      stopHoldLoop();
+      return;
+    }
+
+    if (lastTs === 0) lastTs = ts;
+    const dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+
+    const offset = holdClientY - pressClientY;
+    if (Math.abs(offset) > deadzonePx) {
+      if (Math.abs(offset) > dragThresholdPx) dragged = true;
+      // Same direction as before: drag/hold up (negative offset) → deeper.
+      const blocksPerSec = (offset / 100) * speedAt100px;
+      world.setFocusBlockY(world.getFocusBlockY() + blocksPerSec * dt);
+      apply();
+    }
+
+    rafId = requestAnimationFrame(holdTick);
   };
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0 && event.pointerType === "mouse") return;
     dragging = true;
     dragged = false;
-    lastClientY = event.clientY;
+    pressClientY = event.clientY;
+    holdClientY = event.clientY;
     pointerId = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
     canvas.classList.add("is-dragging");
+    stopHoldLoop();
+    lastTs = 0;
+    rafId = requestAnimationFrame(holdTick);
   };
 
   const onPointerMove = (event: PointerEvent): void => {
     if (!dragging || event.pointerId !== pointerId) return;
-    const dy = event.clientY - lastClientY;
-    if (Math.abs(dy) > 2) dragged = true;
-    lastClientY = event.clientY;
-    // Drag mouse down → camera descends; drag up → rise toward surface.
-    setFocusY(focusY - dy * sensitivity);
+    holdClientY = event.clientY;
+    if (Math.abs(holdClientY - pressClientY) > dragThresholdPx) {
+      dragged = true;
+    }
   };
 
   const endDrag = (event: PointerEvent): void => {
@@ -85,6 +97,7 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
     const wasDrag = dragged;
     dragging = false;
     pointerId = null;
+    stopHoldLoop();
     canvas.classList.remove("is-dragging");
     try {
       canvas.releasePointerCapture(event.pointerId);
@@ -98,7 +111,6 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
-  // Prevent touch page scroll while dragging the dig site.
   canvas.addEventListener(
     "touchmove",
     (e) => {
@@ -110,9 +122,10 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
   apply();
 
   return {
-    getFocusY: () => focusY,
+    getFocusBlockY: () => world.getFocusBlockY(),
     apply,
     dispose: () => {
+      stopHoldLoop();
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", endDrag);
@@ -120,8 +133,4 @@ export function createShaftScroll(options: ShaftScrollOptions): ShaftScrollContr
       canvas.classList.remove("is-dragging");
     },
   };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }

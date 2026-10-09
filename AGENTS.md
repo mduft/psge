@@ -26,9 +26,11 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 1 status
+## Milestone 1 / 1.1 status
 
-**Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; surface extends left/right; full-bleed canvas + HUD overlays; dig = canvas click (wired in M2).
+**Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD; dig = canvas click (M2).
+
+**M1.1:** Vertical **chunk streaming** + **floating origin**. Default shaft `?depth=1000`; stress with `?depth=10000`. Drag-scroll uses the same path.
 
 Engine: `createApp`, `startLoop`, `loadGltf`, `setCamera`, `dispose`, `clampDelta`, `createSeededRng`.
 

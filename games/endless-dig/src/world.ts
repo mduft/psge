@@ -6,69 +6,103 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
-  MeshLambertMaterial,
   type Scene,
 } from "three";
-import {
-  createBlockMaterials,
-  createSkyColor,
-  type BlockId,
-} from "./blockTextures.js";
+import { getBlockMaterial } from "./blockMaterials.js";
+import { createSkyColor, type BlockId } from "./blockTextures.js";
 
 export interface DigWorld {
   readonly group: Group;
   getShaftDepth(): number;
-  getFocusY(): number;
+  /** Logical focus in block units (0 = surface, negative = down). */
+  getFocusBlockY(): number;
+  setFocusBlockY(blockY: number): void;
+  /**
+   * Camera focus Y in render space (near 0 thanks to floating origin).
+   * Equals `(focusBlockY - originBlockY) * BLOCK_SCALE`.
+   */
+  getRenderFocusY(): number;
+  getOriginBlockY(): number;
+  /** Vertical chunk index containing the logical focus. */
+  getFocusChunkIndex(): number;
+  getLoadedChunkCount(): number;
 }
 
 export interface DigWorldOptions {
-  initialShaftDepth?: number;
+  /** Pre-carved shaft depth in blocks (M1.1 scroll test). */
+  shaftDepth?: number;
 }
 
 /** Half-disk grass radius extending away from the player (−Z). */
 const SURFACE_RADIUS = 32;
-/** Front cut faces +Z (player). */
 const Z_FRONT = 0;
-/**
- * 2×2 shaft footprint (block coords).
- * Open toward the player — no extra enclosed back-wall column.
- * Earth of the half-disk continues behind (z < SHAFT_Z0).
- */
 const SHAFT_XS = [-1, 0] as const;
 const SHAFT_ZS = [-1, 0] as const;
-/** Full dig strata only near the front cut; farther back stays a shallow landscape. */
 const DEEP_CUT_Z = -2;
-const MAX_WORLD_DEPTH = 14;
-/** Chunkier on-screen blocks. */
+/** Narrow wall strip for deep cutaway chunks. */
+const WALL_HALF = 10;
 export const BLOCK_SCALE = 1.55;
 
+export const CHUNK_SIZE = 16;
+/** Keep this many chunks above and below the focus chunk. */
+const CHUNK_RADIUS = 3;
+/** Rebase floating origin when focus drifts this many blocks from origin. */
+const REBASE_THRESHOLD = 48;
+
+const sharedBox = new BoxGeometry(1, 1, 1);
+
+const TREE_SPOTS: Array<[number, number]> = [
+  [-7, -2],
+  [-11, -4],
+  [-15, -7],
+  [-18, -12],
+  [-20, -18],
+  [-16, -22],
+  [-10, -26],
+  [-4, -28],
+  [2, -29],
+  [8, -26],
+  [13, -22],
+  [17, -16],
+  [20, -10],
+  [18, -5],
+  [12, -3],
+  [-14, -14],
+  [6, -18],
+  [-8, -20],
+  [15, -24],
+  [-19, -8],
+  [9, -12],
+  [-2, -16],
+  [4, -8],
+  [-22, -14],
+  [22, -14],
+];
+
 /**
- * Block cutaway dig site with a half-circle surface behind the front cut.
+ * Chunked cutaway world with floating-origin rebasing for deep shafts.
  */
 export function buildDigWorld(
   scene: Scene,
   options: DigWorldOptions = {},
 ): DigWorld {
-  const shaftDepth = Math.max(4, Math.min(MAX_WORLD_DEPTH, options.initialShaftDepth ?? 12));
+  const shaftDepth = Math.max(0, Math.floor(options.shaftDepth ?? 1000));
 
   scene.background = createSkyColor();
   scene.fog = new Fog(new Color(0x87b7e0), 45, 100);
 
-  const group = new Group();
-  group.name = "dig-world";
-  group.scale.setScalar(BLOCK_SCALE);
+  const root = new Group();
+  root.name = "dig-world-root";
 
-  const buckets = new Map<BlockId, Matrix4[]>();
-  const add = (id: BlockId, x: number, y: number, z: number): void => {
-    let list = buckets.get(id);
-    if (!list) {
-      list = [];
-      buckets.set(id, list);
-    }
-    const m = new Matrix4();
-    m.setPosition(x + 0.5, y + 0.5, z + 0.5);
-    list.push(m);
-  };
+  const content = new Group();
+  content.name = "dig-world";
+  content.scale.setScalar(BLOCK_SCALE);
+  root.add(content);
+
+  const loaded = new Map<number, Group>();
+
+  let focusBlockY = -1.2;
+  let originBlockY = 0;
 
   const inShaft = (x: number, z: number): boolean =>
     (SHAFT_XS as readonly number[]).includes(x) &&
@@ -79,139 +113,207 @@ export function buildDigWorld(
     return x * x + z * z <= SURFACE_RADIUS * SURFACE_RADIUS;
   };
 
-  const strata = (y: number): BlockId => {
-    if (y >= -3) return "dirt";
-    if (y >= -7) return "stone";
-    if (y >= -11) return "granite";
-    return "deepslate";
+  const applyOrigin = (): void => {
+    // Logical block Y is in `content` space; shift root so origin stays near focus.
+    root.position.y = -originBlockY * BLOCK_SCALE;
   };
 
+  const rebaseIfNeeded = (): void => {
+    if (Math.abs(focusBlockY - originBlockY) <= REBASE_THRESHOLD) return;
+    originBlockY = focusBlockY;
+    applyOrigin();
+  };
+
+  const syncChunks = (): void => {
+    const center = chunkIndex(Math.floor(focusBlockY));
+    const needed = new Set<number>();
+    for (let i = center - CHUNK_RADIUS; i <= center + CHUNK_RADIUS; i++) {
+      needed.add(i);
+    }
+    // Always keep surface chunk while near the top so the half-disk does not pop.
+    if (focusBlockY > -CHUNK_SIZE * (CHUNK_RADIUS + 1)) {
+      needed.add(0);
+    }
+
+    for (const [idx, group] of loaded) {
+      if (!needed.has(idx)) {
+        disposeChunkGroup(group);
+        content.remove(group);
+        loaded.delete(idx);
+      }
+    }
+
+    for (const idx of needed) {
+      if (loaded.has(idx)) continue;
+      const chunk = buildChunk(idx, shaftDepth, inShaft, onSurfaceDisk);
+      loaded.set(idx, chunk);
+      content.add(chunk);
+    }
+  };
+
+  const setFocusBlockY = (blockY: number): void => {
+    const minY = -(shaftDepth - 1.5);
+    const maxY = 2.5;
+    focusBlockY = Math.min(maxY, Math.max(minY, blockY));
+    rebaseIfNeeded();
+    syncChunks();
+  };
+
+  scene.add(root);
+  applyOrigin();
+  syncChunks();
+
+  return {
+    group: root,
+    getShaftDepth: () => shaftDepth,
+    getFocusBlockY: () => focusBlockY,
+    setFocusBlockY,
+    getRenderFocusY: () => (focusBlockY - originBlockY) * BLOCK_SCALE,
+    getOriginBlockY: () => originBlockY,
+    getFocusChunkIndex: () => chunkIndex(Math.floor(focusBlockY)),
+    getLoadedChunkCount: () => loaded.size,
+  };
+}
+
+export function chunkIndex(blockY: number): number {
+  return Math.floor(blockY / CHUNK_SIZE);
+}
+
+function chunkYRange(index: number): { yMin: number; yMax: number } {
+  const yMin = index * CHUNK_SIZE;
+  return { yMin, yMax: yMin + CHUNK_SIZE - 1 };
+}
+
+function strata(y: number): BlockId {
+  if (y >= -3) return "dirt";
+  if (y >= -7) return "stone";
+  if (y >= -11) return "granite";
+  const band = Math.floor((-y - 12) / 8) % 4;
+  return (["deepslate", "stone", "granite", "cobble"] as const)[band]!;
+}
+
+function buildChunk(
+  index: number,
+  shaftDepth: number,
+  inShaft: (x: number, z: number) => boolean,
+  onSurfaceDisk: (x: number, z: number) => boolean,
+): Group {
+  const { yMin, yMax } = chunkYRange(index);
+  const buckets = new Map<BlockId, Matrix4[]>();
   const grassCaps: Matrix4[] = [];
-  const r = SURFACE_RADIUS;
 
-  for (let x = -r; x <= r; x++) {
-    for (let z = -r; z <= Z_FRONT; z++) {
-      if (!onSurfaceDisk(x, z)) continue;
+  const add = (id: BlockId, x: number, y: number, z: number): void => {
+    if (y < yMin || y > yMax) return;
+    let list = buckets.get(id);
+    if (!list) {
+      list = [];
+      buckets.set(id, list);
+    }
+    const m = new Matrix4();
+    m.setPosition(x + 0.5, y + 0.5, z + 0.5);
+    list.push(m);
+  };
 
-      const deepSlice = z >= DEEP_CUT_Z;
-      const minY = deepSlice ? -MAX_WORLD_DEPTH : -2;
+  const nearSurface = yMax >= -2 && yMin <= 8;
 
-      for (let y = 0; y >= minY; y--) {
-        // 2×2 shaft cavity — cut open, no dedicated back-wall column.
-        if (inShaft(x, z) && y <= 0 && y > -shaftDepth) {
-          continue;
+  // Half-disk landscape only for the shallow band (keeps chunk -1 from exploding).
+  if (nearSurface && yMax >= -2) {
+    const r = SURFACE_RADIUS;
+    const localMin = Math.max(yMin, -2);
+    const localMax = Math.min(yMax, 0);
+    for (let x = -r; x <= r; x++) {
+      for (let z = -r; z <= Z_FRONT; z++) {
+        if (!onSurfaceDisk(x, z)) continue;
+        for (let y = localMax; y >= localMin; y--) {
+          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, x, y, z, true);
         }
+      }
+    }
 
-        if (inShaft(x, z) && y === -shaftDepth) {
-          add("cobble", x, y, z);
-          continue;
-        }
+    for (const [tx, tz] of TREE_SPOTS) {
+      if (!onSurfaceDisk(tx, tz) || inShaft(tx, tz)) continue;
+      if (Math.abs(tx) <= 3 && tz >= -4) continue;
+      placeTree(add, tx, tz);
+    }
 
-        if (inShaft(x, z) && y < -shaftDepth) {
-          if (y >= -shaftDepth - 1) add("cobble", x, y, z);
-          continue;
-        }
+    if (yMin <= 4 && yMax >= 1) {
+      placeHouse(add, 7, -6);
+    }
+  }
 
-        if (deepSlice && y < -shaftDepth - 1) continue;
-
-        add(strata(y), x, y, z);
-
-        if (y === 0 && !inShaft(x, z)) {
-          const cap = new Matrix4();
-          cap.makeScale(1, 0.14, 1);
-          cap.setPosition(x + 0.5, 1.07, z + 0.5);
-          grassCaps.push(cap);
+  // Cutaway wall strip for any underground rows in this chunk.
+  const stripMax = Math.min(yMax, -3);
+  const stripMin = Math.max(yMin, -shaftDepth - 1);
+  if (stripMax >= stripMin) {
+    for (let x = -WALL_HALF; x <= WALL_HALF; x++) {
+      for (let z = DEEP_CUT_Z; z <= Z_FRONT; z++) {
+        for (let y = stripMax; y >= stripMin; y--) {
+          placeColumnBlock(add, grassCaps, inShaft, shaftDepth, x, y, z, false);
         }
       }
     }
   }
 
-  // Trees — especially toward the rim so the half-disk edge softens.
-  const treeSpots: Array<[number, number]> = [
-    [-7, -2],
-    [-11, -4],
-    [-15, -7],
-    [-18, -12],
-    [-20, -18],
-    [-16, -22],
-    [-10, -26],
-    [-4, -28],
-    [2, -29],
-    [8, -26],
-    [13, -22],
-    [17, -16],
-    [20, -10],
-    [18, -5],
-    [12, -3],
-    [-14, -14],
-    [6, -18],
-    [-8, -20],
-    [15, -24],
-    [-19, -8],
-    [9, -12],
-    [-2, -16],
-    [4, -8],
-    [-22, -14],
-    [22, -14],
-  ];
+  const group = new Group();
+  group.name = `chunk-${index}`;
 
-  for (const [tx, tz] of treeSpots) {
-    if (!onSurfaceDisk(tx, tz) || inShaft(tx, tz)) continue;
-    // Keep a clear apron around the shaft mouth.
-    if (Math.abs(tx) <= 3 && tz >= -4) continue;
-    placeTree(add, tx, tz);
-  }
-
-  placeHouse(add, 7, -6);
-
-  const geo = new BoxGeometry(1, 1, 1);
   for (const [id, matrices] of buckets) {
-    const mats = createBlockMaterials(id);
-    const material = (
-      id === "leaves" ? mats[2] : mats[0]
-    ) as MeshLambertMaterial;
-
-    const mesh = new InstancedMesh(geo, material, matrices.length);
+    if (matrices.length === 0) continue;
+    const mesh = new InstancedMesh(sharedBox, getBlockMaterial(id), matrices.length);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
     mesh.instanceMatrix.needsUpdate = true;
-    mesh.name = `blocks-${id}`;
+    mesh.frustumCulled = false;
     group.add(mesh);
-
-    for (const m of mats) {
-      if (m !== material) {
-        (m as MeshLambertMaterial).map?.dispose();
-        m.dispose();
-      }
-    }
   }
 
   if (grassCaps.length > 0) {
-    const grassMats = createBlockMaterials("grass");
-    const grassMat = grassMats[2] as MeshLambertMaterial;
-    const caps = new InstancedMesh(geo, grassMat, grassCaps.length);
-    grassCaps.forEach((m, i) => caps.setMatrixAt(i, m));
-    caps.instanceMatrix.needsUpdate = true;
-    caps.name = "grass-caps";
-    group.add(caps);
-    for (const m of grassMats) {
-      if (m !== grassMat) {
-        (m as MeshLambertMaterial).map?.dispose();
-        m.dispose();
-      }
-    }
+    const mesh = new InstancedMesh(
+      sharedBox,
+      getBlockMaterial("grass"),
+      grassCaps.length,
+    );
+    grassCaps.forEach((m, i) => mesh.setMatrixAt(i, m));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.frustumCulled = false;
+    mesh.name = "grass-caps";
+    group.add(mesh);
   }
 
-  scene.add(group);
+  return group;
+}
 
-  // Focus near the shaft mouth so grass + cutaway both read.
-  const focusY = -1.2 * BLOCK_SCALE;
+function placeColumnBlock(
+  add: (id: BlockId, x: number, y: number, z: number) => void,
+  grassCaps: Matrix4[],
+  inShaft: (x: number, z: number) => boolean,
+  shaftDepth: number,
+  x: number,
+  y: number,
+  z: number,
+  allowGrass: boolean,
+): void {
+  if (inShaft(x, z) && y <= 0 && y > -shaftDepth) {
+    return;
+  }
+  if (inShaft(x, z) && y === -shaftDepth) {
+    add("cobble", x, y, z);
+    return;
+  }
+  if (inShaft(x, z) && y < -shaftDepth) {
+    if (y >= -shaftDepth - 1) add("cobble", x, y, z);
+    return;
+  }
+  if (y < -shaftDepth - 1) return;
 
-  return {
-    group,
-    getShaftDepth: () => shaftDepth,
-    getFocusY: () => focusY,
-  };
+  add(strata(y), x, y, z);
+
+  if (allowGrass && y === 0 && !inShaft(x, z)) {
+    const cap = new Matrix4();
+    cap.makeScale(1, 0.14, 1);
+    cap.setPosition(x + 0.5, 1.07, z + 0.5);
+    grassCaps.push(cap);
+  }
 }
 
 function placeTree(
@@ -253,4 +355,14 @@ function placeHouse(
     add("planks", x + dx, 4, z + 1);
     add("planks", x + dx, 4, z + 2);
   }
+}
+
+function disposeChunkGroup(group: Group): void {
+  for (const child of group.children) {
+    if (child instanceof InstancedMesh) {
+      child.geometry = sharedBox; // shared — do not dispose
+      // material is cached — do not dispose
+    }
+  }
+  group.clear();
 }

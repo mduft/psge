@@ -81,12 +81,13 @@ body {
   right: calc(0.9rem + var(--safe-right));
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  min-width: min(10.5rem, 40vw);
+  gap: 0.28rem;
+  min-width: min(12rem, 46vw);
   padding: 0.55rem 0.75rem;
   background: rgba(10, 14, 20, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(8px);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat {
@@ -105,7 +106,8 @@ body {
 
 .stat .value {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.92rem;
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
 }
 
 .hud-hint {
