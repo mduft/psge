@@ -43,11 +43,8 @@ body {
   width: 100%;
   height: 100%;
   touch-action: none;
-  cursor: grab;
-}
-
-#game-canvas.is-dragging {
-  cursor: grabbing;
+  /* Dig-tool cursor set from JS (spoon / shovel / pickaxe / jackhammer). */
+  cursor: crosshair;
 }
 
 #hud {

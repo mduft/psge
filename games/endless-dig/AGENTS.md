@@ -20,6 +20,7 @@ Dev URL examples:
 - Tap to dig; HUD Depth / Dirt / Shop; camera follows dig face
 - Shop: spend dirt on shovel / pickaxe / jackhammer (dig power) and cart / drill / crew (depth/s)
 - Dig power derived from upgrades (base `1/32`; shovel `+1/32` so first buy doubles)
+- Canvas cursor: spoon → shovel → pickaxe → jackhammer (`assets/textures/cursors/*.png`; hotspots in `src/digCursor.ts`)
 - Passive dig via `startLoop`; Decimal depth/dirt; idle `formatAmount` (`2.1K`, `2.1aa`, …)
 - World extent **grows** with dig (not capped at 1000); chunk streaming + floating origin
 - `?debug=1`: give-dirt buttons, drag-scroll (default off), Reset (clears save)

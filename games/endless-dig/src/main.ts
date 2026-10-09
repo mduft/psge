@@ -10,6 +10,7 @@ import {
 import Decimal from "decimal.js";
 import { createAutosave } from "./autosave.js";
 import { createShaftScroll } from "./cameraScroll.js";
+import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { formatAmount } from "./formatAmount.js";
 import {
   buyUpgrade,
@@ -251,6 +252,7 @@ async function boot(): Promise<() => void> {
 
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
+    applyDigCursor(canvas, digToolOf(state.upgrades));
   };
 
   const applyPlayView = (): void => {
