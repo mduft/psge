@@ -30,7 +30,7 @@ Dev URL examples:
 ## Play reference (M7+)
 
 - Tap to dig; HUD stats + shop + **Finds** / **Coins** / **Achievements** FABs
-- **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find-reveal modal; collection sheet; shaft props
+- **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find-reveal modal; collection sheet
 - **Geo layers** (`geoLayers.ts`): Topsoil 0–1k … Abyss 120k+; hardness; fog/sky/lights; layer toast
 - Soft dig with linear floor, then × layer hardness
 - Shop: Per tap vs Auto dig; **Pause** on Auto (persisted in save)

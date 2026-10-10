@@ -932,7 +932,6 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeSpecialCoins = String(specialCount);
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
-    world.syncDiscoveries(depth, state.discoveries);
     world.syncMineshafts(depth);
     const coinsAppeared = world.syncShaftCoins(
       depth,

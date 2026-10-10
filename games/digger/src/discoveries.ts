@@ -29,8 +29,6 @@ export interface DiscoveryDef {
   /** Relative weight among eligible roll finds (roll kind only). */
   rollWeight?: number;
   icon: DiscoveryIcon;
-  /** Shaft prop tint (sRGB hex). */
-  propTint: number;
 }
 
 export interface DiscoveryProgress {
@@ -52,7 +50,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "soil",
     icon: "bone",
-    propTint: 0xe8dcc8,
   },
   {
     id: "flint_flake",
@@ -63,7 +60,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "soil",
     rollWeight: 3,
     icon: "shard",
-    propTint: 0x5a6570,
   },
   {
     id: "river_pebble",
@@ -74,7 +70,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "soil",
     rollWeight: 2,
     icon: "stone",
-    propTint: 0x6a7a88,
   },
   {
     id: "clay_shard",
@@ -84,7 +79,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "clay",
     icon: "shard",
-    propTint: 0xb07040,
   },
   {
     id: "amber_drop",
@@ -95,7 +89,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "clay",
     rollWeight: 2,
     icon: "orb",
-    propTint: 0xd48a20,
   },
   {
     id: "bedrock_chisel",
@@ -105,7 +98,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "bedrock",
     icon: "gear",
-    propTint: 0x8a9098,
   },
   {
     id: "iron_nail",
@@ -116,7 +108,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "bedrock",
     rollWeight: 2,
     icon: "gear",
-    propTint: 0x5a5048,
   },
   {
     id: "deep_crystal",
@@ -126,7 +117,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "deep_crust",
     icon: "crystal",
-    propTint: 0x70c8e8,
   },
   {
     id: "slate_tablet",
@@ -137,7 +127,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "deep_crust",
     rollWeight: 2,
     icon: "tablet",
-    propTint: 0x3a4450,
   },
   {
     id: "jade_fleck",
@@ -147,7 +136,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "ancient",
     icon: "crystal",
-    propTint: 0x2affc8,
   },
   {
     id: "glyph_disk",
@@ -158,7 +146,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     layerId: "ancient",
     rollWeight: 1,
     icon: "tablet",
-    propTint: 0x4a6860,
   },
   {
     id: "abyss_ember",
@@ -168,7 +155,6 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     kind: "milestone",
     layerId: "abyss",
     icon: "orb",
-    propTint: 0xff6622,
   },
 ] as const;
 
@@ -313,21 +299,4 @@ export function unlockNextDiscovery(
     if (unlock(progress, def.id)) return def.id;
   }
   return null;
-}
-
-/** Deterministic wall placement for a discovery prop (block coords). */
-export function discoveryPropCell(
-  id: string,
-  worldSeed: number,
-): { x: number; y: number; z: number } {
-  const def = DEF_BY_ID.get(id);
-  const minY = def ? -Math.ceil(def.minDepth) : -10;
-  const rng = createSeededRng(hashSeed(worldSeed, id.split("").reduce((a, c) => a + c.charCodeAt(0), 0)));
-  // Prefer cutaway wall columns away from shaft (−1/0).
-  const wallXs = [-8, -6, -4, -3, 2, 3, 5, 7, 10, 12];
-  const x = wallXs[rng.nextInt(0, wallXs.length)]!;
-  const z = rng.next() < 0.5 ? -2 : 0;
-  const yJitter = rng.nextInt(0, 5);
-  const y = Math.min(-3, minY + yJitter);
-  return { x, y, z };
 }

@@ -23,14 +23,12 @@ import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
 import type { BoosterProgress } from "./boosters.js";
 import type { SpecialCoinProgress } from "./specialCoins.js";
-import type { DiscoveryProgress } from "./discoveries.js";
 import {
   createShaftCoinProps,
   type ShaftCoinPick,
 } from "./shaftCoinProps.js";
 import { DIG_SHAFT_XS, DIG_SHAFT_ZS, isDigShaftCell } from "./digShaft.js";
 import { createDigParticles } from "./digParticles.js";
-import { createDiscoveryProps } from "./discoveryProps.js";
 import {
   chipColorsForDepth,
   geoLayerAt,
@@ -74,8 +72,6 @@ export interface DigWorld {
   setFogDistanceScale(scale: number): void;
   /** Sync digger + machinery to dig face and upgrades. */
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
-  /** Sync discovery props on cutaway walls. */
-  syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
   /** Sync side-mineshaft rails / cobwebs near the dig face. */
   syncMineshafts(excavatedDepth: number): void;
   /** Sync visible dirt + special coins; returns count of newly appeared coins. */
@@ -264,7 +260,6 @@ export function buildDigWorld(
 
   const particles = createDigParticles(content);
   const actors: ShaftActors = createShaftActors(content);
-  const discoveryProps = createDiscoveryProps(content);
   const mineshaftProps = createMineshaftProps(content);
   const shaftCoins = createShaftCoinProps(content);
   const chunkGroups = new Map<number, Group>();
@@ -472,9 +467,6 @@ export function buildDigWorld(
     syncActors(depth: number, upgrades: UpgradeLevels): void {
       actors.sync(depth, upgrades);
     },
-    syncDiscoveries(depth: number, progress: DiscoveryProgress): void {
-      discoveryProps.sync(depth, progress);
-    },
     syncMineshafts(depth: number): void {
       mineshaftProps.sync(depth);
     },
@@ -516,7 +508,6 @@ export function buildDigWorld(
     dispose(): void {
       actors.dispose();
       shaftCoins.dispose();
-      discoveryProps.dispose();
       mineshaftProps.dispose();
       particles.dispose();
       disposeChunkGroup(digFaceRoot);
