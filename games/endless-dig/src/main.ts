@@ -228,12 +228,16 @@ async function boot(): Promise<() => void> {
     const { distance, xOffset, panXBlocks } = digCameraFraming(aspect);
     /** Pan only (same delta on eye + lookAt) so side-view angle stays fixed. */
     const panX = panXBlocks * BLOCK_SCALE;
-    const yLift = 8.5;
+    // Aim a little above the dig face so the digger sits lower and more shaft
+    // (coins) stays on-screen above them — halfway between the old aim and a
+    // stronger tilt.
+    const yLift = 8.75;
+    const lookAboveFocus = 1.25;
     const focusY = world.getRenderFocusY();
 
     app.setCamera({
       position: [xOffset * BLOCK_SCALE + panX, focusY + yLift, distance],
-      lookAt: [panX, focusY - 1.5, -6 * BLOCK_SCALE],
+      lookAt: [panX, focusY + lookAboveFocus, -6 * BLOCK_SCALE],
     });
     // Narrow Cursor browser / phone pulls the camera back; scale fog so
     // authored near/far (tuned for ~16:9) still leave the cutaway visible.

@@ -919,7 +919,7 @@ Examples:
 
 ```text
 🦴 Ancient bone
-🪙 Old coin
+🪨 Flint flake
 🏺 Pottery fragment
 🧱 Unknown structure
 💎 Strange crystal

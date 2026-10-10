@@ -15,8 +15,9 @@ export type BoosterValue = (typeof BOOSTER_VALUES)[number];
 export const BOOSTER_SPACING_MIN = 25;
 export const BOOSTER_SPACING_MAX = 50;
 
-/** Dig this far past a coin without tapping → auto-claim at 1×. */
-export const BOOSTER_AUTO_GRACE_M = 4;
+/** Dig this far past a coin without tapping → auto-claim at 1×.
+ * Tuned so the mesh stays tappable until it is about to leave the framed shaft. */
+export const BOOSTER_AUTO_GRACE_M = 6;
 
 /** First possible coin (avoid surface clutter). */
 export const BOOSTER_FIRST_DEPTH_MIN = 12;

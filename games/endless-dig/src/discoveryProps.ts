@@ -68,9 +68,6 @@ function buildPropMesh(def: DiscoveryDef, dim: boolean): Group {
       addMesh(g, new BoxGeometry(0.22, 0.1, 0.12), c, 0, 0.48, 0);
       addMesh(g, new BoxGeometry(0.22, 0.1, 0.12), c, 0, -0.05, 0);
       break;
-    case "coin":
-      addMesh(g, new CylinderGeometry(0.22, 0.22, 0.05, 12), c, 0, 0.15, 0);
-      break;
     case "shard":
       addMesh(g, new BoxGeometry(0.28, 0.35, 0.08), c, 0, 0.18, 0);
       break;

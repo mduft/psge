@@ -11,7 +11,6 @@ export type DiscoveryKind = "milestone" | "roll";
 
 export type DiscoveryIcon =
   | "bone"
-  | "coin"
   | "shard"
   | "crystal"
   | "gear"
@@ -56,15 +55,15 @@ export const DISCOVERY_DEFS: readonly DiscoveryDef[] = [
     propTint: 0xe8dcc8,
   },
   {
-    id: "old_coin",
-    name: "Old coin",
-    blurb: "Tarnished metal with a face nobody remembers.",
+    id: "flint_flake",
+    name: "Flint flake",
+    blurb: "A knapped edge — someone worked stone here long before you.",
     minDepth: 40,
     kind: "roll",
     layerId: "soil",
     rollWeight: 3,
-    icon: "coin",
-    propTint: 0xc4a050,
+    icon: "shard",
+    propTint: 0x5a6570,
   },
   {
     id: "river_pebble",
@@ -197,8 +196,11 @@ export function normalizeDiscoveryProgress(
   const unlocked: string[] = [];
   if (Array.isArray(o.unlocked)) {
     const seen = new Set<string>();
-    for (const id of o.unlocked) {
-      if (typeof id !== "string" || !DEF_BY_ID.has(id) || seen.has(id)) continue;
+    for (const rawId of o.unlocked) {
+      if (typeof rawId !== "string") continue;
+      // v7 catalog rename — keep progress when Old coin became Flint flake.
+      const id = rawId === "old_coin" ? "flint_flake" : rawId;
+      if (!DEF_BY_ID.has(id) || seen.has(id)) continue;
       seen.add(id);
       unlocked.push(id);
     }

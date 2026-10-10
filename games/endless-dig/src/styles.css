@@ -406,13 +406,6 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
   inset: 18% 38%;
 }
 
-.discovery-icon.icon-coin {
-  color: #c4a050;
-}
-.discovery-icon.icon-coin::after {
-  border-radius: 50%;
-}
-
 .discovery-icon.icon-shard {
   color: #b07040;
 }
