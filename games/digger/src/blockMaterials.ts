@@ -28,11 +28,15 @@ function cacheKey(
     const v = (opts.variant ?? 0) % ACCENT_VARIANTS;
     return `${family}:lava:${v}`;
   }
-  if (id === "gem") {
+  if (id === "gem" || id === "iron") {
     const v = (opts.variant ?? 0) % ACCENT_VARIANTS;
-    return `${family}:gem:${opts.under ?? "deepslate"}:${v}`;
+    return `${family}:${id}:${opts.under ?? "deepslate"}:${v}`;
   }
   return `${family}:${id}`;
+}
+
+function isGlowAccent(id: BlockId): boolean {
+  return id === "lava" || id === "gem" || id === "iron";
 }
 
 export function getBlockMaterial(
@@ -45,7 +49,7 @@ export function getBlockMaterial(
   if (!mat) {
     const faces = createBlockMaterials(id, family, opts);
     mat = id === "leaves" || id === "grass" ? faces[2]! : faces[0]!;
-    if (id !== "lava" && id !== "gem") {
+    if (!isGlowAccent(id)) {
       const keepMap = (mat as MeshLambertMaterial).map ?? null;
       const disposedMaps = new Set<Texture>();
       for (const face of faces) {
@@ -74,7 +78,7 @@ export function getDigFaceMaterials(
   family: PaletteFamily = "soil",
   opts: AccentMaterialOpts = {},
 ): Material[] {
-  if (id === "lava" || id === "gem") {
+  if (isGlowAccent(id)) {
     const glow = getBlockMaterial(id, family, opts);
     return [glow, glow, glow, glow, glow, glow];
   }

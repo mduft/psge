@@ -91,11 +91,15 @@ describe("geoLayerApproachDepths", () => {
 });
 
 describe("wallAccentAt", () => {
-  it("places gems in ancient rock and lava in the abyss", () => {
+  it("places iron in deep crust, gems in ancient, lava in the abyss", () => {
+    let irons = 0;
     let gems = 0;
     let lavas = 0;
     for (let x = -16; x <= 16; x++) {
       for (const z of [-2] as const) {
+        for (let y = -20_000; y >= -20_040; y--) {
+          if (wallAccentAt(x, y, z) === "iron") irons += 1;
+        }
         for (let y = -50_000; y >= -50_040; y--) {
           if (wallAccentAt(x, y, z) === "gem") gems += 1;
         }
@@ -104,6 +108,7 @@ describe("wallAccentAt", () => {
         }
       }
     }
+    expect(irons).toBeGreaterThan(0);
     expect(gems).toBeGreaterThan(0);
     expect(lavas).toBeGreaterThan(0);
     expect(wallAccentAt(0, -10, 0)).toBeNull();

@@ -127,7 +127,7 @@ export const GEO_LAYERS: readonly GeoLayerDef[] = [
       dirColor: 0x90a8c0,
       dirIntensity: 0.75,
     },
-    chipColors: [0x3d4450, 0x5a6068, 0x2a3038, 0x6e6e6e, 0x484858],
+    chipColors: [0x3d4450, 0x5a6068, 0x2a3038, 0xd4bc98, 0xa89068],
     paletteTint: { h: -0.08, s: -0.18, l: -0.1 },
   },
   {
@@ -310,14 +310,14 @@ export function tintHex(
 
 /**
  * Sparse glowing accents on cutaway walls.
- * Ancient → gem (often singles / pairs). Abyss → lava (runs of 1–3).
+ * Deep crust → iron ore. Ancient → gem (singles / pairs). Abyss → lava (1–3).
  * Never on the dig-shaft footprint (accents would vanish as you dig).
  */
 export function wallAccentAt(
   x: number,
   y: number,
   z: number,
-): "lava" | "gem" | null {
+): "lava" | "gem" | "iron" | null {
   if (y > -3) return null;
   if (isDigShaftCell(x, z)) return null;
   const layer = geoLayerAt(Math.max(0, -y), x, z);
@@ -326,6 +326,9 @@ export function wallAccentAt(
   }
   if (layer.id === "ancient") {
     return inAccentRun(x, y, z, 0x6e1100, 0.02, 2) ? "gem" : null;
+  }
+  if (layer.id === "deep_crust") {
+    return inAccentRun(x, y, z, 0x12e000, 0.025, 2) ? "iron" : null;
   }
   return null;
 }

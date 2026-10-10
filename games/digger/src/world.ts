@@ -713,7 +713,7 @@ function buildChunk(
     const variant = accent?.variant ?? 0;
     const under = accent?.under;
     const key =
-      id === "lava" || id === "gem"
+      id === "lava" || id === "gem" || id === "iron"
         ? `${family}:${id}:${variant}:${under ?? ""}`
         : `${family}:${id}`;
     const m = new Matrix4();
@@ -850,7 +850,7 @@ function placeColumnBlock(
 ): void {
   if (y < worldMinY) return;
 
-  // Shaft path never gets lava/gem — accents would vanish as you dig through.
+  // Shaft path never gets lava/gem/iron — accents would vanish as you dig.
   if (inShaft(x, z) && y <= 0) {
     const remain = shaftBlockRemainHeight(y, excavatedDepth);
     if (remain <= 1e-6) return;
@@ -866,7 +866,7 @@ function placeColumnBlock(
   if (accent) {
     add(accent, x, y, z, 1, {
       variant: wallAccentVariant(x, y, z),
-      under: accent === "gem" ? base : undefined,
+      under: accent === "gem" || accent === "iron" ? base : undefined,
     });
   } else {
     add(base, x, y, z);

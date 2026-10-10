@@ -27,7 +27,8 @@ export type BlockId =
   | "leaves"
   | "cobble"
   | "lava"
-  | "gem";
+  | "gem"
+  | "iron";
 
 export type PaletteFamily = GeoLayerId;
 
@@ -49,10 +50,16 @@ const BASE_PALETTES: Record<BlockId, BlockPalette> = {
   cobble: { top: "#7d7d7d", side: "#6e6e6e", bottom: "#5f5f5f", noise: 40 },
   lava: { top: "#ff6622", side: "#ee4400", bottom: "#cc2200", noise: 8 },
   gem: { top: "#2affc8", side: "#1ad4a8", bottom: "#0fb890", noise: 10 },
+  // Fallback palette; wall accents paint ore flecks over underlying rock.
+  iron: { top: "#d8c4a8", side: "#c4b090", bottom: "#a89878", noise: 12 },
 };
 
-/** Distinct procedural patterns for lava / gem wall accents. */
+/** Distinct procedural patterns for lava / gem / iron wall accents. */
 export const ACCENT_VARIANTS = 4;
+
+function isAccentBlock(id: BlockId): boolean {
+  return id === "lava" || id === "gem" || id === "iron";
+}
 
 function tintForFamily(family: PaletteFamily): {
   h: number;
@@ -252,7 +259,18 @@ const GEM_COLORS = [
   "#a8ffe8",
 ] as const;
 
-function paintGemShape(
+/** Minecraft-like iron ore flecks — warm tan / raw-iron on dark rock. */
+const IRON_ORE_COLORS = [
+  "#e8d4b8",
+  "#d8c4a0",
+  "#c8b088",
+  "#f0e0c8",
+  "#bca078",
+  "#a89068",
+  "#d0b890",
+] as const;
+
+function paintOreShape(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -303,10 +321,38 @@ function paintGemFace(
     const color =
       GEM_COLORS[(hash01(i, 35, seed) * GEM_COLORS.length) | 0]!;
     const shape = (hash01(i, 36, seed) * 5) | 0;
-    paintGemShape(ctx, x, y, shape, color);
+    paintOreShape(ctx, x, y, shape, color);
     // Hot core highlight
     if (hash01(i, 37, seed) > 0.35) {
       ctx.fillStyle = "#e8fff8";
+      ctx.fillRect(x + ((gw / 2) | 0), y + ((gh / 2) | 0), 1, 1);
+    }
+  }
+}
+
+/**
+ * Deep-crust iron ore — rock with Minecraft-style tan ore blotches.
+ */
+function paintIronFace(
+  ctx: CanvasRenderingContext2D,
+  under: BlockPalette,
+  size: number,
+  seed: number,
+): void {
+  paintFace(ctx, under.side, under.noise, size, seed + 40);
+  const count = 3 + ((hash01(0, 40, seed) * 4) | 0); // 3…6
+  for (let i = 0; i < count; i++) {
+    const gw = 2 + ((hash01(i, 41, seed) * 3) | 0); // 2…4
+    const gh = 2 + ((hash01(i, 42, seed) * 3) | 0);
+    const x = 1 + ((hash01(i, 43, seed) * Math.max(1, size - gw - 1)) | 0);
+    const y = 1 + ((hash01(i, 44, seed) * Math.max(1, size - gh - 1)) | 0);
+    const color =
+      IRON_ORE_COLORS[(hash01(i, 45, seed) * IRON_ORE_COLORS.length) | 0]!;
+    const shape = (hash01(i, 46, seed) * 5) | 0;
+    paintOreShape(ctx, x, y, shape, color);
+    // Soft metallic highlight (less neon than gems).
+    if (hash01(i, 47, seed) > 0.4) {
+      ctx.fillStyle = "#fff6e8";
       ctx.fillRect(x + ((gw / 2) | 0), y + ((gh / 2) | 0), 1, 1);
     }
   }
@@ -327,13 +373,28 @@ function makeGemTexture(
   family: PaletteFamily,
   variant: number,
 ): CanvasTexture {
-  const under = paletteFor(underId === "gem" || underId === "lava" ? "deepslate" : underId, family);
+  const under = paletteFor(isAccentBlock(underId) ? "deepslate" : underId, family);
   const canvas = document.createElement("canvas");
   canvas.width = FACE_SIZE;
   canvas.height = FACE_SIZE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas unavailable");
   paintGemFace(ctx, under, FACE_SIZE, 0x6e1100 + variant * 131);
+  return canvasToTexture(canvas);
+}
+
+function makeIronTexture(
+  underId: BlockId,
+  family: PaletteFamily,
+  variant: number,
+): CanvasTexture {
+  const under = paletteFor(isAccentBlock(underId) ? "deepslate" : underId, family);
+  const canvas = document.createElement("canvas");
+  canvas.width = FACE_SIZE;
+  canvas.height = FACE_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("2D canvas unavailable");
+  paintIronFace(ctx, under, FACE_SIZE, 0x12e000 + variant * 149);
   return canvasToTexture(canvas);
 }
 
@@ -376,7 +437,7 @@ export function makeDigWearTopTexture(
 export interface AccentMaterialOpts {
   /** 0…ACCENT_VARIANTS-1 pattern index. */
   variant?: number;
-  /** Rock under gem flecks (ignored for lava). */
+  /** Rock under gem / iron flecks (ignored for lava). */
   under?: BlockId;
 }
 
@@ -400,6 +461,13 @@ export function createBlockMaterials(
     const under = opts.under ?? "deepslate";
     const map = makeGemTexture(under, family, variant);
     const mat = makeGlowMaterial(map, 0x40ffd0, 2.1);
+    return [mat, mat, mat, mat, mat, mat];
+  }
+  if (id === "iron") {
+    const under = opts.under ?? "deepslate";
+    const map = makeIronTexture(under, family, variant);
+    // Soft metallic sheen — less neon than gems / lava.
+    const mat = makeGlowMaterial(map, 0xc8b090, 1.15);
     return [mat, mat, mat, mat, mat, mat];
   }
 

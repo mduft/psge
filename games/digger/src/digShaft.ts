@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Shared 2×2 dig-shaft footprint (XZ). Used by world placement and accents
- * so lava/gems never occupy the cavity path.
+ * so lava/gem/iron accents never occupy the cavity path.
  */
 
 export const DIG_SHAFT_XS = [-1, 0] as const;

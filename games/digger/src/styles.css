@@ -490,7 +490,6 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
 
 .booster-toast {
   --combo: 0;
-  top: calc(38% + var(--safe-top));
   border-color: rgba(212, 178, 74, 0.45);
   transition:
     opacity 0.35s ease,
@@ -588,7 +587,6 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
 }
 
 .achievement-toast {
-  top: calc(46% + var(--safe-top));
   z-index: 8;
   overflow: visible;
   padding: 0.65rem 1.05rem 0.7rem;
@@ -1669,6 +1667,16 @@ html[data-psge-panel="open"] #hud-panel {
 .layer-toast.is-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Beat `.layer-toast` specificity so these do not share the 18% layer slot.
+   Stack just under the title band with a tight gap (~one toast height). */
+.layer-toast.achievement-toast {
+  top: calc(22% + var(--safe-top));
+}
+
+.layer-toast.booster-toast {
+  top: calc(30% + var(--safe-top));
 }
 
 .layer-toast-eyebrow {
