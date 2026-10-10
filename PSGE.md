@@ -2,7 +2,7 @@
 # Pleasantly Simple Game Engine (PSGE)
 
 > Working project and architecture specification
-> Status: Milestone 0–6 implemented — decisions locked in §4.8; API unfrozen (§28)
+> Status: Milestone 0–7 implemented — decisions locked in §4.8; API unfrozen (§28)
 > Core goal: make small browser games **pleasantly simple to build, test, run, and evolve — including by autonomous agents**.
 
 ---
@@ -373,7 +373,7 @@ The same principle applies to modeling, texture creation, image processing, audi
 
 PSGE should orchestrate proven tools rather than duplicate them.
 
-## 4.8 Resolved decisions for Milestone 0 / 1 / 1.1 / 2 / 3
+## 4.8 Resolved decisions for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7
 
 The following choices are locked for implementing these milestones. They may still change later; see the unfrozen-API policy in §28.
 
@@ -413,6 +413,8 @@ The following choices are locked for implementing these milestones. They may sti
 | M6 geo layers | km-scale named bands (Topsoil→Abyss); hardness after soft-cap; HUD label + enter toast |
 | M6 mood | Fog/sky/lights + palette-family tints + layer chip colors |
 | M6 actors | Procedural digger (tool swap) + cart/drill/crew props; no camera polish |
+| M7 discoveries | Depth milestones + seeded dig rolls; collection sheet + find toast; basic shaft props |
+| M7 save | `GameState` version **6** (`discoveries` + dirt-coin boosters); v2–v5 migrate |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1721,12 +1723,14 @@ The camera remains fixed in orientation throughout.
 
 ## Milestone 7 — Discoveries
 
-Add:
+Locked (see also §4.8):
 
-- deterministic random discoveries;
-- collection;
-- discovery UI;
-- discovery assets.
+- **Catalog** (`discoveries.ts`): milestones at band depths + rare seeded dig rolls (`createSeededRng`).
+- **Collection** sheet (FAB) + find toast; CSS icon tiles (placeholder art).
+- **Shaft props** (`discoveryProps.ts`): basic procedural meshes for unlocked / teased milestones.
+- Save version **6**; resolve on dig / tick / offline / `?depth=` fresh runs.
+- Dirt-coin boosters in the shaft (~25–50 m); tap ×2 / auto ×1 after grace.
+- Out of scope: 3D inspect (M8).
 
 ## Milestone 8 — 3D artifact inspection
 
@@ -1939,7 +1943,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7
 
 See §4.8 for the decision table. In short:
 
@@ -1953,6 +1957,7 @@ See §4.8 for the decision table. In short:
 - M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` give dirt / Reset / drag-scroll.
 - M5: offline claim at soft auto rate × 1/6 (max 24h); save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
+- M7: discoveries (milestones + seeded rolls); collection UI; shaft props; dirt-coin boosters; save v6.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

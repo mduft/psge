@@ -78,7 +78,8 @@ body {
   font-size: clamp(0.8rem, 2vw, 0.95rem);
 }
 
-/* Right-side stack: stats, then shop panel (desktop). */
+/* Right-side stack: stats + shop + finds (+ debug). Cap to viewport height so
+   short windows scroll the rail instead of pushing panels off-screen. */
 .hud-rail {
   position: absolute;
   top: calc(0.75rem + var(--safe-top));
@@ -88,8 +89,16 @@ body {
   gap: 0.5rem;
   min-width: min(15.5rem, 56vw);
   max-width: min(20rem, 60vw);
-  pointer-events: none;
+  max-height: calc(
+    100dvh - (0.75rem + var(--safe-top)) - (0.75rem + var(--safe-bottom))
+  );
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Auto so the rail scrollbar is usable; box only covers panel column. */
+  pointer-events: auto;
   z-index: 2;
+  scrollbar-gutter: stable;
 }
 
 .hud-stats,
@@ -147,19 +156,302 @@ body {
   display: none;
 }
 
-.hud-shop,
+.hud-actions,
 .hud-debug {
   pointer-events: none;
 }
 
-.hud-shop > *,
+.hud-actions > *,
 .hud-debug > * {
   pointer-events: auto;
+}
+
+.collection-count {
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.15rem;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  color: #0a0e14;
+  background: #c4a574;
+  border-radius: 999px;
+}
+
+.collection-list {
+  gap: 0.45rem;
+}
+
+.collection-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.collection-row.is-locked {
+  opacity: 0.45;
+}
+
+.discovery-icon {
+  flex: 0 0 2.2rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+
+.discovery-icon::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.discovery-icon.icon-bone {
+  color: #e8dcc8;
+}
+.discovery-icon.icon-bone::after {
+  border-radius: 2px;
+  inset: 18% 38%;
+}
+
+.discovery-icon.icon-coin {
+  color: #c4a050;
+}
+.discovery-icon.icon-coin::after {
+  border-radius: 50%;
+}
+
+.discovery-icon.icon-shard {
+  color: #b07040;
+}
+.discovery-icon.icon-shard::after {
+  clip-path: polygon(20% 10%, 90% 30%, 70% 90%, 10% 70%);
+}
+
+.discovery-icon.icon-crystal {
+  color: #70c8e8;
+}
+.discovery-icon.icon-crystal::after {
+  clip-path: polygon(50% 5%, 90% 90%, 10% 90%);
+}
+
+.discovery-icon.icon-gear {
+  color: #8a9098;
+}
+.discovery-icon.icon-gear::after {
+  clip-path: polygon(0 40%, 40% 40%, 40% 0, 60% 0, 60% 40%, 100% 40%, 100% 60%, 60% 60%, 60% 100%, 40% 100%, 40% 60%, 0 60%);
+}
+
+.discovery-icon.icon-stone {
+  color: #6a7a88;
+}
+.discovery-icon.icon-stone::after {
+  border-radius: 30% 40% 35% 45%;
+}
+
+.discovery-icon.icon-tablet {
+  color: #3a4450;
+}
+.discovery-icon.icon-tablet::after {
+  inset: 15% 22%;
+  border-radius: 2px;
+}
+
+.discovery-icon.icon-orb {
+  color: #ff6622;
+}
+.discovery-icon.icon-orb::after {
+  border-radius: 40%;
+}
+
+.collection-row.is-locked .discovery-icon {
+  color: #4a5560;
+}
+
+.collection-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.collection-name {
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.collection-blurb {
+  font-size: 0.72rem;
+  color: var(--hud-muted);
+  line-height: 1.35;
+}
+
+.booster-toast {
+  top: calc(38% + var(--safe-top));
+  border-color: rgba(212, 178, 74, 0.45);
+}
+
+.find-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding:
+    calc(1rem + var(--safe-top))
+    calc(1rem + var(--safe-right))
+    calc(1rem + var(--safe-bottom))
+    calc(1rem + var(--safe-left));
+  background: rgba(6, 10, 16, 0.72);
+  pointer-events: auto;
+  text-shadow: none;
+}
+
+.find-backdrop[hidden] {
+  display: none !important;
+}
+
+.find-modal {
+  width: min(19rem, 100%);
+  padding: 1.25rem 1.2rem 1.2rem;
+  text-align: center;
+  background: rgba(12, 16, 22, 0.96);
+  border: 1px solid rgba(196, 165, 116, 0.4);
+  border-radius: 0.75rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: find-modal-in 0.38s ease-out;
+}
+
+@keyframes find-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.find-eyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(196, 165, 116, 0.9);
+}
+
+.find-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0.85rem 0 0.75rem;
+}
+
+.find-icon.discovery-icon {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 0.55rem;
+  border-color: rgba(196, 165, 116, 0.45);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.find-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.find-blurb {
+  margin: 0.45rem 0 0;
+  color: var(--hud-muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.find-queue {
+  margin: 0.65rem 0 0;
+  color: rgba(196, 165, 116, 0.85);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.find-continue {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  overflow: hidden;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-ink);
+  background: rgba(196, 165, 116, 0.18);
+  border: 1px solid rgba(196, 165, 116, 0.55);
+  cursor: pointer;
+}
+
+.find-continue-fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(1);
+  transform-origin: left center;
+  background: rgba(196, 165, 116, 0.42);
+  pointer-events: none;
+}
+
+.find-continue.is-counting .find-continue-fill {
+  animation: find-continue-countdown 5s linear forwards;
+}
+
+@keyframes find-continue-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.find-continue-label {
+  position: relative;
+  z-index: 1;
+}
+
+.find-continue:hover,
+.find-continue:focus-visible {
+  background: rgba(196, 165, 116, 0.26);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .find-continue.is-counting .find-continue-fill {
+    animation: none;
+    transform: scaleX(0);
+  }
 }
 
 .shop {
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
   padding: 0.55rem 0.75rem 0.65rem;
 }
 
@@ -184,9 +476,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  /* Tall enough for both shop sections without a default scrollbar. */
-  max-height: min(70vh, 32rem);
-  overflow-y: auto;
+  /* Wide: rail scrolls as one column. Narrow sheets override with flex scroll. */
+  min-height: 0;
 }
 
 .shop-section {
@@ -274,7 +565,9 @@ body {
 .debug-panel {
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
   gap: 0.4rem;
+  min-height: 0;
   padding: 0.55rem 0.75rem;
 }
 
@@ -551,8 +844,10 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Narrow: one-line stats + floating shop FAB → sheet */
-@media (max-width: 520px) {
+/* Narrow / short: one-line stats + floating FABs → bottom sheets.
+   Short height (half-desktop, Cursor split) uses sheets so shop/finds/debug
+   stay reachable without hunting a rail scrollbar. */
+@media (max-width: 520px), (max-height: 900px) {
   #hud {
     grid-template-rows: auto auto 1fr auto;
   }
@@ -564,8 +859,12 @@ body {
     justify-self: stretch;
     min-width: 0;
     max-width: none;
+    max-height: none;
     width: 100%;
     gap: 0.4rem;
+    overflow: visible;
+    pointer-events: none;
+    scrollbar-gutter: auto;
   }
 
   .hud-stats {
@@ -610,7 +909,7 @@ body {
     font-size: 0.78rem;
   }
 
-  .hud-shop,
+  .hud-actions,
   .hud-debug {
     position: contents;
   }
@@ -638,6 +937,11 @@ body {
 
   .shop-fab {
     right: calc(0.9rem + var(--safe-right));
+  }
+
+  .collection-fab {
+    bottom: calc(8rem + var(--safe-bottom));
+    border-color: rgba(160, 190, 200, 0.55);
   }
 
   .debug-fab:not([hidden]) {
@@ -686,7 +990,8 @@ body {
     pointer-events: auto;
   }
 
-  html[data-psge-shop="open"] .shop-backdrop {
+  html[data-psge-shop="open"] #shop-backdrop,
+  html[data-psge-collection="open"] #collection-backdrop {
     display: block;
   }
 
@@ -703,14 +1008,20 @@ body {
       calc(0.9rem + var(--safe-right))
       calc(0.85rem + var(--safe-bottom))
       calc(0.9rem + var(--safe-left));
-    max-height: min(72vh, 28rem);
+    max-height: min(85dvh, 32rem);
+    overflow: hidden;
     background: rgba(10, 14, 20, 0.94);
     border-radius: 0.75rem 0.75rem 0 0;
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
   }
 
-  html[data-psge-shop="open"] .shop {
+  html[data-psge-shop="open"] #shop-sheet,
+  html[data-psge-collection="open"] #collection-sheet {
     display: flex;
+  }
+
+  .shop-header {
+    flex: 0 0 auto;
   }
 
   .shop-close {
@@ -736,7 +1047,12 @@ body {
   }
 
   .shop-list {
-    max-height: min(68vh, 30rem);
+    flex: 0 1 auto;
+    /* Parent only has max-height; give the list an explicit budget so it
+       scrolls instead of growing the sheet off-screen or collapsing to 0. */
+    max-height: min(calc(85dvh - 4.5rem), calc(32rem - 4.5rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .debug-backdrop {
@@ -766,7 +1082,9 @@ body {
       calc(0.9rem + var(--safe-right))
       calc(0.85rem + var(--safe-bottom))
       calc(0.9rem + var(--safe-left));
-    max-height: min(72vh, 28rem);
+    max-height: min(85dvh, 32rem);
+    overflow-x: hidden;
+    overflow-y: auto;
     background: rgba(10, 14, 20, 0.94);
     border-radius: 0.75rem 0.75rem 0 0;
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);

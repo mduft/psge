@@ -87,7 +87,8 @@ describe("tickProduction", () => {
   it("applies soft-capped passive depth from cart", () => {
     const state = createInitialState({ upgrades: { cart: 1 } });
     expect(passiveRateOf(state).toNumber()).toBeCloseTo(0.05);
-    expect(tickProduction(state, 2)).toBe(true);
+    const found = tickProduction(state, 2);
+    expect(Array.isArray(found)).toBe(true);
     const gained = softDigAmount(0.05) * 2;
     expect(state.depth.toNumber()).toBeCloseTo(gained);
     expect(state.dirt.toNumber()).toBeCloseTo(gained * SHAFT_CROSS_SECTION);
@@ -95,7 +96,7 @@ describe("tickProduction", () => {
 
   it("no-ops without generators", () => {
     const state = createInitialState();
-    expect(tickProduction(state, 1)).toBe(false);
+    expect(tickProduction(state, 1)).toEqual([]);
     expect(state.depth.isZero()).toBe(true);
   });
 });

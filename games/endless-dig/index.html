@@ -61,7 +61,7 @@
             </div>
           </aside>
 
-          <aside class="hud-shop" aria-label="Shop controls">
+          <aside class="hud-actions" aria-label="Shop and collection">
             <button
               type="button"
               id="shop-toggle"
@@ -85,6 +85,29 @@
               </svg>
               <span class="shop-afford-dot" data-shop-afford hidden></span>
             </button>
+            <button
+              type="button"
+              id="collection-toggle"
+              class="shop-fab collection-fab"
+              aria-label="Collection"
+              aria-expanded="false"
+              aria-controls="collection-sheet"
+            >
+              <svg
+                class="shop-fab-icon"
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  fill="currentColor"
+                  d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"
+                />
+              </svg>
+              <span class="collection-count" data-collection-count>0</span>
+            </button>
             <div id="shop-backdrop" class="shop-backdrop" hidden></div>
             <section class="shop" id="shop-sheet">
               <header class="shop-header">
@@ -94,6 +117,16 @@
                 </button>
               </header>
               <div id="shop-list" class="shop-list"></div>
+            </section>
+            <div id="collection-backdrop" class="shop-backdrop" hidden></div>
+            <section class="shop collection-sheet" id="collection-sheet">
+              <header class="shop-header">
+                <h2 class="shop-title">Finds</h2>
+                <button type="button" id="collection-close" class="shop-close">
+                  Close
+                </button>
+              </header>
+              <div id="collection-list" class="shop-list collection-list"></div>
             </section>
           </aside>
 
@@ -162,6 +195,9 @@
                 <span class="label">Layer −5 m</span>
                 <span class="debug-jump-row" id="debug-layer-jumps"></span>
               </div>
+              <button type="button" id="debug-unlock-find" class="hud-reset">
+                Unlock next find
+              </button>
               <label class="debug-scroll-toggle">
                 <input type="checkbox" id="debug-scroll" />
                 <span>Drag to scroll</span>
@@ -182,12 +218,49 @@
           <span class="layer-toast-eyebrow">New layer</span>
           <span class="layer-toast-name" data-layer-toast-name>Topsoil</span>
         </div>
+        <div
+          id="booster-toast"
+          class="layer-toast booster-toast"
+          aria-live="polite"
+          aria-hidden="true"
+        >
+          <span class="layer-toast-eyebrow" data-booster-toast-eyebrow
+            >Dirt coin</span
+          >
+          <span class="layer-toast-name" data-booster-toast-name>+0</span>
+        </div>
         <div id="save-indicator" class="save-indicator" aria-hidden="true">
           Saved
         </div>
         <p class="hud-hint">
-          Tap to dig · spend dirt in the shop · ?debug=1 for tools
+          Tap to dig · shop · finds · ?debug=1 for tools
         </p>
+
+        <div
+          id="find-backdrop"
+          class="find-backdrop"
+          hidden
+          data-find-backdrop
+        >
+          <div
+            class="find-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="find-title"
+          >
+            <p class="find-eyebrow">Discovery</p>
+            <div class="find-icon-wrap" aria-hidden="true">
+              <span class="discovery-icon find-icon" data-find-icon></span>
+            </div>
+            <h2 id="find-title" class="find-title" data-find-name>—</h2>
+            <p class="find-blurb" data-find-blurb>—</p>
+            <p class="find-queue" data-find-queue hidden></p>
+            <button type="button" id="find-continue" class="find-continue">
+              <span class="find-continue-fill" aria-hidden="true"></span>
+              <span class="find-continue-label">Continue</span>
+            </button>
+          </div>
+        </div>
 
         <div
           id="offline-backdrop"

@@ -2,9 +2,45 @@
  * Copyright (c) 2026 Markus Duft
  * SPDX-License-Identifier: MIT
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 type DecLike = { toNumber: () => number; toString: () => string };
+
+const DIG_SAVE_KEY = "psge:endless-dig:save";
+
+/** Seed localStorage before game boot (survives prior-page pagehide flush). */
+async function seedSaveBeforeGoto(
+  page: Page,
+  blob: Record<string, unknown>,
+): Promise<void> {
+  await page.addInitScript(
+    ({ key, data }) => {
+      localStorage.setItem(key, JSON.stringify(data));
+    },
+    { key: DIG_SAVE_KEY, data: blob },
+  );
+}
+
+/** Short/narrow layouts hide panels behind FABs — open when needed. */
+async function ensureShopOpen(page: Page): Promise<void> {
+  const fab = page.locator("#shop-toggle");
+  if (await fab.isVisible()) {
+    const open = await page.locator("html").getAttribute("data-psge-shop");
+    if (open !== "open") await fab.click();
+  }
+  await expect(page.locator("#shop-sheet")).toBeVisible();
+}
+
+async function ensureDebugOpen(page: Page): Promise<void> {
+  const fab = page.locator("#debug-fab");
+  if (await fab.isVisible()) {
+    const open = await page
+      .locator("html")
+      .getAttribute("data-psge-debug-sheet");
+    if (open !== "open") await fab.click();
+  }
+  await expect(page.locator("#debug-panel")).toBeVisible();
+}
 
 test("full-bleed dig-to-reveal boots", async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -20,7 +56,7 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
   await page.goto("/?nosave=1&depth=1000");
   await expect(page.getByRole("heading", { name: "The Endless Dig" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "4");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "7");
   await expect
     .poll(async () =>
       Number(await page.locator("html").getAttribute("data-psge-world-extent")),
@@ -125,28 +161,19 @@ test("tap dig increases depth/dirt and follows focus", async ({ page }) => {
 });
 
 test("reload restores saved progress", async ({ page }) => {
-  await page.goto("/?nosave=1");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-
-  await page.evaluate(async () => {
-    const s = window as unknown as {
-      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
-    };
-    await s.__psgeSaveStore.save({
-      version: 3,
-      depth: "12.5",
-      dirt: "50",
-      upgrades: {
-        shovel: 0,
-        pickaxe: 0,
-        jackhammer: 0,
-        cart: 0,
-        drill: 0,
-        crew: 0,
-      },
-    });
+  await seedSaveBeforeGoto(page, {
+    version: 3,
+    depth: "12.5",
+    dirt: "50",
+    upgrades: {
+      shovel: 0,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 0,
+      drill: 0,
+      crew: 0,
+    },
   });
-
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect
@@ -166,28 +193,19 @@ test("reload restores saved progress", async ({ page }) => {
 });
 
 test("deep save expands world extent on reload", async ({ page }) => {
-  await page.goto("/?nosave=1");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-
-  await page.evaluate(async () => {
-    const s = window as unknown as {
-      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
-    };
-    await s.__psgeSaveStore.save({
-      version: 3,
-      depth: "1500",
-      dirt: "6000",
-      upgrades: {
-        shovel: 0,
-        pickaxe: 0,
-        jackhammer: 0,
-        cart: 0,
-        drill: 0,
-        crew: 0,
-      },
-    });
+  await seedSaveBeforeGoto(page, {
+    version: 3,
+    depth: "1500",
+    dirt: "6000",
+    upgrades: {
+      shovel: 0,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 0,
+      drill: 0,
+      crew: 0,
+    },
   });
-
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect
@@ -231,37 +249,35 @@ test("autosave persists after dig debounce", async ({ page }) => {
     .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
     .not.toBe("0");
 
+  // Boot may autosave depth 0 (lastPlayedAtMs); wait until the dig landed in storage.
   await expect
-    .poll(async () => page.locator("html").getAttribute("data-psge-saved"), {
-      timeout: 5000,
-    })
-    .toBe("1");
-
-  const saved = await page.evaluate(async () => {
-    const store = window as unknown as {
-      __psgeSaveStore: { load: () => Promise<unknown> };
-      __psgeState: { depth: DecLike; dirt: DecLike };
-    };
-    const blob = (await store.__psgeSaveStore.load()) as {
-      depth: string;
-      dirt: string;
-    } | null;
-    return {
-      blob,
-      depth: store.__psgeState.depth.toString(),
-      dirt: store.__psgeState.dirt.toString(),
-    };
-  });
-
-  expect(saved.blob).toBeTruthy();
-  expect(saved.blob!.depth).toBe(saved.depth);
-  expect(saved.blob!.dirt).toBe(saved.dirt);
+    .poll(
+      async () => {
+        const match = await page.evaluate(async () => {
+          const store = window as unknown as {
+            __psgeSaveStore: { load: () => Promise<unknown> };
+            __psgeState: { depth: DecLike; dirt: DecLike };
+          };
+          const blob = (await store.__psgeSaveStore.load()) as {
+            depth: string;
+            dirt: string;
+          } | null;
+          if (!blob) return null;
+          const depth = store.__psgeState.depth.toString();
+          const dirt = store.__psgeState.dirt.toString();
+          return blob.depth === depth && blob.dirt === dirt ? "ok" : "pending";
+        });
+        return match;
+      },
+      { timeout: 5000 },
+    )
+    .toBe("ok");
 });
 
 test("reset button clears depth and save", async ({ page }) => {
   await page.goto("/?nosave=1&depth=50&debug=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("#debug-panel")).toBeVisible();
+  await ensureDebugOpen(page);
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
     .toBe("50");
@@ -320,7 +336,8 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
     window.dispatchEvent(new Event("resize"));
   });
 
-  await expect(page.locator('[data-shop-buy="shovel"]')).toBeEnabled();
+  await ensureShopOpen(page);
+  await expect(page.locator('#shop-sheet [data-shop-buy="shovel"]')).toBeEnabled();
 
   const before = await page.evaluate(() => {
     const s = (
@@ -334,7 +351,7 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   expect(before.shovel).toBe(0);
 
   const digPowerBefore = await page.locator('[data-stat="dig-power"]').innerText();
-  await page.locator('[data-shop-buy="shovel"]').click();
+  await page.locator('#shop-sheet [data-shop-buy="shovel"]').click();
 
   await expect
     .poll(async () =>
@@ -434,6 +451,31 @@ test("geo layer updates at 1000m", async ({ page }) => {
   await expect(page.locator('[data-stat="layer"]')).toHaveText("Packed clay");
 });
 
+test("depth milestones unlock discoveries into the collection", async ({
+  page,
+}) => {
+  await page.goto("/?nosave=1&depth=30");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-milestone",
+    "7",
+  );
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-discoveries"))
+    .not.toBe("0");
+  await expect(page.locator("#find-backdrop")).toBeVisible();
+  await expect(page.locator("[data-find-name]")).toHaveText("Ancient bone");
+  await expect(page.locator("[data-find-blurb]")).not.toHaveText("—");
+  await page.locator("#find-continue").click();
+  await expect(page.locator("#find-backdrop")).toBeHidden();
+  await expect(
+    page.locator('#collection-list [data-discovery="bone_shard"]'),
+  ).toHaveAttribute("data-unlocked", "1");
+  await expect(
+    page.locator('#collection-list [data-discovery="bone_shard"] .collection-name'),
+  ).toHaveText("Ancient bone");
+});
+
 test("offline claim grants depth and dirt", async ({ page }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
@@ -502,7 +544,7 @@ test("debug=1 shows tools; default hides them", async ({ page }) => {
   await page.goto("/?nosave=1&debug=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute("data-psge-debug", "1");
-  await expect(page.locator("#debug-panel")).toBeVisible();
+  await ensureDebugOpen(page);
   await expect(page.locator("#debug-scroll")).toBeVisible();
   await expect(page.locator("#debug-scroll")).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Reset" })).toBeVisible();
@@ -581,28 +623,19 @@ test("digging past 1000 expands world extent", async ({ page }) => {
 });
 
 test("save/reload keeps upgrade levels", async ({ page }) => {
-  await page.goto("/?nosave=1");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-
-  await page.evaluate(async () => {
-    const s = window as unknown as {
-      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
-    };
-    await s.__psgeSaveStore.save({
-      version: 3,
-      depth: "3",
-      dirt: "20",
-      upgrades: {
-        shovel: 2,
-        pickaxe: 0,
-        jackhammer: 0,
-        cart: 1,
-        drill: 0,
-        crew: 0,
-      },
-    });
+  await seedSaveBeforeGoto(page, {
+    version: 3,
+    depth: "3",
+    dirt: "20",
+    upgrades: {
+      shovel: 2,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 1,
+      drill: 0,
+      crew: 0,
+    },
   });
-
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
 
@@ -619,28 +652,19 @@ test("save/reload keeps upgrade levels", async ({ page }) => {
 });
 
 test("nosave=1 clears persistence", async ({ page }) => {
-  await page.goto("/?nosave=1");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-
-  await page.evaluate(async () => {
-    const s = window as unknown as {
-      __psgeSaveStore: { save: (data: unknown) => Promise<void> };
-    };
-    await s.__psgeSaveStore.save({
-      version: 3,
-      depth: "99",
-      dirt: "400",
-      upgrades: {
-        shovel: 1,
-        pickaxe: 0,
-        jackhammer: 0,
-        cart: 0,
-        drill: 0,
-        crew: 0,
-      },
-    });
+  await seedSaveBeforeGoto(page, {
+    version: 3,
+    depth: "99",
+    dirt: "400",
+    upgrades: {
+      shovel: 1,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 0,
+      drill: 0,
+      crew: 0,
+    },
   });
-
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute("data-psge-nosave", "1");

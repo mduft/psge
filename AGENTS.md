@@ -28,21 +28,21 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 6 (current)
+## Milestone 7 (current)
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
 
-**M6 play:** M5 loop plus **km-scale geo layers** (Topsoil → … → Abyss) with hardness, fog/sky/light mood, palette families, layer HUD + toast. Procedural digger + cart/drill/crew props in the shaft. Dig chips tint to the layer.
+**M7 play:** M6 loop plus **discoveries** — depth milestones + seeded dig rolls, collection sheet, find reveal, shaft props, and dirt-coin **boosters** (tap ×2 / auto ×1). Soft dig uses linear floor so late upgrades stay meaningful.
 
 **Hardness:** `gained = softDigAmount(raw) × hardness(layer)` on tap, auto, offline, and short tab catch-up.
 
-**Numbers:** Game-owned `decimal.js`; HUD idle suffixes; dig as **m/tap** and **m/s**.
+**Numbers:** Game-owned `decimal.js`; HUD idle suffixes; dig as **m/tap** and **m/s** (effective = soft × hardness).
 
-**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save; `?offlineMs=N` forces offline claim; `?debug=1` tools. Stress: `?nosave=1&depth=10000`.
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save; `?offlineMs=N` forces offline claim; `?debug=1` tools (incl. unlock-next find). Stress: `?nosave=1&depth=10000`.
 
-Engine: `createApp`, loop, camera, floating origin / chunks, SaveStore, autosave helpers.
+Engine: `createApp`, loop, camera, floating origin / chunks, SaveStore, autosave helpers, `createSeededRng`.
 
-Dig rules, geo layers, actors, shop, offline, and save payload live in the **game**.
+Dig rules, geo layers, discoveries, actors, shop, offline, and save payload live in the **game**.
 
 ## Visual verification
 

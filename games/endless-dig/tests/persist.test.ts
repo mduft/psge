@@ -9,6 +9,8 @@ import {
   loadGameState,
   migrateV2ToV3,
   migrateV3ToV4,
+  migrateV4ToV5,
+  migrateV5ToV6,
   parseGameState,
   saveGameState,
   serializeGameState,
@@ -24,9 +26,11 @@ describe("parseGameState", () => {
     });
     expect(s?.depth.toNumber()).toBe(1.5);
     expect(s?.dirt.toNumber()).toBe(6);
-    expect(s?.version).toBe(4);
+    expect(s?.version).toBe(6);
     expect(s?.upgrades.shovel).toBe(0);
     expect(s?.lastPlayedAtMs).toBe(0);
+    expect(s?.discoveries.unlocked).toEqual([]);
+    expect(s?.boosters.claimed).toEqual([]);
   });
 
   it("migrates version 3 upgrades and clears offline clock", () => {
@@ -39,11 +43,11 @@ describe("parseGameState", () => {
     expect(s?.depth.toNumber()).toBe(12.5);
     expect(s?.upgrades.shovel).toBe(2);
     expect(s?.upgrades.cart).toBe(1);
-    expect(s?.version).toBe(4);
+    expect(s?.version).toBe(6);
     expect(s?.lastPlayedAtMs).toBe(0);
   });
 
-  it("accepts version 4 with lastPlayedAtMs", () => {
+  it("migrates version 4 into discoveries", () => {
     const s = parseGameState({
       version: 4,
       depth: "3",
@@ -53,6 +57,54 @@ describe("parseGameState", () => {
     });
     expect(s?.lastPlayedAtMs).toBe(1_700_000_000_000);
     expect(s?.upgrades.cart).toBe(1);
+    expect(s?.version).toBe(6);
+    expect(s?.discoveries.unlocked).toEqual([]);
+    expect(s?.discoveries.worldSeed).toBeGreaterThan(0);
+  });
+
+  it("migrates version 5 into empty booster claims", () => {
+    const s = parseGameState({
+      version: 5,
+      depth: "30",
+      dirt: "120",
+      upgrades: {},
+      lastPlayedAtMs: 1,
+      discoveries: {
+        unlocked: ["bone_shard"],
+        worldSeed: 7,
+        digRollMeter: 0.2,
+      },
+    });
+    expect(s?.discoveries.unlocked).toEqual(["bone_shard"]);
+    expect(s?.discoveries.worldSeed).toBe(7);
+    expect(s?.version).toBe(6);
+    expect(s?.boosters.claimed).toEqual([]);
+    expect(migrateV5ToV6({
+      version: 5,
+      depth: "1",
+      dirt: "4",
+      upgrades: {},
+      lastPlayedAtMs: 0,
+      discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
+    })?.boosters.claimed).toEqual([]);
+  });
+
+  it("accepts version 6 with boosters", () => {
+    const s = parseGameState({
+      version: 6,
+      depth: "30",
+      dirt: "120",
+      upgrades: {},
+      lastPlayedAtMs: 1,
+      discoveries: {
+        unlocked: ["bone_shard"],
+        worldSeed: 7,
+        digRollMeter: 0.2,
+      },
+      boosters: { claimed: ["b0", "b1"] },
+    });
+    expect(s?.boosters.claimed).toEqual(["b0", "b1"]);
+    expect(s?.version).toBe(6);
   });
 
   it("rejects version 1", () => {
@@ -70,6 +122,10 @@ describe("migrate helpers", () => {
   it("migrateV3ToV4 returns null for non-v3", () => {
     expect(migrateV3ToV4({ version: 4, depth: 1, dirt: 1 })).toBeNull();
   });
+
+  it("migrateV4ToV5 returns null for non-v4", () => {
+    expect(migrateV4ToV5({ version: 5, depth: 1, dirt: 1 })).toBeNull();
+  });
 });
 
 describe("saveGameState / loadGameState", () => {
@@ -84,17 +140,24 @@ describe("saveGameState / loadGameState", () => {
     await saveGameState(store, state);
     const raw = await store.load();
     expect(raw).toMatchObject({
-      version: 4,
+      version: 6,
       depth: "4",
       dirt: "16",
       lastPlayedAtMs: 42,
       upgrades: expect.objectContaining({ shovel: 1 }),
+      discoveries: expect.objectContaining({
+        unlocked: [],
+        worldSeed: expect.any(Number),
+      }),
+      boosters: { claimed: [] },
     });
     const loaded = await loadGameState(store);
     expect(loaded?.depth.eq(state.depth)).toBe(true);
     expect(loaded?.dirt.eq(state.dirt)).toBe(true);
     expect(loaded?.upgrades.shovel).toBe(1);
     expect(loaded?.lastPlayedAtMs).toBe(42);
+    expect(loaded?.discoveries.worldSeed).toBe(state.discoveries.worldSeed);
+    expect(loaded?.boosters.claimed).toEqual([]);
   });
 
   it("serialize omits legacy digPower", () => {

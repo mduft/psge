@@ -4,6 +4,17 @@
  */
 import Decimal from "decimal.js";
 import {
+  emptyBoosterProgress,
+  normalizeBoosterProgress,
+  type BoosterProgress,
+} from "./boosters.js";
+import {
+  emptyDiscoveryProgress,
+  normalizeDiscoveryProgress,
+  resolveDiscoveries,
+  type DiscoveryProgress,
+} from "./discoveries.js";
+import {
   DEFAULT_DIG_POWER,
   emptyUpgrades,
   getUpgradeDef,
@@ -20,8 +31,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (M5+: offline timestamp). */
-export const GAME_STATE_VERSION = 4;
+/** Persist / GameState schema version (M7+: discoveries; boosters on v6). */
+export const GAME_STATE_VERSION = 6;
 
 export interface GameState {
   version: number;
@@ -36,6 +47,10 @@ export interface GameState {
    * `0` means unknown — no offline claim on load.
    */
   lastPlayedAtMs: number;
+  /** M7 discovery collection + roll state. */
+  discoveries: DiscoveryProgress;
+  /** Claimed shaft dirt-coin boosters. */
+  boosters: BoosterProgress;
 }
 
 export function toDecimal(value: Decimal.Value): Decimal {
@@ -49,6 +64,9 @@ export function createInitialState(
     dirt?: Decimal.Value;
     upgrades?: Partial<UpgradeLevels>;
     lastPlayedAtMs?: number;
+    discoveries?: DiscoveryProgress | Partial<DiscoveryProgress>;
+    boosters?: BoosterProgress | Partial<BoosterProgress>;
+    worldSeed?: number;
   } = {},
 ): GameState {
   const upgrades = emptyUpgrades();
@@ -66,12 +84,23 @@ export function createInitialState(
     overrides.lastPlayedAtMs >= 0
       ? Math.floor(overrides.lastPlayedAtMs)
       : 0;
+  const depth = toDecimal(overrides.depth ?? 0);
+  const defaultSeed =
+    ((Date.now() ^ Math.floor(depth.toNumber())) >>> 0) || 1;
+  const discoveries = overrides.discoveries
+    ? normalizeDiscoveryProgress(overrides.discoveries, overrides.worldSeed)
+    : emptyDiscoveryProgress(overrides.worldSeed ?? defaultSeed);
+  const boosters = overrides.boosters
+    ? normalizeBoosterProgress(overrides.boosters)
+    : emptyBoosterProgress();
   return {
     version: overrides.version ?? GAME_STATE_VERSION,
-    depth: toDecimal(overrides.depth ?? 0),
+    depth,
     dirt: toDecimal(overrides.dirt ?? 0),
     upgrades,
     lastPlayedAtMs: last,
+    discoveries,
+    boosters,
   };
 }
 
@@ -121,18 +150,29 @@ export function effectivePassiveRateOf(state: GameState): number {
   );
 }
 
-function applyDepthGain(state: GameState, gained: Decimal): void {
-  if (gained.lte(0)) return;
+/**
+ * Apply depth/dirt gain and resolve discoveries over the span.
+ * @returns newly unlocked discovery ids (may be empty).
+ */
+export function applyDepthGain(
+  state: GameState,
+  gained: Decimal,
+): string[] {
+  if (gained.lte(0)) return [];
+  const before = state.depth.toNumber();
   state.depth = state.depth.plus(gained);
   state.dirt = state.dirt.plus(gained.mul(SHAFT_CROSS_SECTION));
+  const after = state.depth.toNumber();
+  return resolveDiscoveries(state.discoveries, before, after).newlyUnlocked;
 }
 
 /**
  * Straight-down dig. Mutates `state` in place.
  * Caps depth at `maxDepth` when provided (world generation extent).
  * Nominal dig power is soft-capped so high gear does not remove linearly.
+ * @returns newly unlocked discovery ids.
  */
-export function dig(state: GameState, maxDepth?: Decimal.Value): void {
+export function dig(state: GameState, maxDepth?: Decimal.Value): string[] {
   const power = Decimal.max(0, digPowerOf(state));
   const soft = softDigAmount(power.toNumber());
   const gained = new Decimal(
@@ -142,32 +182,30 @@ export function dig(state: GameState, maxDepth?: Decimal.Value): void {
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }
-  applyDepthGain(state, next.minus(state.depth));
+  return applyDepthGain(state, next.minus(state.depth));
 }
 
 /**
  * Apply passive digging for `dt` seconds.
  * Soft-caps the nominal blocks/s the same way as tap dig power, then applies
  * geological layer hardness at the current depth.
- * @returns true if depth changed.
+ * @returns newly unlocked ids (empty if depth unchanged).
  */
 export function tickProduction(
   state: GameState,
   dt: number,
   maxDepth?: Decimal.Value,
-): boolean {
-  if (!Number.isFinite(dt) || dt <= 0) return false;
+): string[] {
+  if (!Number.isFinite(dt) || dt <= 0) return [];
   const rate = passiveRateOf(state);
-  if (rate.lte(0)) return false;
-  const before = state.depth;
+  if (rate.lte(0)) return [];
   const softRate = softDigAmount(rate.toNumber());
   const hardRate = applyLayerHardness(softRate, state.depth.toNumber());
   let next = state.depth.plus(new Decimal(hardRate).mul(dt));
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }
-  applyDepthGain(state, next.minus(state.depth));
-  return state.depth.gt(before);
+  return applyDepthGain(state, next.minus(state.depth));
 }
 
 export function canBuyUpgrade(state: GameState, id: UpgradeId): boolean {
@@ -186,11 +224,13 @@ export function buyUpgrade(state: GameState, id: UpgradeId): boolean {
   return true;
 }
 
-/** Reset progress fields. */
+/** Reset progress fields (keeps a fresh world seed). */
 export function resetProgress(state: GameState): void {
   state.depth = new Decimal(0);
   state.dirt = new Decimal(0);
   state.upgrades = emptyUpgrades();
   state.version = GAME_STATE_VERSION;
   state.lastPlayedAtMs = 0;
+  state.discoveries = emptyDiscoveryProgress();
+  state.boosters = emptyBoosterProgress();
 }

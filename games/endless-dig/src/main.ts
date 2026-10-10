@@ -16,6 +16,16 @@ import {
   fogScaleForCameraDistance,
 } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
+import {
+  claimAutoBoosters,
+  claimTapBooster,
+  type BoosterClaim,
+} from "./boosters.js";
+import {
+  DISCOVERY_DEFS,
+  resolveDiscoveries,
+  unlockNextDiscovery,
+} from "./discoveries.js";
 import { formatAmount, formatMeters } from "./formatAmount.js";
 import {
   geoLayerApproachDepths,
@@ -59,6 +69,8 @@ import {
 const DEFAULT_WORLD_EXTENT = 1000;
 const SAVE_INDICATOR_MS = 1800;
 const LAYER_TOAST_MS = 2800;
+const BOOSTER_TOAST_MS = 2200;
+const FIND_AUTO_CLOSE_MS = 5000;
 
 /** Outdoor cutaway lighting — Dig-specific, not engine defaults. */
 const DIG_LIGHTING: LightingOptions = {
@@ -118,11 +130,19 @@ function readQueryFlags(): {
   };
 }
 
-function freshState(excavatedDepth: number): GameState {
-  return createInitialState({
+function freshState(excavatedDepth: number): {
+  state: GameState;
+  found: string[];
+} {
+  const state = createInitialState({
     depth: excavatedDepth,
     dirt: excavatedDepth * SHAFT_CROSS_SECTION,
   });
+  const found =
+    excavatedDepth > 0
+      ? resolveDiscoveries(state.discoveries, 0, excavatedDepth).newlyUnlocked
+      : [];
+  return { state, found };
 }
 
 function depthNumber(state: GameState): number {
@@ -151,12 +171,17 @@ async function boot(): Promise<() => void> {
   const wallClock = (): number => Date.now();
 
   let state: GameState;
+  let bootFinds: string[] = [];
   if (nosave) {
     await store.clear();
-    state = freshState(depthQuery);
+    ({ state, found: bootFinds } = freshState(depthQuery));
   } else {
     const loaded = await loadGameState(store);
-    state = loaded ?? freshState(depthQuery);
+    if (loaded) {
+      state = loaded;
+    } else {
+      ({ state, found: bootFinds } = freshState(depthQuery));
+    }
   }
 
   let pendingOffline: OfflineReward | null = null;
@@ -279,11 +304,47 @@ async function boot(): Promise<() => void> {
   const offlineDepthEl = document.querySelector("[data-offline-depth]");
   const offlineDirtEl = document.querySelector("[data-offline-dirt]");
 
+  const collectionToggle =
+    document.querySelector<HTMLButtonElement>("#collection-toggle");
+  const collectionClose =
+    document.querySelector<HTMLButtonElement>("#collection-close");
+  const collectionBackdrop = document.querySelector<HTMLElement>(
+    "#collection-backdrop",
+  );
+  const collectionList =
+    document.querySelector<HTMLElement>("#collection-list");
+  const collectionCountEl = document.querySelector<HTMLElement>(
+    "[data-collection-count]",
+  );
+  const findBackdrop = document.querySelector<HTMLElement>("#find-backdrop");
+  const findIcon = document.querySelector<HTMLElement>("[data-find-icon]");
+  const findName = document.querySelector("[data-find-name]");
+  const findBlurb = document.querySelector("[data-find-blurb]");
+  const findQueueEl = document.querySelector<HTMLElement>("[data-find-queue]");
+  const findContinue = document.querySelector<HTMLButtonElement>(
+    "#find-continue",
+  );
+  const FIND_QUEUE: string[] = [];
+  let findRevealOpen = false;
+  let findAutoCloseTimer = 0;
+
+  const boosterToast = document.querySelector<HTMLElement>("#booster-toast");
+  const boosterToastEyebrow = document.querySelector(
+    "[data-booster-toast-eyebrow]",
+  );
+  const boosterToastName = document.querySelector("[data-booster-toast-name]");
+  let boosterToastTimer = 0;
+  /** Last canvas pointer in CSS pixels relative to canvas (for NDC pick). */
+  let lastPointer = { x: 0.5, y: 0.5 };
+
   const setDebugSheetOpen = (open: boolean): void => {
     if (open) {
       document.documentElement.dataset.psgeShop = "closed";
+      document.documentElement.dataset.psgeCollection = "closed";
       shopToggle?.setAttribute("aria-expanded", "false");
+      collectionToggle?.setAttribute("aria-expanded", "false");
       shopBackdrop?.setAttribute("hidden", "");
+      collectionBackdrop?.setAttribute("hidden", "");
     }
     document.documentElement.dataset.psgeDebugSheet = open ? "open" : "closed";
     debugFab?.setAttribute("aria-expanded", open ? "true" : "false");
@@ -293,8 +354,28 @@ async function boot(): Promise<() => void> {
     }
   };
 
+  const setCollectionOpen = (open: boolean): void => {
+    if (open) {
+      setDebugSheetOpen(false);
+      document.documentElement.dataset.psgeShop = "closed";
+      shopToggle?.setAttribute("aria-expanded", "false");
+      shopBackdrop?.setAttribute("hidden", "");
+    }
+    document.documentElement.dataset.psgeCollection = open
+      ? "open"
+      : "closed";
+    collectionToggle?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (collectionBackdrop) {
+      if (open) collectionBackdrop.removeAttribute("hidden");
+      else collectionBackdrop.setAttribute("hidden", "");
+    }
+  };
+
   const setShopOpen = (open: boolean): void => {
-    if (open) setDebugSheetOpen(false);
+    if (open) {
+      setDebugSheetOpen(false);
+      setCollectionOpen(false);
+    }
     document.documentElement.dataset.psgeShop = open ? "open" : "closed";
     shopToggle?.setAttribute("aria-expanded", open ? "true" : "false");
     if (shopBackdrop) {
@@ -304,6 +385,7 @@ async function boot(): Promise<() => void> {
   };
 
   setShopOpen(false);
+  setCollectionOpen(false);
   setDebugSheetOpen(false);
 
   if (debug) {
@@ -369,18 +451,154 @@ async function boot(): Promise<() => void> {
     offlineBackdrop?.removeAttribute("hidden");
     document.documentElement.dataset.psgeOffline = "pending";
     setShopOpen(false);
+    setCollectionOpen(false);
     setDebugSheetOpen(false);
   };
+
+  const clearFindAutoClose = (): void => {
+    if (findAutoCloseTimer !== 0) {
+      clearTimeout(findAutoCloseTimer);
+      findAutoCloseTimer = 0;
+    }
+    findContinue?.classList.remove("is-counting");
+  };
+
+  const hideFindReveal = (): void => {
+    clearFindAutoClose();
+    findBackdrop?.setAttribute("hidden", "");
+    findRevealOpen = false;
+    document.documentElement.dataset.psgeFind = "none";
+  };
+
+  const showFindReveal = (id: string): void => {
+    const def = DISCOVERY_DEFS.find((d) => d.id === id);
+    if (findIcon) {
+      findIcon.className = `discovery-icon find-icon icon-${def?.icon ?? "stone"}`;
+    }
+    if (findName) findName.textContent = def?.name ?? id;
+    if (findBlurb) {
+      findBlurb.textContent = def?.blurb ?? "A curious find from the shaft.";
+    }
+    if (findQueueEl) {
+      const more = FIND_QUEUE.length;
+      if (more > 0) {
+        findQueueEl.hidden = false;
+        findQueueEl.textContent =
+          more === 1
+            ? "1 more find waiting"
+            : `${more} more finds waiting`;
+      } else {
+        findQueueEl.hidden = true;
+        findQueueEl.textContent = "";
+      }
+    }
+    findBackdrop?.removeAttribute("hidden");
+    findRevealOpen = true;
+    document.documentElement.dataset.psgeFind = id;
+    setShopOpen(false);
+    setCollectionOpen(false);
+    setDebugSheetOpen(false);
+    clearFindAutoClose();
+    // Restart the button countdown fill (reflow so animation replays).
+    if (findContinue) {
+      void findContinue.offsetWidth;
+      findContinue.classList.add("is-counting");
+    }
+    findAutoCloseTimer = window.setTimeout(() => {
+      findAutoCloseTimer = 0;
+      hideFindReveal();
+      pumpFindReveal();
+    }, FIND_AUTO_CLOSE_MS);
+    findContinue?.focus();
+  };
+
+  const pumpFindReveal = (): void => {
+    if (findRevealOpen || FIND_QUEUE.length === 0) return;
+    // Don't stack over the offline claim — show finds after they claim.
+    if (pendingOffline) return;
+    showFindReveal(FIND_QUEUE.shift()!);
+  };
+
+  const enqueueFinds = (ids: string[]): void => {
+    if (ids.length === 0) return;
+    FIND_QUEUE.push(...ids);
+    pumpFindReveal();
+  };
+
+  const onFindContinue = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    hideFindReveal();
+    pumpFindReveal();
+  };
+  findContinue?.addEventListener("click", onFindContinue);
+  findContinue?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  findBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+
+  const showBoosterToast = (claims: BoosterClaim[]): void => {
+    if (!boosterToast || claims.length === 0) return;
+    const dirt = claims.reduce((s, c) => s + c.dirt, 0);
+    const tapped = claims.some((c) => c.via === "tap");
+    if (boosterToastEyebrow) {
+      boosterToastEyebrow.textContent = tapped
+        ? "Dirt coin · tap ×2"
+        : claims.length > 1
+          ? `Dirt coins ×${claims.length}`
+          : "Dirt coin";
+    }
+    if (boosterToastName) {
+      boosterToastName.textContent = `+${formatAmount(dirt)} dirt`;
+    }
+    boosterToast.classList.add("is-visible");
+    boosterToast.setAttribute("aria-hidden", "false");
+    if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
+    boosterToastTimer = window.setTimeout(() => {
+      boosterToastTimer = 0;
+      boosterToast.classList.remove("is-visible");
+      boosterToast.setAttribute("aria-hidden", "true");
+    }, BOOSTER_TOAST_MS);
+  };
+
+  const applyBoosterClaims = (claims: BoosterClaim[]): void => {
+    if (claims.length === 0) return;
+    for (const c of claims) {
+      state.dirt = state.dirt.plus(c.dirt);
+    }
+    showBoosterToast(claims);
+    document.documentElement.dataset.psgeBooster = claims[claims.length - 1]!.id;
+  };
+
+  const collectAutoBoosters = (): void => {
+    applyBoosterClaims(
+      claimAutoBoosters(
+        state.boosters,
+        state.discoveries.worldSeed,
+        depthNumber(state),
+      ),
+    );
+  };
+
+  const onCanvasPointerDown = (e: PointerEvent): void => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    lastPointer = {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+  };
+  canvas.addEventListener("pointerdown", onCanvasPointerDown);
 
   const onOfflineClaim = (e: Event): void => {
     e.preventDefault();
     e.stopPropagation();
     if (!pendingOffline) return;
-    claimOfflineReward(state, pendingOffline);
+    const found = claimOfflineReward(state, pendingOffline);
     pendingOffline = null;
     state.lastPlayedAtMs = wallClock();
     hideOfflineModal();
     document.documentElement.dataset.psgeOffline = "claimed";
+    enqueueFinds(found);
+    collectAutoBoosters();
     applyPlayView();
     autosave.markDirty();
     void autosave.flush().catch((err) => console.error(err));
@@ -390,6 +608,36 @@ async function boot(): Promise<() => void> {
   offlineBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const shopButtons = new Map<UpgradeId, HTMLButtonElement>();
+
+  const refreshCollectionList = (): void => {
+    if (!collectionList) return;
+    const owned = new Set(state.discoveries.unlocked);
+    collectionList.replaceChildren();
+    for (const def of DISCOVERY_DEFS) {
+      const unlocked = owned.has(def.id);
+      const row = document.createElement("div");
+      row.className = `collection-row${unlocked ? "" : " is-locked"}`;
+      row.dataset.discovery = def.id;
+      row.dataset.unlocked = unlocked ? "1" : "0";
+
+      const icon = document.createElement("span");
+      icon.className = `discovery-icon icon-${def.icon}`;
+      icon.setAttribute("aria-hidden", "true");
+
+      const meta = document.createElement("div");
+      meta.className = "collection-meta";
+      const name = document.createElement("span");
+      name.className = "collection-name";
+      name.textContent = unlocked ? def.name : "???";
+      const blurb = document.createElement("span");
+      blurb.className = "collection-blurb";
+      blurb.textContent = unlocked ? def.blurb : "Keep digging.";
+      meta.append(name, blurb);
+
+      row.append(icon, meta);
+      collectionList.append(row);
+    }
+  };
 
   const syncFromState = (): void => {
     ensureExtentForPlay();
@@ -411,8 +659,17 @@ async function boot(): Promise<() => void> {
       passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
     document.documentElement.dataset.psgeLayer = layer.id;
+    document.documentElement.dataset.psgeDiscoveries = String(
+      state.discoveries.unlocked.length,
+    );
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
+    world.syncDiscoveries(depth, state.discoveries);
+    world.syncBoosters(depth, state.discoveries.worldSeed, state.boosters);
+    if (collectionCountEl) {
+      collectionCountEl.textContent = String(state.discoveries.unlocked.length);
+    }
+    refreshCollectionList();
 
     let anyAffordable = false;
     for (const def of UPGRADE_DEFS) {
@@ -514,6 +771,18 @@ async function boot(): Promise<() => void> {
     e.stopPropagation();
     setShopOpen(false);
   };
+  const onCollectionToggle = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCollectionOpen(
+      document.documentElement.dataset.psgeCollection !== "open",
+    );
+  };
+  const onCollectionClose = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCollectionOpen(false);
+  };
   const onDebugFabToggle = (e: Event): void => {
     e.preventDefault();
     e.stopPropagation();
@@ -534,6 +803,24 @@ async function boot(): Promise<() => void> {
   shopBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   const shopSheet = document.querySelector<HTMLElement>("#shop-sheet");
   shopSheet?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  collectionToggle?.addEventListener("click", onCollectionToggle);
+  collectionToggle?.addEventListener("pointerdown", (ev) =>
+    ev.stopPropagation(),
+  );
+  collectionClose?.addEventListener("click", onCollectionClose);
+  collectionClose?.addEventListener("pointerdown", (ev) =>
+    ev.stopPropagation(),
+  );
+  collectionBackdrop?.addEventListener("click", onCollectionClose);
+  collectionBackdrop?.addEventListener("pointerdown", (ev) =>
+    ev.stopPropagation(),
+  );
+  const collectionSheet = document.querySelector<HTMLElement>(
+    "#collection-sheet",
+  );
+  collectionSheet?.addEventListener("pointerdown", (ev) =>
+    ev.stopPropagation(),
+  );
   debugFab?.addEventListener("click", onDebugFabToggle);
   debugFab?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   debugClose?.addEventListener("click", onDebugSheetClose);
@@ -581,8 +868,15 @@ async function boot(): Promise<() => void> {
       if (!Number.isFinite(depth) || depth < 0) return;
       e.preventDefault();
       e.stopPropagation();
+      const before = depthNumber(state);
       state.depth = new Decimal(depth);
       state.dirt = new Decimal(depth * SHAFT_CROSS_SECTION);
+      if (depth > before) {
+        enqueueFinds(
+          resolveDiscoveries(state.discoveries, before, depth).newlyUnlocked,
+        );
+      }
+      collectAutoBoosters();
       applyPlayView();
       autosave.markDirty();
     };
@@ -615,6 +909,25 @@ async function boot(): Promise<() => void> {
   resetButton?.addEventListener("click", onReset);
   resetButton?.addEventListener("pointerdown", (e) => e.stopPropagation());
 
+  const unlockFindBtn = document.querySelector<HTMLButtonElement>(
+    "#debug-unlock-find",
+  );
+  if (debug && unlockFindBtn) {
+    const onUnlockFind = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = unlockNextDiscovery(state.discoveries);
+      if (!id) return;
+      enqueueFinds([id]);
+      applyPlayView();
+      autosave.markDirty();
+    };
+    unlockFindBtn.addEventListener("click", onUnlockFind);
+    unlockFindBtn.addEventListener("pointerdown", (ev) =>
+      ev.stopPropagation(),
+    );
+  }
+
   const scroll = createShaftScroll({
     world,
     canvas,
@@ -623,8 +936,28 @@ async function boot(): Promise<() => void> {
     // Drag-scroll is debug-only and off by default (opt in via checkbox).
     scrollEnabled: false,
     onTap: () => {
-      dig(state);
+      if (pendingOffline || findRevealOpen) return;
+      const ndcX = lastPointer.x * 2 - 1;
+      const ndcY = -(lastPointer.y * 2 - 1);
+      const hitId = world.pickBooster(app.camera, ndcX, ndcY);
+      if (hitId) {
+        const claim = claimTapBooster(
+          state.boosters,
+          state.discoveries.worldSeed,
+          depthNumber(state),
+          hitId,
+        );
+        if (claim) {
+          applyBoosterClaims([claim]);
+          applyPlayView();
+          autosave.markDirty();
+          return;
+        }
+      }
+      const found = dig(state);
       document.documentElement.dataset.psgeDigIntent = "1";
+      enqueueFinds(found);
+      collectAutoBoosters();
       applyPlayView();
       world.burstDigParticles();
       world.playDigSwing();
@@ -673,7 +1006,8 @@ async function boot(): Promise<() => void> {
     }
     const catchUp = computeHiddenCatchUp(state, last, nowMs);
     if (catchUp) {
-      applyHiddenCatchUp(state, catchUp);
+      enqueueFinds(applyHiddenCatchUp(state, catchUp));
+      collectAutoBoosters();
       applyPlayView();
       autosave.markDirty();
     }
@@ -700,6 +1034,7 @@ async function boot(): Promise<() => void> {
   document.addEventListener("visibilitychange", onVisibility);
 
   applyPlayView();
+  hideFindReveal();
   if (pendingOffline) showOfflineModal(pendingOffline);
   else {
     hideOfflineModal();
@@ -707,16 +1042,23 @@ async function boot(): Promise<() => void> {
       state.lastPlayedAtMs = wallClock();
       autosave.markDirty();
     }
+    enqueueFinds(bootFinds);
+    collectAutoBoosters();
+    applyPlayView();
   }
 
   /** Pace subtle passive chips so high rates don't look like tap bursts. */
   let trickleCooldown = 0;
   app.startLoop((dt) => {
     world.update(dt);
-    // Pause live auto-dig while the offline claim is open (avoid double-dipping).
-    if (pendingOffline) return;
+    // Pause live auto-dig while claim / find reveal is open.
+    if (pendingOffline || findRevealOpen) return;
     trickleCooldown = Math.max(0, trickleCooldown - dt);
-    if (!tickProduction(state, dt)) return;
+    const depthBefore = depthNumber(state);
+    const found = tickProduction(state, dt);
+    if (depthNumber(state) === depthBefore) return;
+    enqueueFinds(found);
+    collectAutoBoosters();
     syncFromState();
     applyCamera();
     updateHud();
@@ -744,7 +1086,7 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "6";
+  document.documentElement.dataset.psgeMilestone = "7";
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -762,6 +1104,8 @@ async function boot(): Promise<() => void> {
     debugClose?.removeEventListener("click", onDebugSheetClose);
     debugBackdrop?.removeEventListener("click", onDebugSheetClose);
     offlineClaim?.removeEventListener("click", onOfflineClaim);
+    findContinue?.removeEventListener("click", onFindContinue);
+    canvas.removeEventListener("pointerdown", onCanvasPointerDown);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);
@@ -771,6 +1115,8 @@ async function boot(): Promise<() => void> {
     }
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
     if (layerToastTimer !== 0) clearTimeout(layerToastTimer);
+    if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
+    clearFindAutoClose();
     void autosave.flush().finally(() => {
       autosave.dispose();
     });

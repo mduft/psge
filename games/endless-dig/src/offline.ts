@@ -6,6 +6,7 @@
  * Uses the same soft-capped passive rate as live play, then × efficiency × time.
  */
 import Decimal from "decimal.js";
+import { resolveDiscoveries } from "./discoveries.js";
 import {
   passiveRateOf,
   SHAFT_CROSS_SECTION,
@@ -85,14 +86,23 @@ export function computeOfflineReward(
   };
 }
 
-/** Apply a computed offline reward to state (mutates). */
+/**
+ * Apply a computed offline reward to state (mutates).
+ * @returns newly unlocked discovery ids over the gained span.
+ */
 export function claimOfflineReward(
   state: GameState,
   reward: OfflineReward,
-): void {
-  if (reward.depthGained.lte(0)) return;
+): string[] {
+  if (reward.depthGained.lte(0)) return [];
+  const before = state.depth.toNumber();
   state.depth = state.depth.plus(reward.depthGained);
   state.dirt = state.dirt.plus(reward.dirtGained);
+  return resolveDiscoveries(
+    state.discoveries,
+    before,
+    state.depth.toNumber(),
+  ).newlyUnlocked;
 }
 
 export interface HiddenCatchUp {
@@ -139,14 +149,23 @@ export function computeHiddenCatchUp(
   };
 }
 
-/** Apply brief full-rate catch-up (mutates). */
+/**
+ * Apply brief full-rate catch-up (mutates).
+ * @returns newly unlocked discovery ids over the gained span.
+ */
 export function applyHiddenCatchUp(
   state: GameState,
   catchUp: HiddenCatchUp,
-): void {
-  if (catchUp.depthGained.lte(0)) return;
+): string[] {
+  if (catchUp.depthGained.lte(0)) return [];
+  const before = state.depth.toNumber();
   state.depth = state.depth.plus(catchUp.depthGained);
   state.dirt = state.dirt.plus(catchUp.dirtGained);
+  return resolveDiscoveries(
+    state.discoveries,
+    before,
+    state.depth.toNumber(),
+  ).newlyUnlocked;
 }
 
 /** Human duration for the claim modal, e.g. `10h 30m`. */

@@ -16,12 +16,17 @@ import {
   InstancedMesh,
   Matrix4,
   type BufferAttribute,
+  type Camera,
   type Scene,
 } from "three";
 import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
+import type { BoosterProgress } from "./boosters.js";
+import { createBoosterProps } from "./boosterProps.js";
+import type { DiscoveryProgress } from "./discoveries.js";
 import { DIG_SHAFT_XS, DIG_SHAFT_ZS, isDigShaftCell } from "./digShaft.js";
 import { createDigParticles } from "./digParticles.js";
+import { createDiscoveryProps } from "./discoveryProps.js";
 import {
   chipColorsForDepth,
   geoLayerAt,
@@ -63,6 +68,16 @@ export interface DigWorld {
   setFogDistanceScale(scale: number): void;
   /** Sync digger + machinery to dig face and upgrades. */
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
+  /** Sync discovery props on cutaway walls. */
+  syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
+  /** Sync visible dirt-coin boosters in the shaft. */
+  syncBoosters(
+    excavatedDepth: number,
+    worldSeed: number,
+    progress: BoosterProgress,
+  ): void;
+  /** NDC ray pick against booster coins (−1…1). */
+  pickBooster(camera: Camera, ndcX: number, ndcY: number): string | null;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -234,6 +249,8 @@ export function buildDigWorld(
 
   const particles = createDigParticles(content);
   const actors: ShaftActors = createShaftActors(content);
+  const discoveryProps = createDiscoveryProps(content);
+  const boosterProps = createBoosterProps(content);
   const chunkGroups = new Map<number, Group>();
   /** Dig-face partials live here so intra-block dig does not reload chunks. */
   const digFaceRoot = new Group();
@@ -439,6 +456,19 @@ export function buildDigWorld(
     syncActors(depth: number, upgrades: UpgradeLevels): void {
       actors.sync(depth, upgrades);
     },
+    syncDiscoveries(depth: number, progress: DiscoveryProgress): void {
+      discoveryProps.sync(depth, progress);
+    },
+    syncBoosters(
+      depth: number,
+      worldSeed: number,
+      progress: BoosterProgress,
+    ): void {
+      boosterProps.sync(depth, worldSeed, progress);
+    },
+    pickBooster(camera: Camera, ndcX: number, ndcY: number): string | null {
+      return boosterProps.pick(camera, ndcX, ndcY);
+    },
     playDigSwing(): void {
       actors.playDigSwing();
     },
@@ -454,9 +484,12 @@ export function buildDigWorld(
     update(dtSeconds: number): void {
       particles.update(dtSeconds);
       actors.update(dtSeconds);
+      boosterProps.update(dtSeconds);
     },
     dispose(): void {
       actors.dispose();
+      boosterProps.dispose();
+      discoveryProps.dispose();
       particles.dispose();
       disposeChunkGroup(digFaceRoot);
       chunks.dispose();
