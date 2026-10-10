@@ -40,6 +40,7 @@ import {
   createMineshaftProps,
   type MineshaftCartPick,
   type MineshaftBarrelPick,
+  type MineshaftCratePick,
   type MineshaftSyncResult,
 } from "./mineshaftProps.js";
 import { createShaftActors, type ShaftActors } from "./shaftActors.js";
@@ -82,6 +83,7 @@ export interface DigWorld {
     excavatedDepth: number,
     claimedCartIds?: ReadonlySet<string>,
     claimedBarrelIds?: ReadonlySet<string>,
+    claimedCrateIds?: ReadonlySet<string>,
   ): MineshaftSyncResult;
   /** Sync visible dirt + special coins; returns count of newly appeared coins. */
   syncShaftCoins(
@@ -114,6 +116,14 @@ export interface DigWorld {
   ): MineshaftBarrelPick | null;
   setBarrelHover(pick: MineshaftBarrelPick | null): void;
   markBarrelClaimed(id: string): void;
+  /** NDC ray pick against looting crates (−1…1). */
+  pickCrate(
+    camera: Camera,
+    ndcX: number,
+    ndcY: number,
+  ): MineshaftCratePick | null;
+  setCrateHover(pick: MineshaftCratePick | null): void;
+  markCrateClaimed(id: string): void;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -492,8 +502,18 @@ export function buildDigWorld(
     syncActors(depth: number, upgrades: UpgradeLevels): void {
       actors.sync(depth, upgrades);
     },
-    syncMineshafts(depth, claimedCartIds, claimedBarrelIds): MineshaftSyncResult {
-      return mineshaftProps.sync(depth, claimedCartIds, claimedBarrelIds);
+    syncMineshafts(
+      depth,
+      claimedCartIds,
+      claimedBarrelIds,
+      claimedCrateIds,
+    ): MineshaftSyncResult {
+      return mineshaftProps.sync(
+        depth,
+        claimedCartIds,
+        claimedBarrelIds,
+        claimedCrateIds,
+      );
     },
     syncShaftCoins(
       depth: number,
@@ -530,6 +550,15 @@ export function buildDigWorld(
     },
     markBarrelClaimed(id: string): void {
       mineshaftProps.markBarrelClaimed(id);
+    },
+    pickCrate(camera, ndcX, ndcY): MineshaftCratePick | null {
+      return mineshaftProps.pickCrate(camera, ndcX, ndcY);
+    },
+    setCrateHover(pick: MineshaftCratePick | null): void {
+      mineshaftProps.setCrateHover(pick);
+    },
+    markCrateClaimed(id: string): void {
+      mineshaftProps.markCrateClaimed(id);
     },
     playDigSwing(): void {
       actors.playDigSwing();

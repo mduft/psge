@@ -419,6 +419,7 @@ describe("saveGameState / loadGameState", () => {
       seenMinecarts: [],
       claimedMinecarts: [],
       claimedBarrels: [],
+      claimedCrates: [],
     });
     expect(blob.boosters).toEqual({
       claimed: [],

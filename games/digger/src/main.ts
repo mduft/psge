@@ -21,6 +21,7 @@ import {
   isMuted,
   playBarrelThud,
   playCoinAppear,
+  playCrateKnock,
   playRailClink,
   toggleMuted,
 } from "./audio.js";
@@ -46,6 +47,7 @@ import {
   getAchievementDef,
   noteAfkDig,
   noteBarrelClaimed,
+  noteCrateClaimed,
   noteMinecartClaimed,
   noteMinecartsSeen,
   noteMineshaftSeen,
@@ -56,6 +58,8 @@ import {
   activeBarrelAutoBoostMps,
   mineshaftBarrelDirtReward,
   mineshaftCartDirtReward,
+  mineshaftCrateTapUpgrade,
+  parseMineshaftId,
 } from "./mineshafts.js";
 import {
   refreshAchievementsList,
@@ -93,6 +97,7 @@ import {
   dig,
   effectiveDigPowerOf,
   effectivePassiveRateOf,
+  grantUpgradeLevel,
   resetProgress,
   SHAFT_CROSS_SECTION,
   tickProduction,
@@ -113,6 +118,7 @@ import {
   saveGameState,
 } from "./persist.js";
 import {
+  getUpgradeDef,
   SHOP_SECTIONS,
   UPGRADE_DEFS,
   upgradeCost,
@@ -774,13 +780,15 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeBooster = claims[claims.length - 1]!.id;
   };
 
-  /** Reuse dirt-coin toast chrome for shaft loot (cart / barrel). */
+  /** Reuse dirt-coin toast chrome for shaft loot (cart / barrel / crate). */
   const showShaftLootToast = (
     label: string,
     dirt: number,
     detail?: string,
+    nameOverride?: string,
   ): void => {
-    if (!boosterToast || dirt <= 0) return;
+    if (!boosterToast) return;
+    if (dirt <= 0 && !nameOverride) return;
     boosterToast.dataset.combo = "0";
     boosterToast.style.setProperty("--combo", "0");
     if (boosterToastEyebrow) {
@@ -793,7 +801,8 @@ async function boot(): Promise<() => void> {
       boosterToastCombo.textContent = "";
     }
     if (boosterToastName) {
-      boosterToastName.textContent = `+${formatAmount(dirt)} dirt`;
+      boosterToastName.textContent =
+        nameOverride ?? `+${formatAmount(dirt)} dirt`;
     }
     boosterToast.classList.remove("is-visible", "has-combo-pop");
     void boosterToast.offsetWidth;
@@ -862,6 +871,7 @@ async function boot(): Promise<() => void> {
     world.setShaftCoinHover(null);
     world.setMinecartHover(null);
     world.setBarrelHover(null);
+    world.setCrateHover(null);
     if (!hoveringLoot) return;
     hoveringLoot = false;
     if (!coarsePointer) restoreDigCursor();
@@ -880,11 +890,19 @@ async function boot(): Promise<() => void> {
       : world.pickMinecart(app.camera, ndcX, ndcY);
     const barrelHit =
       coinHit || cartHit ? null : world.pickBarrel(app.camera, ndcX, ndcY);
+    const crateHit =
+      coinHit || cartHit || barrelHit
+        ? null
+        : world.pickCrate(app.camera, ndcX, ndcY);
     world.setShaftCoinHover(coinHit);
     world.setMinecartHover(cartHit);
     world.setBarrelHover(barrelHit);
+    world.setCrateHover(crateHit);
     const next =
-      coinHit !== null || cartHit !== null || barrelHit !== null;
+      coinHit !== null ||
+      cartHit !== null ||
+      barrelHit !== null ||
+      crateHit !== null;
     if (next === hoveringLoot) {
       if (next && !coarsePointer) canvas.style.cursor = "pointer";
       return;
@@ -1018,7 +1036,13 @@ async function boot(): Promise<() => void> {
     world.syncActors(depth, state.upgrades);
     const claimedCarts = new Set(state.achievements.claimedMinecarts);
     const claimedBarrels = new Set(state.achievements.claimedBarrels);
-    const shaftSync = world.syncMineshafts(depth, claimedCarts, claimedBarrels);
+    const claimedCrates = new Set(state.achievements.claimedCrates);
+    const shaftSync = world.syncMineshafts(
+      depth,
+      claimedCarts,
+      claimedBarrels,
+      claimedCrates,
+    );
     if (shaftSync.newShaftIds.length > 0) {
       noteMineshaftSeen(state);
     }
@@ -1365,6 +1389,41 @@ async function boot(): Promise<() => void> {
           applyPlayView();
           autosave.markDirty();
           return;
+        }
+        const crate = world.pickCrate(app.camera, ndcX, ndcY);
+        if (crate) {
+          const parsed = parseMineshaftId(crate.id);
+          const upgradeId = parsed
+            ? mineshaftCrateTapUpgrade(
+                parsed.band,
+                parsed.side,
+                state.upgrades,
+              )
+            : null;
+          if (!upgradeId) {
+            showShaftLootToast(
+              "Crate",
+              0,
+              undefined,
+              "Need a Per tap tool first",
+            );
+            return;
+          }
+          if (noteCrateClaimed(state, crate.id)) {
+            const level = grantUpgradeLevel(state, upgradeId);
+            const def = getUpgradeDef(upgradeId);
+            world.markCrateClaimed(crate.id);
+            playCrateKnock();
+            showShaftLootToast(
+              "Crate",
+              0,
+              undefined,
+              `+1 ${def.name} · Lv ${level}`,
+            );
+            applyPlayView();
+            autosave.markDirty();
+            return;
+          }
         }
       }
       const found = dig(state);

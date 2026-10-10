@@ -135,3 +135,28 @@ export function playBarrelThud(): void {
     /* ignore */
   }
 }
+
+/** Sharp crate knock when looting a supply crate. */
+export function playCrateKnock(): void {
+  if (muted) return;
+  const ctx = ensureRailAudioCtx();
+  if (!ctx) return;
+  try {
+    void ctx.resume().catch(() => {});
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(320, t0);
+    osc.frequency.exponentialRampToValueAtTime(110, t0 + 0.07);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.11, t0 + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.12);
+  } catch {
+    /* ignore */
+  }
+}

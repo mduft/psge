@@ -14,6 +14,7 @@ import {
   mineshaftBarrelAutoBoostRate,
   mineshaftBarrelDirtReward,
   mineshaftCartDirtReward,
+  mineshaftCrateTapUpgrade,
   mineshaftCrateX,
   mineshaftDecorStyle,
   mineshaftHasCrate,
@@ -247,5 +248,37 @@ describe("crates and décor", () => {
     expect(activateBarrelAutoBoost(0, now)).toBeCloseTo(0.5, 5);
     expect(activeBarrelAutoBoostMps(now + 1_000)).toBeCloseTo(0.5, 5);
     expect(activeBarrelAutoBoostMps(now + 5_000)).toBe(0);
+  });
+
+  it("picks crate tap upgrades only among owned tools", () => {
+    expect(
+      mineshaftCrateTapUpgrade(0, 1, {
+        shovel: 0,
+        pickaxe: 0,
+        jackhammer: 0,
+        cart: 1,
+        drill: 0,
+        crew: 0,
+      }),
+    ).toBeNull();
+    expect(
+      mineshaftCrateTapUpgrade(0, 1, {
+        shovel: 2,
+        pickaxe: 0,
+        jackhammer: 0,
+        cart: 0,
+        drill: 0,
+        crew: 0,
+      }),
+    ).toBe("shovel");
+    const both = mineshaftCrateTapUpgrade(3, -1, {
+      shovel: 1,
+      pickaxe: 1,
+      jackhammer: 0,
+      cart: 0,
+      drill: 0,
+      crew: 0,
+    });
+    expect(both === "shovel" || both === "pickaxe").toBe(true);
   });
 });

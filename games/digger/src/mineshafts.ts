@@ -6,6 +6,11 @@
  * cutaway walls toward the dig shaft (rails + cobwebs as mesh props).
  */
 import { isDigShaftCell } from "./digShaft.js";
+import {
+  UPGRADE_DEFS,
+  type UpgradeId,
+  type UpgradeLevels,
+} from "./upgrades.js";
 
 /** First band center depth (m) — early topsoil. */
 export const MINESHAFT_START_M = 60;
@@ -280,6 +285,35 @@ export function mineshaftCrateIsBarrel(
   side: MineshaftSide,
 ): boolean {
   return hash01(band, side, 0xc2aa) < 0.55;
+}
+
+/**
+ * Deterministic +1 among already-unlocked Per-tap upgrades for this shaft.
+ * Returns null when the player owns no tap tools yet.
+ */
+export function mineshaftCrateTapUpgrade(
+  band: number,
+  side: MineshaftSide,
+  upgrades: UpgradeLevels,
+): UpgradeId | null {
+  const owned = UPGRADE_DEFS.filter(
+    (d) => d.kind === "tap" && upgrades[d.id] > 0,
+  );
+  if (owned.length === 0) return null;
+  const i = Math.floor(hash01(band, side, 0xc2ab) * owned.length);
+  return owned[Math.min(owned.length - 1, Math.max(0, i))]!.id;
+}
+
+/** Parse `band:side` mineshaft ids. */
+export function parseMineshaftId(
+  id: string,
+): { band: number; side: MineshaftSide } | null {
+  const [bandRaw, sideRaw] = id.split(":");
+  const band = Number(bandRaw);
+  const side = Number(sideRaw);
+  if (!Number.isInteger(band) || band < 0) return null;
+  if (side !== -1 && side !== 1) return null;
+  return { band, side };
 }
 
 /** Ceiling torch every few blocks (biased toward the mouth). */

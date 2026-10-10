@@ -269,6 +269,12 @@ export function buyUpgrade(state: GameState, id: UpgradeId): boolean {
   return true;
 }
 
+/** Free +1 level (crate loot, debug, etc.). Returns the new level. */
+export function grantUpgradeLevel(state: GameState, id: UpgradeId): number {
+  state.upgrades[id] += 1;
+  return state.upgrades[id];
+}
+
 /** Reset progress fields (keeps a fresh world seed). */
 export function resetProgress(state: GameState): void {
   state.depth = new Decimal(0);

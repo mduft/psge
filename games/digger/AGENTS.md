@@ -36,7 +36,7 @@ Dev URL examples:
 - Shop: Per tap vs Auto dig; **Pause** on Auto (persisted in save)
 - **Offline:** ≥30s → claim at soft auto × hardness × **1/6** (max 24h)
 - **Boosters** / **Special coins** in the shaft (6 m auto grace); dirt-coin tap = depth×combo (`BOOSTER_TAP_*` / `BOOSTER_COMBO_*` in `boosters.ts`), auto ×1
-- **Side mineshafts** (`mineshafts.ts` + `mineshaftProps.ts`): abandoned tunnels in the cutaway walls (rails, cobwebs, torches, crates). Occasional **minecarts** / **barrels** — **tap** for one-shot dirt (toast; carts empty, barrels tip). Carts: `mineshaftCartDirtReward` (≥1k); barrels: `mineshaftBarrelDirtReward` (≥350) plus 5s auto-dig buff `mineshaftBarrelAutoBoostRate` (0.5→3 m/s soft with depth). First filled cart ~1642 m; coal fill ≥4 km
+- **Side mineshafts** (`mineshafts.ts` + `mineshaftProps.ts`): abandoned tunnels in the cutaway walls (rails, cobwebs, torches, crates). Tap **minecarts** / **barrels** / **crates** (toast; carts empty, barrels tip, crates open). Carts: `mineshaftCartDirtReward` (≥1k). Barrels: dirt + 5s auto buff `mineshaftBarrelAutoBoostRate` (0.5→3 m/s). Crates: +1 random **already-owned** Per-tap upgrade (`mineshaftCrateTapUpgrade`). First filled cart ~1642 m; coal fill ≥4 km
 - HUD panels dig-while-open (wide: right dock; narrow ≤520px: bottom sheets)
 
 Dev hooks: `window.__psgeApp`, `__psgeWorld`, `__psgeScroll`, `__psgeState`, `__psgeSaveStore`

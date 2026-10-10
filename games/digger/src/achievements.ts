@@ -44,6 +44,8 @@ export interface AchievementProgress {
   claimedMinecarts: string[];
   /** Barrel ids already tapped for dirt loot. */
   claimedBarrels: string[];
+  /** Crate ids already tapped for a free tap upgrade. */
+  claimedCrates: string[];
 }
 
 const LAYER_ACHIEVEMENTS: readonly {
@@ -343,6 +345,7 @@ export function emptyAchievementProgress(): AchievementProgress {
     seenMinecarts: [],
     claimedMinecarts: [],
     claimedBarrels: [],
+    claimedCrates: [],
   };
 }
 
@@ -379,6 +382,7 @@ export function normalizeAchievements(raw: unknown): AchievementProgress {
     seenMinecarts: normalizeIdList(o.seenMinecarts),
     claimedMinecarts: normalizeIdList(o.claimedMinecarts),
     claimedBarrels: normalizeIdList(o.claimedBarrels),
+    claimedCrates: normalizeIdList(o.claimedCrates),
   };
 }
 
@@ -557,5 +561,15 @@ export function noteBarrelClaimed(
 ): boolean {
   if (state.achievements.claimedBarrels.includes(barrelId)) return false;
   state.achievements.claimedBarrels.push(barrelId);
+  return true;
+}
+
+/** Record a crate loot claim (idempotent). */
+export function noteCrateClaimed(
+  state: AchievementEvalState,
+  crateId: string,
+): boolean {
+  if (state.achievements.claimedCrates.includes(crateId)) return false;
+  state.achievements.claimedCrates.push(crateId);
   return true;
 }
