@@ -17,6 +17,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.9.4",
+    summary: "Barrel and crate loot, What's new panel, and deep-crust iron ore.",
+    highlights: [
+      "Help → What's new lists release notes; tap the version label to open it",
+      "Tap barrels for dirt plus a short auto-dig speed burst",
+      "Tap crates for +1 on a random Per tap tool you already own",
+      "Minecart clink plays when a cart is near the dig face",
+      "Deep crust walls show Minecraft-style iron ore flecks",
+      "Achievement and dirt toasts no longer stack on top of each other",
+    ],
+  },
+  {
     version: "0.9.3",
     summary: "Mineshaft cart loot, décor polish, and rail achievements.",
     highlights: [
