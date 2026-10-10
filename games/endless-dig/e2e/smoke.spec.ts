@@ -21,24 +21,38 @@ async function seedSaveBeforeGoto(
   );
 }
 
-/** Short/narrow layouts hide panels behind FABs — open when needed. */
+/** Panels are FAB sheets on all viewports — open when needed. */
 async function ensureShopOpen(page: Page): Promise<void> {
   const fab = page.locator("#shop-toggle");
-  if (await fab.isVisible()) {
-    const open = await page.locator("html").getAttribute("data-psge-shop");
-    if (open !== "open") await fab.click();
-  }
+  await expect(fab).toBeVisible();
+  const open = await page.locator("html").getAttribute("data-psge-shop");
+  if (open !== "open") await fab.click();
   await expect(page.locator("#shop-sheet")).toBeVisible();
+}
+
+async function ensureCollectionOpen(page: Page): Promise<void> {
+  const fab = page.locator("#collection-toggle");
+  await expect(fab).toBeVisible();
+  const open = await page.locator("html").getAttribute("data-psge-collection");
+  if (open !== "open") await fab.click();
+  await expect(page.locator("#collection-sheet")).toBeVisible();
+}
+
+async function ensureCoinsOpen(page: Page): Promise<void> {
+  const fab = page.locator("#coins-toggle");
+  await expect(fab).toBeVisible();
+  const open = await page.locator("html").getAttribute("data-psge-coin-sheet");
+  if (open !== "open") await fab.click();
+  await expect(page.locator("#coins-sheet")).toBeVisible();
 }
 
 async function ensureDebugOpen(page: Page): Promise<void> {
   const fab = page.locator("#debug-fab");
-  if (await fab.isVisible()) {
-    const open = await page
-      .locator("html")
-      .getAttribute("data-psge-debug-sheet");
-    if (open !== "open") await fab.click();
-  }
+  await expect(fab).toBeVisible();
+  const open = await page
+    .locator("html")
+    .getAttribute("data-psge-debug-sheet");
+  if (open !== "open") await fab.click();
   await expect(page.locator("#debug-panel")).toBeVisible();
 }
 
@@ -466,14 +480,83 @@ test("depth milestones unlock discoveries into the collection", async ({
   await expect(page.locator("#find-backdrop")).toBeVisible();
   await expect(page.locator("[data-find-name]")).toHaveText("Ancient bone");
   await expect(page.locator("[data-find-blurb]")).not.toHaveText("—");
-  await page.locator("#find-continue").click();
-  await expect(page.locator("#find-backdrop")).toBeHidden();
+  // Auto-close is 5s; under load the countdown may already have finished.
+  const findContinue = page.locator("#find-continue");
+  if (await findContinue.isVisible()) {
+    await findContinue.click();
+  }
+  await expect
+    .poll(async () => page.locator("#find-backdrop").isHidden())
+    .toBe(true);
+  // Drain any queued find reveals so the collection FAB is free.
+  for (let i = 0; i < 8; i++) {
+    if (await page.locator("#find-backdrop").isHidden()) break;
+    const btn = page.locator("#find-continue");
+    if (await btn.isVisible()) await btn.click();
+    else break;
+  }
+  await ensureCollectionOpen(page);
   await expect(
     page.locator('#collection-list [data-discovery="bone_shard"]'),
   ).toHaveAttribute("data-unlocked", "1");
   await expect(
     page.locator('#collection-list [data-discovery="bone_shard"] .collection-name'),
   ).toHaveText("Ancient bone");
+});
+
+test("special coins unlock into coin collection via find reveal", async ({
+  page,
+}) => {
+  await page.goto("/?nosave=1&debug=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await ensureDebugOpen(page);
+  await page.locator("#debug-unlock-coin").click();
+  await expect(page.locator("#find-backdrop")).toBeVisible();
+  await expect(page.locator("[data-find-eyebrow]")).toHaveText("Special coin");
+  await expect(page.locator("[data-find-name]")).toHaveText("Copper bit");
+  const findContinue = page.locator("#find-continue");
+  if (await findContinue.isVisible()) {
+    await findContinue.click();
+  }
+  await expect
+    .poll(async () => page.locator("#find-backdrop").isHidden())
+    .toBe(true);
+  // Panels sit above FABs — close debug so the coin FAB is clickable.
+  await page.locator("#debug-close").click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-debug-sheet",
+    "closed",
+  );
+  await ensureCoinsOpen(page);
+  await expect(
+    page.locator('#coins-list [data-special-coin="copper_bit"]'),
+  ).toHaveAttribute("data-unlocked", "1");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-special-coins",
+    "1",
+  );
+});
+
+test("shop FAB stays open while digging on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("#shop-toggle")).toBeVisible();
+  await expect(page.locator("#shop-sheet")).toBeHidden();
+  await ensureShopOpen(page);
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
+
+  const before = await page.locator("html").getAttribute("data-psge-depth");
+  const canvas = page.locator("#game-canvas");
+  const box = await canvas.boundingBox();
+  expect(box).toBeTruthy();
+  // Tap above the bottom sheet so dig hits the canvas, not the shop.
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height * 0.35);
+  await expect
+    .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
+    .not.toBe(before);
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
+  await expect(page.locator("#shop-sheet")).toBeVisible();
 });
 
 test("offline claim grants depth and dirt", async ({ page }) => {

@@ -11,6 +11,7 @@ import {
   migrateV3ToV4,
   migrateV4ToV5,
   migrateV5ToV6,
+  migrateV6ToV7,
   parseGameState,
   saveGameState,
   serializeGameState,
@@ -26,11 +27,12 @@ describe("parseGameState", () => {
     });
     expect(s?.depth.toNumber()).toBe(1.5);
     expect(s?.dirt.toNumber()).toBe(6);
-    expect(s?.version).toBe(6);
+    expect(s?.version).toBe(7);
     expect(s?.upgrades.shovel).toBe(0);
     expect(s?.lastPlayedAtMs).toBe(0);
     expect(s?.discoveries.unlocked).toEqual([]);
     expect(s?.boosters.claimed).toEqual([]);
+    expect(s?.specialCoins.unlocked).toEqual([]);
   });
 
   it("migrates version 3 upgrades and clears offline clock", () => {
@@ -43,7 +45,7 @@ describe("parseGameState", () => {
     expect(s?.depth.toNumber()).toBe(12.5);
     expect(s?.upgrades.shovel).toBe(2);
     expect(s?.upgrades.cart).toBe(1);
-    expect(s?.version).toBe(6);
+    expect(s?.version).toBe(7);
     expect(s?.lastPlayedAtMs).toBe(0);
   });
 
@@ -57,7 +59,7 @@ describe("parseGameState", () => {
     });
     expect(s?.lastPlayedAtMs).toBe(1_700_000_000_000);
     expect(s?.upgrades.cart).toBe(1);
-    expect(s?.version).toBe(6);
+    expect(s?.version).toBe(7);
     expect(s?.discoveries.unlocked).toEqual([]);
     expect(s?.discoveries.worldSeed).toBeGreaterThan(0);
   });
@@ -77,19 +79,21 @@ describe("parseGameState", () => {
     });
     expect(s?.discoveries.unlocked).toEqual(["bone_shard"]);
     expect(s?.discoveries.worldSeed).toBe(7);
-    expect(s?.version).toBe(6);
+    expect(s?.version).toBe(7);
     expect(s?.boosters.claimed).toEqual([]);
-    expect(migrateV5ToV6({
-      version: 5,
-      depth: "1",
-      dirt: "4",
-      upgrades: {},
-      lastPlayedAtMs: 0,
-      discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
-    })?.boosters.claimed).toEqual([]);
+    expect(
+      migrateV5ToV6({
+        version: 5,
+        depth: "1",
+        dirt: "4",
+        upgrades: {},
+        lastPlayedAtMs: 0,
+        discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
+      })?.boosters.claimed,
+    ).toEqual([]);
   });
 
-  it("accepts version 6 with boosters", () => {
+  it("migrates version 6 into empty special coins", () => {
     const s = parseGameState({
       version: 6,
       depth: "30",
@@ -101,10 +105,42 @@ describe("parseGameState", () => {
         worldSeed: 7,
         digRollMeter: 0.2,
       },
-      boosters: { claimed: ["b0", "b1"] },
+      boosters: { claimed: ["b0", "b1"], dirtEarned: 300 },
     });
     expect(s?.boosters.claimed).toEqual(["b0", "b1"]);
-    expect(s?.version).toBe(6);
+    expect(s?.boosters.dirtEarned).toBe(300);
+    expect(s?.specialCoins.unlocked).toEqual([]);
+    expect(s?.version).toBe(7);
+    expect(
+      migrateV6ToV7({
+        version: 6,
+        depth: "1",
+        dirt: "4",
+        upgrades: {},
+        lastPlayedAtMs: 0,
+        discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
+        boosters: { claimed: [], dirtEarned: 0 },
+      })?.specialCoins.unlocked,
+    ).toEqual([]);
+  });
+
+  it("accepts version 7 with special coins", () => {
+    const s = parseGameState({
+      version: 7,
+      depth: "30",
+      dirt: "120",
+      upgrades: {},
+      lastPlayedAtMs: 1,
+      discoveries: {
+        unlocked: ["bone_shard"],
+        worldSeed: 7,
+        digRollMeter: 0.2,
+      },
+      boosters: { claimed: ["b0"], dirtEarned: 100 },
+      specialCoins: { unlocked: ["copper_bit"] },
+    });
+    expect(s?.specialCoins.unlocked).toEqual(["copper_bit"]);
+    expect(s?.version).toBe(7);
   });
 
   it("rejects version 1", () => {
@@ -126,6 +162,10 @@ describe("migrate helpers", () => {
   it("migrateV4ToV5 returns null for non-v4", () => {
     expect(migrateV4ToV5({ version: 5, depth: 1, dirt: 1 })).toBeNull();
   });
+
+  it("migrateV6ToV7 returns null for non-v6", () => {
+    expect(migrateV6ToV7({ version: 7, depth: 1, dirt: 1 })).toBeNull();
+  });
 });
 
 describe("saveGameState / loadGameState", () => {
@@ -140,7 +180,7 @@ describe("saveGameState / loadGameState", () => {
     await saveGameState(store, state);
     const raw = await store.load();
     expect(raw).toMatchObject({
-      version: 6,
+      version: 7,
       depth: "4",
       dirt: "16",
       lastPlayedAtMs: 42,
@@ -149,7 +189,8 @@ describe("saveGameState / loadGameState", () => {
         unlocked: [],
         worldSeed: expect.any(Number),
       }),
-      boosters: { claimed: [] },
+      boosters: { claimed: [], dirtEarned: 0 },
+      specialCoins: { unlocked: [] },
     });
     const loaded = await loadGameState(store);
     expect(loaded?.depth.eq(state.depth)).toBe(true);
@@ -158,6 +199,8 @@ describe("saveGameState / loadGameState", () => {
     expect(loaded?.lastPlayedAtMs).toBe(42);
     expect(loaded?.discoveries.worldSeed).toBe(state.discoveries.worldSeed);
     expect(loaded?.boosters.claimed).toEqual([]);
+    expect(loaded?.boosters.dirtEarned).toBe(0);
+    expect(loaded?.specialCoins.unlocked).toEqual([]);
   });
 
   it("serialize omits legacy digPower", () => {
@@ -166,5 +209,6 @@ describe("saveGameState / loadGameState", () => {
     expect(blob).not.toHaveProperty("digPower");
     expect(blob.upgrades.shovel).toBe(1);
     expect(blob).toHaveProperty("lastPlayedAtMs");
+    expect(blob.specialCoins).toEqual({ unlocked: [] });
   });
 });

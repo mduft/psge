@@ -47,17 +47,61 @@
             </div>
             <div class="stat">
               <span class="label">
+                <span class="label-full">Coins</span>
+                <span class="label-abbr" aria-hidden="true">Coin</span>
+              </span>
+              <span class="value" data-stat="coins" title="Coins collected · dirt from coins"
+                >0 · 0</span
+              >
+            </div>
+            <div class="stat">
+              <span class="label">
                 <span class="label-full">Per tap</span>
                 <span class="label-abbr" aria-hidden="true">Tap</span>
               </span>
               <span class="value" data-stat="dig-power">0.031 m</span>
             </div>
-            <div class="stat">
+            <div class="stat stat-auto">
               <span class="label">
                 <span class="label-full">Auto</span>
                 <span class="label-abbr" aria-hidden="true">Auto</span>
               </span>
-              <span class="value" data-stat="passive">0 m/s</span>
+              <span class="stat-auto-controls">
+                <span class="value" data-stat="passive">0 m/s</span>
+                <button
+                  type="button"
+                  id="auto-pause"
+                  class="auto-pause"
+                  aria-pressed="false"
+                  aria-label="Pause auto-dig"
+                  title="Pause auto-dig to grab coins"
+                  hidden
+                >
+                  <svg
+                    class="auto-pause-icon auto-pause-icon-pause"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"
+                    />
+                  </svg>
+                  <svg
+                    class="auto-pause-icon auto-pause-icon-play"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path fill="currentColor" d="M8 5v14l11-7L8 5z" />
+                  </svg>
+                </button>
+              </span>
             </div>
           </aside>
 
@@ -89,7 +133,7 @@
               type="button"
               id="collection-toggle"
               class="shop-fab collection-fab"
-              aria-label="Collection"
+              aria-label="Finds"
               aria-expanded="false"
               aria-controls="collection-sheet"
             >
@@ -108,12 +152,60 @@
               </svg>
               <span class="collection-count" data-collection-count>0</span>
             </button>
+            <button
+              type="button"
+              id="coins-toggle"
+              class="shop-fab coins-fab"
+              aria-label="Special coins"
+              aria-expanded="false"
+              aria-controls="coins-sheet"
+            >
+              <svg
+                class="shop-fab-icon"
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 7.2c-1.9 0-3.2 1-3.2 2.4 0 1.2.8 1.9 2.4 2.3l.8.2c.9.2 1.2.4 1.2.8 0 .5-.6.8-1.4.8-.9 0-1.5-.3-1.7-.8H8.6c.2 1.3 1.4 2.1 3 2.3V17h1.6v-1.2c1.7-.3 2.9-1.3 2.9-2.7 0-1.4-1-2.1-2.6-2.5l-.8-.2c-.8-.2-1.1-.4-1.1-.8 0-.4.5-.7 1.2-.7.7 0 1.2.3 1.4.7h1.5c-.2-1.2-1.3-2-2.8-2.1V7.2H12z"
+                />
+              </svg>
+              <span class="collection-count" data-coins-count>0</span>
+            </button>
             <div id="shop-backdrop" class="shop-backdrop" hidden></div>
             <section class="shop" id="shop-sheet">
               <header class="shop-header">
                 <h2 class="shop-title">Shop</h2>
-                <button type="button" id="shop-close" class="shop-close">
-                  Close
+                <button
+                  type="button"
+                  id="shop-close"
+                  class="shop-close"
+                  aria-label="Close"
+                >
+                  <svg
+                    class="panel-close-icon"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z"
+                    />
+                  </svg>
                 </button>
               </header>
               <div id="shop-list" class="shop-list"></div>
@@ -122,11 +214,59 @@
             <section class="shop collection-sheet" id="collection-sheet">
               <header class="shop-header">
                 <h2 class="shop-title">Finds</h2>
-                <button type="button" id="collection-close" class="shop-close">
-                  Close
+                <button
+                  type="button"
+                  id="collection-close"
+                  class="shop-close"
+                  aria-label="Close"
+                >
+                  <svg
+                    class="panel-close-icon"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z"
+                    />
+                  </svg>
                 </button>
               </header>
+              <p class="collection-boosters" data-collection-boosters>
+                Dirt coins 0 · dirt from coins 0
+              </p>
               <div id="collection-list" class="shop-list collection-list"></div>
+            </section>
+            <div id="coins-backdrop" class="shop-backdrop" hidden></div>
+            <section class="shop coins-sheet" id="coins-sheet">
+              <header class="shop-header">
+                <h2 class="shop-title">Special coins</h2>
+                <button
+                  type="button"
+                  id="coins-close"
+                  class="shop-close"
+                  aria-label="Close"
+                >
+                  <svg
+                    class="panel-close-icon"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z"
+                    />
+                  </svg>
+                </button>
+              </header>
+              <p class="collection-boosters" data-coins-progress>0 / 20</p>
+              <div id="coins-list" class="shop-list collection-list"></div>
             </section>
           </aside>
 
@@ -158,8 +298,25 @@
             <section class="debug-panel" id="debug-panel" hidden>
               <header class="shop-header">
                 <h2 class="shop-title">Debug</h2>
-                <button type="button" id="debug-close" class="debug-close">
-                  Close
+                <button
+                  type="button"
+                  id="debug-close"
+                  class="debug-close"
+                  aria-label="Close"
+                >
+                  <svg
+                    class="panel-close-icon"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5z"
+                    />
+                  </svg>
                 </button>
               </header>
               <div class="debug-dirt">
@@ -198,6 +355,9 @@
               <button type="button" id="debug-unlock-find" class="hud-reset">
                 Unlock next find
               </button>
+              <button type="button" id="debug-unlock-coin" class="hud-reset">
+                Unlock next coin
+              </button>
               <label class="debug-scroll-toggle">
                 <input type="checkbox" id="debug-scroll" />
                 <span>Drag to scroll</span>
@@ -233,7 +393,7 @@
           Saved
         </div>
         <p class="hud-hint">
-          Tap to dig · shop · finds · ?debug=1 for tools
+          Tap to dig · shop · finds · coins · ?debug=1 for tools
         </p>
 
         <div
@@ -248,7 +408,7 @@
             aria-modal="true"
             aria-labelledby="find-title"
           >
-            <p class="find-eyebrow">Discovery</p>
+            <p class="find-eyebrow" data-find-eyebrow>Discovery</p>
             <div class="find-icon-wrap" aria-hidden="true">
               <span class="discovery-icon find-icon" data-find-icon></span>
             </div>

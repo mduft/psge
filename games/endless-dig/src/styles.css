@@ -8,8 +8,12 @@
   --hud-muted: rgba(244, 240, 230, 0.72);
   --hud-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
   --hud-panel: rgba(12, 16, 22, 0.28);
-  --hud-panel-bg: rgba(10, 14, 20, 0.42);
+  /* Shared glass surface — a touch darker than the old stats wash. */
+  --hud-panel-bg: rgba(10, 14, 20, 0.62);
   --hud-panel-border: rgba(255, 255, 255, 0.14);
+  --hud-panel-radius: 0.45rem;
+  --hud-panel-blur: blur(10px);
+  --hud-panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
   --font: "Segoe UI", "Helvetica Neue", ui-sans-serif, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -107,7 +111,10 @@ body {
   pointer-events: auto;
   background: var(--hud-panel-bg);
   border: 1px solid var(--hud-panel-border);
-  backdrop-filter: blur(8px);
+  border-radius: var(--hud-panel-radius);
+  box-shadow: var(--hud-panel-shadow);
+  backdrop-filter: var(--hud-panel-blur);
+  -webkit-backdrop-filter: var(--hud-panel-blur);
 }
 
 .hud-stats {
@@ -143,27 +150,194 @@ body {
   font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
 }
 
-/* Floating FABs / sheet chrome — narrow only. */
-.shop-fab,
-.debug-fab {
+.stat-auto-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.auto-pause {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0;
+  padding: 0;
+  color: var(--hud-ink);
+  text-shadow: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.auto-pause:hover,
+.auto-pause:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
+.auto-pause[aria-pressed="true"] {
+  color: #0a0e14;
+  background: rgba(196, 165, 116, 0.85);
+  border-color: rgba(196, 165, 116, 0.95);
+}
+
+.auto-pause[hidden] {
+  display: none !important;
+}
+
+.auto-pause-icon {
+  display: block;
+}
+
+.auto-pause-icon-play {
   display: none;
 }
 
-.shop-close,
-.debug-close,
-.shop-backdrop,
-.debug-backdrop {
+.auto-pause[aria-pressed="true"] .auto-pause-icon-pause {
   display: none;
 }
 
+.auto-pause[aria-pressed="true"] .auto-pause-icon-play {
+  display: block;
+}
+
+.stat-auto.is-paused [data-stat="passive"] {
+  color: rgba(196, 165, 116, 0.95);
+}
+
+/* FABs + sheets on all viewports — dig still works with a panel open
+   (backdrops do not capture pointer events). */
 .hud-actions,
 .hud-debug {
+  position: contents;
   pointer-events: none;
 }
 
-.hud-actions > *,
-.hud-debug > * {
+.shop-fab,
+.debug-fab:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  bottom: calc(4.25rem + var(--safe-bottom));
+  /* Below panels — close the open sheet to reach other FABs. */
+  z-index: 3;
+  width: 3.1rem;
+  height: 3.1rem;
+  padding: 0;
+  color: var(--hud-ink);
+  text-shadow: none;
+  background: rgba(10, 14, 20, 0.82);
+  border: 1px solid rgba(196, 165, 116, 0.55);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
   pointer-events: auto;
+}
+
+.shop-fab {
+  right: calc(0.9rem + var(--safe-right));
+}
+
+.collection-fab {
+  bottom: calc(8rem + var(--safe-bottom));
+  border-color: rgba(160, 190, 200, 0.55);
+}
+
+.coins-fab {
+  bottom: calc(11.75rem + var(--safe-bottom));
+  border-color: rgba(212, 178, 74, 0.65);
+}
+
+.debug-fab:not([hidden]) {
+  left: calc(0.9rem + var(--safe-left));
+  right: auto;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.shop-fab:hover,
+.shop-fab:focus-visible,
+.debug-fab:hover,
+.debug-fab:focus-visible {
+  background: rgba(196, 165, 116, 0.28);
+  outline: none;
+}
+
+.shop-fab.has-affordable {
+  border-color: rgba(196, 165, 116, 0.9);
+}
+
+.shop-fab-icon,
+.debug-fab-icon {
+  display: block;
+}
+
+.shop-afford-dot {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #c4a574;
+  box-shadow: 0 0 0 2px rgba(10, 14, 20, 0.9);
+}
+
+.shop-afford-dot[hidden] {
+  display: none !important;
+}
+
+.shop-backdrop,
+.debug-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  /* Dim only — clicks pass through so dig/play continues with panels open. */
+  background: rgba(6, 8, 12, 0.28);
+  pointer-events: none;
+}
+
+html[data-psge-shop="open"] #shop-backdrop,
+html[data-psge-collection="open"] #collection-backdrop,
+html[data-psge-coin-sheet="open"] #coins-backdrop,
+html[data-psge-debug-sheet="open"] .debug-backdrop {
+  display: block;
+}
+
+.shop-close,
+.debug-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  color: var(--hud-ink);
+  text-shadow: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.panel-close-icon {
+  display: block;
+}
+
+.shop-close:hover,
+.shop-close:focus-visible,
+.debug-close:hover,
+.debug-close:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
 }
 
 .collection-count {
@@ -179,6 +353,15 @@ body {
   color: #0a0e14;
   background: #c4a574;
   border-radius: 999px;
+}
+
+.collection-boosters {
+  margin: 0 0 0.45rem;
+  padding: 0 0.15rem;
+  color: rgba(212, 178, 74, 0.9);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
 }
 
 .collection-list {
@@ -447,12 +630,69 @@ body {
   }
 }
 
+/* Default: bottom sheets (narrow / short). Wide docks to the right rail. */
 .shop {
-  display: flex;
+  display: none;
   flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
-  padding: 0.55rem 0.75rem 0.65rem;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  margin: 0;
+  padding:
+    0.75rem
+    calc(0.9rem + var(--safe-right))
+    calc(0.85rem + var(--safe-bottom))
+    calc(0.9rem + var(--safe-left));
+  max-height: min(85dvh, 32rem);
+  overflow: hidden;
+  /* Surface (bg / blur / border) from shared .hud-stats,.shop,.debug-panel */
+  border-radius: var(--hud-panel-radius) var(--hud-panel-radius) 0 0;
+  pointer-events: auto;
+}
+
+html[data-psge-shop="open"] #shop-sheet,
+html[data-psge-collection="open"] #collection-sheet,
+html[data-psge-coin-sheet="open"] #coins-sheet {
+  display: flex;
+}
+
+/* Wide: dock panels under the right stats rail (not bottom sheets). */
+@media (min-width: 521px) {
+  .shop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    bottom: auto;
+    width: auto;
+    max-height: min(
+      70dvh,
+      calc(
+        100dvh - (0.75rem + var(--safe-top)) - (5.5rem + var(--safe-bottom)) -
+          12rem
+      )
+    );
+    padding: 0.55rem 0.75rem 0.65rem;
+    border-radius: var(--hud-panel-radius);
+  }
+
+  .shop-list {
+    max-height: min(
+      calc(70dvh - 4rem),
+      calc(
+        100dvh - (0.75rem + var(--safe-top)) - (5.5rem + var(--safe-bottom)) -
+          16rem
+      )
+    );
+  }
+
+  /* Softer dim on wide — panel is a side card, not a modal sheet. */
+  .shop-backdrop,
+  .debug-backdrop {
+    background: rgba(6, 8, 12, 0.12);
+  }
 }
 
 .shop-header {
@@ -476,8 +716,34 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  /* Wide: rail scrolls as one column. Narrow sheets override with flex scroll. */
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: min(calc(85dvh - 4.5rem), calc(32rem - 4.5rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.coin-mark {
+  flex: 0 0 2.2rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1;
+  color: #0a0e14;
+}
+
+.find-icon.coin-mark {
+  flex: none;
+  width: 3.6rem;
+  height: 3.6rem;
+  font-size: 1.55rem;
+  margin: 0 auto;
 }
 
 .shop-section {
@@ -844,10 +1110,70 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Narrow / short: one-line stats + floating FABs → bottom sheets.
-   Short height (half-desktop, Cursor split) uses sheets so shop/finds/debug
-   stay reachable without hunting a rail scrollbar. */
-@media (max-width: 520px), (max-height: 900px) {
+/* Wide: stats rail hosts docked panels below when open. */
+.hud-rail {
+  pointer-events: none;
+  /* Let absolute panels extend below stats without a clipped rail. */
+  overflow: visible;
+  max-height: none;
+}
+
+.hud-stats {
+  pointer-events: auto;
+}
+
+.debug-panel:not([hidden]) {
+  display: none;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  margin: 0;
+  padding:
+    0.75rem
+    calc(0.9rem + var(--safe-right))
+    calc(0.85rem + var(--safe-bottom))
+    calc(0.9rem + var(--safe-left));
+  max-height: min(85dvh, 32rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Surface (bg / blur / border) from shared .hud-stats,.shop,.debug-panel */
+  border-radius: var(--hud-panel-radius) var(--hud-panel-radius) 0 0;
+  pointer-events: auto;
+}
+
+html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
+  display: flex;
+}
+
+@media (min-width: 521px) {
+  .debug-panel:not([hidden]) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    bottom: auto;
+    width: auto;
+    max-height: min(
+      70dvh,
+      calc(
+        100dvh - (0.75rem + var(--safe-top)) - (5.5rem + var(--safe-bottom)) -
+          12rem
+      )
+    );
+    padding: 0.55rem 0.75rem 0.65rem;
+    border-radius: var(--hud-panel-radius);
+  }
+}
+
+.shop-header {
+  flex: 0 0 auto;
+}
+
+/* Narrow: compact one-line stats + bottom sheets (default .shop). */
+@media (max-width: 520px) {
   #hud {
     grid-template-rows: auto auto 1fr auto;
   }
@@ -909,211 +1235,29 @@ body {
     font-size: 0.78rem;
   }
 
-  .hud-actions,
-  .hud-debug {
-    position: contents;
+  .stat-auto-controls {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
   }
 
-  .shop-fab,
-  .debug-fab:not([hidden]) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    bottom: calc(4.25rem + var(--safe-bottom));
-    z-index: 3;
-    width: 3.1rem;
-    height: 3.1rem;
-    padding: 0;
-    color: var(--hud-ink);
-    text-shadow: none;
-    background: rgba(10, 14, 20, 0.82);
-    border: 1px solid rgba(196, 165, 116, 0.55);
-    border-radius: 999px;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
-    pointer-events: auto;
+  .auto-pause {
+    width: 1.35rem;
+    height: 1.35rem;
   }
 
-  .shop-fab {
-    right: calc(0.9rem + var(--safe-right));
+  .auto-pause-icon {
+    width: 12px;
+    height: 12px;
   }
 
-  .collection-fab {
-    bottom: calc(8rem + var(--safe-bottom));
-    border-color: rgba(160, 190, 200, 0.55);
-  }
+}
 
-  .debug-fab:not([hidden]) {
-    left: calc(0.9rem + var(--safe-left));
-    border-color: rgba(255, 255, 255, 0.28);
-  }
-
-  .shop-fab:hover,
-  .shop-fab:focus-visible,
-  .debug-fab:hover,
-  .debug-fab:focus-visible {
-    background: rgba(196, 165, 116, 0.28);
-    outline: none;
-  }
-
-  .shop-fab.has-affordable {
-    border-color: rgba(196, 165, 116, 0.9);
-  }
-
-  .shop-fab-icon,
-  .debug-fab-icon {
-    display: block;
-  }
-
-  .shop-afford-dot {
-    position: absolute;
-    top: 0.2rem;
-    right: 0.2rem;
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 50%;
-    background: #c4a574;
-    box-shadow: 0 0 0 2px rgba(10, 14, 20, 0.9);
-  }
-
-  .shop-afford-dot[hidden] {
-    display: none !important;
-  }
-
-  .shop-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 4;
-    background: rgba(6, 8, 12, 0.45);
-    pointer-events: auto;
-  }
-
-  html[data-psge-shop="open"] #shop-backdrop,
-  html[data-psge-collection="open"] #collection-backdrop {
-    display: block;
-  }
-
-  .shop {
-    display: none;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    margin: 0;
-    padding:
-      0.75rem
-      calc(0.9rem + var(--safe-right))
-      calc(0.85rem + var(--safe-bottom))
-      calc(0.9rem + var(--safe-left));
-    max-height: min(85dvh, 32rem);
-    overflow: hidden;
-    background: rgba(10, 14, 20, 0.94);
-    border-radius: 0.75rem 0.75rem 0 0;
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
-  }
-
-  html[data-psge-shop="open"] #shop-sheet,
-  html[data-psge-collection="open"] #collection-sheet {
-    display: flex;
-  }
-
-  .shop-header {
-    flex: 0 0 auto;
-  }
-
-  .shop-close {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.28rem 0.5rem;
-    font: inherit;
-    font-size: 0.72rem;
-    font-weight: 650;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--hud-ink);
-    text-shadow: none;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    cursor: pointer;
-  }
-
-  .shop-close:hover,
-  .shop-close:focus-visible {
-    background: rgba(255, 255, 255, 0.14);
-    outline: none;
-  }
-
-  .shop-list {
-    flex: 0 1 auto;
-    /* Parent only has max-height; give the list an explicit budget so it
-       scrolls instead of growing the sheet off-screen or collapsing to 0. */
-    max-height: min(calc(85dvh - 4.5rem), calc(32rem - 4.5rem));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .debug-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 4;
-    background: rgba(6, 8, 12, 0.45);
-    pointer-events: auto;
-  }
-
-  html[data-psge-debug-sheet="open"] .debug-backdrop {
-    display: block;
-  }
-
-  /* Narrow: collapse debug into a sheet (wide keeps the rail panel). */
+/* Short but wide: slightly tighter right-rail panels. */
+@media (min-width: 521px) and (max-height: 700px) {
+  .shop,
   .debug-panel:not([hidden]) {
-    display: none;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    margin: 0;
-    padding:
-      0.75rem
-      calc(0.9rem + var(--safe-right))
-      calc(0.85rem + var(--safe-bottom))
-      calc(0.9rem + var(--safe-left));
-    max-height: min(85dvh, 32rem);
-    overflow-x: hidden;
-    overflow-y: auto;
-    background: rgba(10, 14, 20, 0.94);
-    border-radius: 0.75rem 0.75rem 0 0;
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
-  }
-
-  html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
-    display: flex;
-  }
-
-  .debug-close {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.28rem 0.5rem;
-    font: inherit;
-    font-size: 0.72rem;
-    font-weight: 650;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--hud-ink);
-    text-shadow: none;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    cursor: pointer;
-  }
-
-  .debug-close:hover,
-  .debug-close:focus-visible {
-    background: rgba(255, 255, 255, 0.14);
-    outline: none;
+    max-height: min(55dvh, calc(100dvh - 8rem));
   }
 }
 

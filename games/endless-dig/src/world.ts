@@ -22,6 +22,8 @@ import {
 import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
 import type { BoosterProgress } from "./boosters.js";
+import type { ShaftCoinPick } from "./boosterProps.js";
+import type { SpecialCoinProgress } from "./specialCoins.js";
 import { createBoosterProps } from "./boosterProps.js";
 import type { DiscoveryProgress } from "./discoveries.js";
 import { DIG_SHAFT_XS, DIG_SHAFT_ZS, isDigShaftCell } from "./digShaft.js";
@@ -70,14 +72,15 @@ export interface DigWorld {
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
   /** Sync discovery props on cutaway walls. */
   syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
-  /** Sync visible dirt-coin boosters in the shaft. */
+  /** Sync visible dirt + special coins in the shaft. */
   syncBoosters(
     excavatedDepth: number,
     worldSeed: number,
-    progress: BoosterProgress,
+    boosters: BoosterProgress,
+    special: SpecialCoinProgress,
   ): void;
-  /** NDC ray pick against booster coins (−1…1). */
-  pickBooster(camera: Camera, ndcX: number, ndcY: number): string | null;
+  /** NDC ray pick against shaft coins (−1…1). */
+  pickBooster(camera: Camera, ndcX: number, ndcY: number): ShaftCoinPick | null;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -462,11 +465,16 @@ export function buildDigWorld(
     syncBoosters(
       depth: number,
       worldSeed: number,
-      progress: BoosterProgress,
+      boosters: BoosterProgress,
+      special: SpecialCoinProgress,
     ): void {
-      boosterProps.sync(depth, worldSeed, progress);
+      boosterProps.sync(depth, worldSeed, boosters, special);
     },
-    pickBooster(camera: Camera, ndcX: number, ndcY: number): string | null {
+    pickBooster(
+      camera: Camera,
+      ndcX: number,
+      ndcY: number,
+    ): ShaftCoinPick | null {
       return boosterProps.pick(camera, ndcX, ndcY);
     },
     playDigSwing(): void {

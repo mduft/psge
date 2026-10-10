@@ -32,7 +32,7 @@ First-time e2e: `npx playwright install chromium`
 
 **Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
 
-**M7 play:** M6 loop plus **discoveries** — depth milestones + seeded dig rolls, collection sheet, find reveal, shaft props, and dirt-coin **boosters** (tap ×2 / auto ×1). Soft dig uses linear floor so late upgrades stay meaningful.
+**M7 play:** M6 loop plus **discoveries** — depth milestones + seeded dig rolls, collection sheets, find reveal, shaft props, dirt-coin **boosters** (tap ×2 / auto ×1), and **20 special coins**. Soft dig uses linear floor so late upgrades stay meaningful. Panels are FAB sheets (dig while open).
 
 **Hardness:** `gained = softDigAmount(raw) × hardness(layer)` on tap, auto, offline, and short tab catch-up.
 

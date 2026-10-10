@@ -35,6 +35,8 @@ export interface DirtBooster {
 export interface BoosterProgress {
   /** Claimed booster ids (order = claim order). */
   claimed: string[];
+  /** Total dirt granted by claimed coins (includes tap ×2). */
+  dirtEarned: number;
 }
 
 export interface BoosterClaim {
@@ -51,7 +53,7 @@ function hashSeed(worldSeed: number, salt: number): number {
 }
 
 export function emptyBoosterProgress(): BoosterProgress {
-  return { claimed: [] };
+  return { claimed: [], dirtEarned: 0 };
 }
 
 export function normalizeBoosterProgress(raw: unknown): BoosterProgress {
@@ -66,7 +68,19 @@ export function normalizeBoosterProgress(raw: unknown): BoosterProgress {
       claimed.push(id);
     }
   }
-  return { claimed };
+  let dirtEarned = 0;
+  if (typeof o.dirtEarned === "number" && Number.isFinite(o.dirtEarned)) {
+    dirtEarned = Math.max(0, Math.floor(o.dirtEarned));
+  } else if (typeof o.dirtEarned === "string" && o.dirtEarned.length > 0) {
+    const n = Number(o.dirtEarned);
+    if (Number.isFinite(n)) dirtEarned = Math.max(0, Math.floor(n));
+  }
+  return { claimed, dirtEarned };
+}
+
+/** How many coins have been collected. */
+export function boosterCoinsCollected(progress: BoosterProgress): number {
+  return progress.claimed.length;
 }
 
 /**
@@ -151,9 +165,14 @@ export function isBoosterAutoDue(
   return excavatedDepth >= booster.depth + BOOSTER_AUTO_GRACE_M;
 }
 
-function markClaimed(progress: BoosterProgress, id: string): boolean {
+function markClaimed(
+  progress: BoosterProgress,
+  id: string,
+  dirt: number,
+): boolean {
   if (progress.claimed.includes(id)) return false;
   progress.claimed.push(id);
+  progress.dirtEarned += Math.max(0, Math.floor(dirt));
   return true;
 }
 
@@ -172,8 +191,9 @@ export function claimAutoBoosters(
   ).filter((b) => !claimed.has(b.id) && isBoosterAutoDue(b, excavatedDepth));
   const out: BoosterClaim[] = [];
   for (const b of due) {
-    if (!markClaimed(progress, b.id)) continue;
-    out.push({ id: b.id, value: b.value, dirt: b.value, via: "auto" });
+    const dirt = b.value;
+    if (!markClaimed(progress, b.id, dirt)) continue;
+    out.push({ id: b.id, value: b.value, dirt, via: "auto" });
   }
   return out;
 }
@@ -194,8 +214,9 @@ export function claimTapBooster(
   if (!b) return null;
   if (!isBoosterVisible(b, excavatedDepth)) return null;
   if (isBoosterAutoDue(b, excavatedDepth)) return null;
-  if (!markClaimed(progress, b.id)) return null;
-  return { id: b.id, value: b.value, dirt: b.value * 2, via: "tap" };
+  const dirt = b.value * 2;
+  if (!markClaimed(progress, b.id, dirt)) return null;
+  return { id: b.id, value: b.value, dirt, via: "tap" };
 }
 
 /** Unclaimed coins currently visible (for mesh sync). */

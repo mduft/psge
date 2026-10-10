@@ -84,6 +84,10 @@ describe("claim rules", () => {
     const hit = claims.find((c) => c.id === first.id)!;
     expect(hit.dirt).toBe(hit.value);
     expect(hit.via).toBe("auto");
+    expect(progress.claimed.length).toBe(claims.length);
+    expect(progress.dirtEarned).toBe(
+      claims.reduce((s, c) => s + c.dirt, 0),
+    );
     expect(claimAutoBoosters(progress, 11, depth)).toEqual([]);
   });
 
@@ -96,6 +100,8 @@ describe("claim rules", () => {
     expect(claim).not.toBeNull();
     expect(claim!.dirt).toBe(first.value * 2);
     expect(claim!.via).toBe("tap");
+    expect(progress.dirtEarned).toBe(first.value * 2);
+    expect(progress.claimed).toEqual([first.id]);
     expect(claimTapBooster(progress, 11, depth, first.id)).toBeNull();
   });
 

@@ -15,6 +15,11 @@ import {
   type DiscoveryProgress,
 } from "./discoveries.js";
 import {
+  emptySpecialCoinProgress,
+  normalizeSpecialCoinProgress,
+  type SpecialCoinProgress,
+} from "./specialCoins.js";
+import {
   DEFAULT_DIG_POWER,
   emptyUpgrades,
   getUpgradeDef,
@@ -31,8 +36,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (M7+: discoveries; boosters on v6). */
-export const GAME_STATE_VERSION = 6;
+/** Persist / GameState schema version (M7+: special coins on v7). */
+export const GAME_STATE_VERSION = 7;
 
 export interface GameState {
   version: number;
@@ -51,6 +56,8 @@ export interface GameState {
   discoveries: DiscoveryProgress;
   /** Claimed shaft dirt-coin boosters. */
   boosters: BoosterProgress;
+  /** Rare collectible special coins (20 unique). */
+  specialCoins: SpecialCoinProgress;
 }
 
 export function toDecimal(value: Decimal.Value): Decimal {
@@ -66,6 +73,7 @@ export function createInitialState(
     lastPlayedAtMs?: number;
     discoveries?: DiscoveryProgress | Partial<DiscoveryProgress>;
     boosters?: BoosterProgress | Partial<BoosterProgress>;
+    specialCoins?: SpecialCoinProgress | Partial<SpecialCoinProgress>;
     worldSeed?: number;
   } = {},
 ): GameState {
@@ -93,6 +101,9 @@ export function createInitialState(
   const boosters = overrides.boosters
     ? normalizeBoosterProgress(overrides.boosters)
     : emptyBoosterProgress();
+  const specialCoins = overrides.specialCoins
+    ? normalizeSpecialCoinProgress(overrides.specialCoins)
+    : emptySpecialCoinProgress();
   return {
     version: overrides.version ?? GAME_STATE_VERSION,
     depth,
@@ -101,6 +112,7 @@ export function createInitialState(
     lastPlayedAtMs: last,
     discoveries,
     boosters,
+    specialCoins,
   };
 }
 
@@ -233,4 +245,5 @@ export function resetProgress(state: GameState): void {
   state.lastPlayedAtMs = 0;
   state.discoveries = emptyDiscoveryProgress();
   state.boosters = emptyBoosterProgress();
+  state.specialCoins = emptySpecialCoinProgress();
 }

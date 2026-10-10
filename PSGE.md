@@ -414,7 +414,7 @@ The following choices are locked for implementing these milestones. They may sti
 | M6 mood | Fog/sky/lights + palette-family tints + layer chip colors |
 | M6 actors | Procedural digger (tool swap) + cart/drill/crew props; no camera polish |
 | M7 discoveries | Depth milestones + seeded dig rolls; collection sheet + find toast; basic shaft props |
-| M7 save | `GameState` version **6** (`discoveries` + dirt-coin boosters); v2–v5 migrate |
+| M7 save | `GameState` version **7** (`discoveries` + dirt-coin boosters + special coins); v2–v6 migrate |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1730,6 +1730,8 @@ Locked (see also §4.8):
 - **Shaft props** (`discoveryProps.ts`): basic procedural meshes for unlocked / teased milestones.
 - Save version **6**; resolve on dig / tick / offline / `?depth=` fresh runs.
 - Dirt-coin boosters in the shaft (~25–50 m); tap ×2 / auto ×1 after grace.
+- 20 special collectible coins (~220–480 m); find reveal + coin collection sheet.
+- FAB sheets for shop / finds / coins / debug on all viewports; dig while open.
 - Out of scope: 3D inspect (M8).
 
 ## Milestone 8 — 3D artifact inspection
@@ -1957,7 +1959,7 @@ See §4.8 for the decision table. In short:
 - M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` give dirt / Reset / drag-scroll.
 - M5: offline claim at soft auto rate × 1/6 (max 24h); save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
-- M7: discoveries (milestones + seeded rolls); collection UI; shaft props; dirt-coin boosters; save v6.
+- M7: discoveries (milestones + seeded rolls); collection UI; shaft props; dirt-coin boosters; special coins; save v7.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 
