@@ -46,8 +46,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (v9+: panelSeen for tab new-dots). */
-export const GAME_STATE_VERSION = 9;
+/** Persist / GameState schema version (v10+: dirt-coin combo streak). */
+export const GAME_STATE_VERSION = 10;
 
 export interface GameState {
   version: number;

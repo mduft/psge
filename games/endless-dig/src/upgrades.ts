@@ -114,12 +114,12 @@ export const SHOP_SECTIONS: readonly {
   {
     kind: "tap",
     title: "Per tap",
-    hint: "Meters of depth each click",
+    hint: "Empower clicks",
   },
   {
     kind: "auto",
     title: "Auto dig",
-    hint: "Meters of depth every second",
+    hint: "Dig every second",
   },
 ] as const;
 

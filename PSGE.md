@@ -1730,7 +1730,7 @@ Locked (see also §4.8):
 - **Collection** sheet (FAB) + find-reveal modal (queued, auto-close); CSS icon tiles (placeholder art).
 - **Shaft props** (`discoveryProps.ts`): basic procedural meshes for unlocked / teased milestones.
 - Save version **7** (`discoveries` + dirt-coin boosters + `specialCoins.unlocked`); resolve on dig / tick / offline / `?depth=` fresh runs; v2–v6 migrate.
-- Dirt-coin boosters (`boosters.ts`): ~25–50 m apart; tap ×2 / auto ×1 after **6 m** dig-past grace; short claim toast; HUD “Dirt coins”.
+- Dirt-coin boosters (`boosters.ts`): ~25–50 m apart; tap depth×combo mult (surface ~×2, deep ~×5; combo +0.25/step cap ×3; persisted streak, 30s wall-clock / auto-miss reset) / auto ×1 after **6 m** dig-past grace; short claim toast; HUD “Dirt coins”. Save **v10**.
 - **20** special collectible coins (`specialCoins.ts`): ~220–480 m apart; same grace; tap premium from **2K** dirt (scales with depth); find reveal + coin collection sheet.
 - Soft dig uses a linear floor so late upgrades stay meaningful; effective dig = soft × layer hardness (tap, auto, offline, short catch-up).
 - FAB sheets for shop / finds / coins / debug on all viewports; dig while open (wide: right dock; narrow ≤520px: bottom sheets). Auto **Pause** stops live auto-dig so players can grab coins.

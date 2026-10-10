@@ -5,13 +5,22 @@
 import { describe, expect, it } from "vitest";
 import {
   BOOSTER_AUTO_GRACE_M,
+  BOOSTER_COMBO_CAP,
+  BOOSTER_COMBO_TIMEOUT_MS,
   BOOSTER_SPACING_MAX,
   BOOSTER_SPACING_MIN,
+  BOOSTER_TAP_DEPTH_BASE,
   BOOSTER_VALUES,
+  boosterComboMult,
+  boosterTapDepthMult,
+  boosterTapDirt,
   claimAutoBoosters,
   claimTapBooster,
   emptyBoosterProgress,
+  expireBoosterCombo,
   generateBoosters,
+  normalizeBoosterProgress,
+  noteBoosterComboTap,
   rollBoosterValue,
   valueWeightsAtDepth,
   visibleBoosters,
@@ -73,6 +82,76 @@ describe("valueWeightsAtDepth", () => {
   });
 });
 
+describe("tap depth and combo mult", () => {
+  it("depth mult starts near base and grows with depth", () => {
+    expect(boosterTapDepthMult(0)).toBeCloseTo(BOOSTER_TAP_DEPTH_BASE, 5);
+    expect(boosterTapDepthMult(2500)).toBeGreaterThan(boosterTapDepthMult(50));
+    expect(boosterTapDepthMult(20_000)).toBeGreaterThan(
+      boosterTapDepthMult(2500),
+    );
+    expect(boosterTapDepthMult(1_000_000)).toBeLessThanOrEqual(
+      BOOSTER_TAP_DEPTH_BASE + 3 + 1e-9,
+    );
+  });
+
+  it("combo mult steps then caps", () => {
+    expect(boosterComboMult(1)).toBe(1);
+    expect(boosterComboMult(2)).toBeCloseTo(1.25, 5);
+    expect(boosterComboMult(5)).toBeCloseTo(2, 5);
+    expect(boosterComboMult(9)).toBe(BOOSTER_COMBO_CAP);
+    expect(boosterComboMult(99)).toBe(BOOSTER_COMBO_CAP);
+  });
+
+  it("boosterTapDirt multiplies value by depth and combo", () => {
+    const shallow = boosterTapDirt(100, 20, 1);
+    expect(shallow.dirt).toBe(Math.floor(100 * shallow.mult));
+    expect(shallow.mult).toBeCloseTo(shallow.depthMult * shallow.comboMult, 8);
+    expect(shallow.dirt).toBeGreaterThanOrEqual(190);
+    expect(shallow.dirt).toBeLessThanOrEqual(210);
+
+    const combo = boosterTapDirt(100, 20, 5);
+    expect(combo.dirt).toBeGreaterThan(shallow.dirt);
+
+    const deep = boosterTapDirt(100, 20_000, 1);
+    expect(deep.dirt).toBeGreaterThan(shallow.dirt);
+  });
+
+  it("persisted combo survives normalize within timeout and expires after", () => {
+    const now = 1_700_000_000_000;
+    const live = normalizeBoosterProgress(
+      { claimed: [], dirtEarned: 0, combo: 5, comboAtMs: now - 10_000 },
+      now,
+    );
+    expect(live.combo).toBe(5);
+    expect(live.comboAtMs).toBe(now - 10_000);
+
+    const stale = normalizeBoosterProgress(
+      {
+        claimed: [],
+        dirtEarned: 0,
+        combo: 5,
+        comboAtMs: now - BOOSTER_COMBO_TIMEOUT_MS - 1,
+      },
+      now,
+    );
+    expect(stale.combo).toBe(0);
+    expect(stale.comboAtMs).toBe(0);
+  });
+
+  it("note/expire helpers update streak timestamps", () => {
+    const p = emptyBoosterProgress();
+    noteBoosterComboTap(p, 3, 1000);
+    expect(p.combo).toBe(3);
+    expect(p.comboAtMs).toBe(1000);
+    expect(expireBoosterCombo(p, 1000 + BOOSTER_COMBO_TIMEOUT_MS)).toBe(false);
+    expect(p.combo).toBe(3);
+    expect(expireBoosterCombo(p, 1000 + BOOSTER_COMBO_TIMEOUT_MS + 1)).toBe(
+      true,
+    );
+    expect(p.combo).toBe(0);
+  });
+});
+
 describe("claim rules", () => {
   it("auto-claims at 1× after grace and does not double-claim", () => {
     const progress = emptyBoosterProgress();
@@ -84,6 +163,7 @@ describe("claim rules", () => {
     const hit = claims.find((c) => c.id === first.id)!;
     expect(hit.dirt).toBe(hit.value);
     expect(hit.via).toBe("auto");
+    expect(hit.combo).toBeUndefined();
     expect(progress.claimed.length).toBe(claims.length);
     expect(progress.dirtEarned).toBe(
       claims.reduce((s, c) => s + c.dirt, 0),
@@ -91,18 +171,33 @@ describe("claim rules", () => {
     expect(claimAutoBoosters(progress, 11, depth)).toEqual([]);
   });
 
-  it("tap claims at 2× while visible and within grace", () => {
+  it("tap claims with depth×combo mult while visible and within grace", () => {
     const progress = emptyBoosterProgress();
     const list = generateBoosters(11, 200);
     const first = list[0]!;
     const depth = first.depth + 0.5;
-    const claim = claimTapBooster(progress, 11, depth, first.id);
+    const expected = boosterTapDirt(first.value, first.depth, 1);
+    const claim = claimTapBooster(progress, 11, depth, first.id, 1);
     expect(claim).not.toBeNull();
-    expect(claim!.dirt).toBe(first.value * 2);
+    expect(claim!.dirt).toBe(expected.dirt);
     expect(claim!.via).toBe("tap");
-    expect(progress.dirtEarned).toBe(first.value * 2);
+    expect(claim!.combo).toBe(1);
+    expect(claim!.mult).toBeCloseTo(expected.mult, 8);
+    expect(progress.dirtEarned).toBe(expected.dirt);
     expect(progress.claimed).toEqual([first.id]);
-    expect(claimTapBooster(progress, 11, depth, first.id)).toBeNull();
+    expect(claimTapBooster(progress, 11, depth, first.id, 2)).toBeNull();
+  });
+
+  it("higher combo streak pays more on tap", () => {
+    const list = generateBoosters(11, 200);
+    const first = list[0]!;
+    const depth = first.depth + 0.5;
+    const a = emptyBoosterProgress();
+    const b = emptyBoosterProgress();
+    const low = claimTapBooster(a, 11, depth, first.id, 1)!;
+    const high = claimTapBooster(b, 11, depth, first.id, 5)!;
+    expect(high.dirt).toBeGreaterThan(low.dirt);
+    expect(high.combo).toBe(5);
   });
 
   it("rejects tap after grace has closed", () => {
@@ -110,7 +205,7 @@ describe("claim rules", () => {
     const list = generateBoosters(11, 200);
     const first = list[0]!;
     const depth = first.depth + BOOSTER_AUTO_GRACE_M + 0.1;
-    expect(claimTapBooster(progress, 11, depth, first.id)).toBeNull();
+    expect(claimTapBooster(progress, 11, depth, first.id, 1)).toBeNull();
   });
 
   it("visibleBoosters only lists unclaimed in-window coins", () => {
@@ -120,7 +215,7 @@ describe("claim rules", () => {
     const depth = first.depth + 1;
     const visible = visibleBoosters(progress, 3, depth);
     expect(visible.some((b) => b.id === first.id)).toBe(true);
-    claimTapBooster(progress, 3, depth, first.id);
+    claimTapBooster(progress, 3, depth, first.id, 1);
     expect(visibleBoosters(progress, 3, depth).some((b) => b.id === first.id)).toBe(
       false,
     );

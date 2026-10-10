@@ -19,8 +19,12 @@ import { applyDigCursor, digToolOf } from "./digCursor.js";
 import { applyDomIcons, createUiIconImg, uiIconUrl } from "./icons.js";
 import {
   boosterCoinsCollected,
+  boosterComboMult,
   claimAutoBoosters,
   claimTapBooster,
+  clearBoosterCombo,
+  expireBoosterCombo,
+  noteBoosterComboTap,
   type BoosterClaim,
 } from "./boosters.js";
 import {
@@ -420,6 +424,9 @@ async function boot(): Promise<() => void> {
   const boosterToastEyebrow = document.querySelector(
     "[data-booster-toast-eyebrow]",
   );
+  const boosterToastCombo = document.querySelector<HTMLElement>(
+    "[data-booster-toast-combo]",
+  );
   const boosterToastName = document.querySelector("[data-booster-toast-name]");
   let boosterToastTimer = 0;
   const achievementToast = document.querySelector<HTMLElement>(
@@ -561,28 +568,68 @@ async function boot(): Promise<() => void> {
     return true;
   };
 
+  const formatTapMult = (mult: number): string => {
+    const rounded = Math.round(mult * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  };
+
   const showBoosterToast = (claims: BoosterClaim[]): void => {
     if (!boosterToast || claims.length === 0) return;
     const dirt = claims.reduce((s, c) => s + c.dirt, 0);
-    const tapped = claims.some((c) => c.via === "tap");
+    const tapped = claims.filter((c) => c.via === "tap");
+    const lastTap = tapped[tapped.length - 1];
+    const combo = lastTap?.combo ?? 0;
+    const comboMult = combo > 0 ? boosterComboMult(combo) : 1;
+    const mult = lastTap?.mult ?? 1;
+    const intensity = Math.min(12, Math.max(0, combo));
+
+    boosterToast.dataset.combo = String(intensity);
+    boosterToast.style.setProperty("--combo", String(intensity));
+
     if (boosterToastEyebrow) {
-      boosterToastEyebrow.textContent = tapped
-        ? "Dirt coin · tap ×2"
-        : claims.length > 1
-          ? `Dirt coins ×${claims.length}`
-          : "Dirt coin";
+      if (lastTap) {
+        boosterToastEyebrow.textContent = `Dirt coin · tap ×${formatTapMult(mult)}`;
+      } else {
+        boosterToastEyebrow.textContent =
+          claims.length > 1
+            ? `Dirt coins ×${claims.length}`
+            : "Dirt coin";
+      }
+    }
+    if (boosterToastCombo) {
+      if (combo > 1) {
+        boosterToastCombo.hidden = false;
+        boosterToastCombo.textContent = `COMBO ${combo} · ×${formatTapMult(comboMult)}`;
+      } else {
+        boosterToastCombo.hidden = true;
+        boosterToastCombo.textContent = "";
+      }
     }
     if (boosterToastName) {
       boosterToastName.textContent = `+${formatAmount(dirt)} dirt`;
     }
+
+    // Retrigger enter / combo pop when stacking pickups quickly.
+    boosterToast.classList.remove("is-visible", "has-combo-pop");
+    void boosterToast.offsetWidth;
     boosterToast.classList.add("is-visible");
+    if (combo > 1) boosterToast.classList.add("has-combo-pop");
     boosterToast.setAttribute("aria-hidden", "false");
+
+    const holdMs =
+      BOOSTER_TOAST_MS + Math.min(900, Math.max(0, combo - 1) * 120);
     if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
     boosterToastTimer = window.setTimeout(() => {
       boosterToastTimer = 0;
-      boosterToast.classList.remove("is-visible");
+      boosterToast.classList.remove("is-visible", "has-combo-pop");
       boosterToast.setAttribute("aria-hidden", "true");
-    }, BOOSTER_TOAST_MS);
+      boosterToast.dataset.combo = "0";
+      boosterToast.style.setProperty("--combo", "0");
+      if (boosterToastCombo) {
+        boosterToastCombo.hidden = true;
+        boosterToastCombo.textContent = "";
+      }
+    }, holdMs);
   };
 
   const applyBoosterClaims = (claims: BoosterClaim[]): void => {
@@ -595,13 +642,13 @@ async function boot(): Promise<() => void> {
   };
 
   const collectAutoBoosters = (): void => {
-    applyBoosterClaims(
-      claimAutoBoosters(
-        state.boosters,
-        state.discoveries.worldSeed,
-        depthNumber(state),
-      ),
+    const claims = claimAutoBoosters(
+      state.boosters,
+      state.discoveries.worldSeed,
+      depthNumber(state),
     );
+    if (claims.length > 0) clearBoosterCombo(state.boosters);
+    applyBoosterClaims(claims);
   };
 
   const collectAutoSpecialCoins = (): void => {
@@ -1062,8 +1109,18 @@ async function boot(): Promise<() => void> {
       const depth = depthNumber(state);
       const seed = state.discoveries.worldSeed;
       if (hit?.kind === "dirt") {
-        const claim = claimTapBooster(state.boosters, seed, depth, hit.id);
+        const now = Date.now();
+        expireBoosterCombo(state.boosters, now);
+        const streak = state.boosters.combo + 1;
+        const claim = claimTapBooster(
+          state.boosters,
+          seed,
+          depth,
+          hit.id,
+          streak,
+        );
         if (claim) {
+          noteBoosterComboTap(state.boosters, streak, now);
           applyBoosterClaims([claim]);
           applyPlayView();
           autosave.markDirty();

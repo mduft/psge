@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  *
  * Seeded dirt-coin boosters in the shaft. Auto-collect at 1× after a short
- * dig-past grace; tap the mesh for 2× before that.
+ * dig-past grace; tap for depth-scaled × combo dirt before that.
  */
 import { createSeededRng } from "@psge/engine";
 import { DIG_SHAFT_XS, DIG_SHAFT_ZS } from "./digShaft.js";
@@ -23,6 +23,17 @@ export const BOOSTER_AUTO_GRACE_M = 6;
 export const BOOSTER_FIRST_DEPTH_MIN = 12;
 export const BOOSTER_FIRST_DEPTH_MAX = 28;
 
+/** Manual tap depth mult: `BASE + EXTRA * t(depth)` — surface ≈ BASE. */
+export const BOOSTER_TAP_DEPTH_BASE = 2;
+export const BOOSTER_TAP_DEPTH_EXTRA = 3;
+
+/** Manual tap combo: `min(CAP, 1 + STEP * (streak - 1))`. */
+export const BOOSTER_COMBO_STEP = 0.25;
+export const BOOSTER_COMBO_CAP = 3;
+
+/** Combo expires if no dirt-coin tap within this wall-clock window. */
+export const BOOSTER_COMBO_TIMEOUT_MS = 30_000;
+
 export interface DirtBooster {
   id: string;
   /** Absolute depth (m) where the coin sits. */
@@ -36,8 +47,12 @@ export interface DirtBooster {
 export interface BoosterProgress {
   /** Claimed booster ids (order = claim order). */
   claimed: string[];
-  /** Total dirt granted by claimed coins (includes tap ×2). */
+  /** Total dirt granted by claimed coins (includes tap depth×combo mult). */
   dirtEarned: number;
+  /** Live manual-tap streak (0 = none). Persisted; expires via {@link comboAtMs}. */
+  combo: number;
+  /** Wall-clock ms of last dirt-coin tap (0 if no streak). */
+  comboAtMs: number;
 }
 
 export interface BoosterClaim {
@@ -45,6 +60,43 @@ export interface BoosterClaim {
   value: BoosterValue;
   dirt: number;
   via: "tap" | "auto";
+  /** Tap streak after this claim (1+); omitted / 0 on auto. */
+  combo?: number;
+  /** Effective tap mult (`depthMult * comboMult`); omitted on auto. */
+  mult?: number;
+}
+
+/** Soft depth factor shared with special-coin premium curve. */
+export function boosterDepthT(depth: number): number {
+  return Math.min(1, Math.asinh(Math.max(0, depth) / 2500) / Math.asinh(4));
+}
+
+/** Manual tap depth multiplier (tunable via BOOSTER_TAP_DEPTH_*). */
+export function boosterTapDepthMult(depth: number): number {
+  return BOOSTER_TAP_DEPTH_BASE + BOOSTER_TAP_DEPTH_EXTRA * boosterDepthT(depth);
+}
+
+/** Manual tap combo multiplier for streak ≥ 1 (tunable via BOOSTER_COMBO_*). */
+export function boosterComboMult(streak: number): number {
+  const n = Math.max(1, Math.floor(streak));
+  return Math.min(BOOSTER_COMBO_CAP, 1 + BOOSTER_COMBO_STEP * (n - 1));
+}
+
+/** Dirt granted for a manual tap of a dirt coin. */
+export function boosterTapDirt(
+  value: BoosterValue,
+  depth: number,
+  streak: number,
+): { dirt: number; mult: number; depthMult: number; comboMult: number } {
+  const depthMult = boosterTapDepthMult(depth);
+  const comboMult = boosterComboMult(streak);
+  const mult = depthMult * comboMult;
+  return {
+    dirt: Math.max(0, Math.floor(value * mult)),
+    mult,
+    depthMult,
+    comboMult,
+  };
 }
 
 const STREAM = 0x60b57c01;
@@ -54,10 +106,61 @@ function hashSeed(worldSeed: number, salt: number): number {
 }
 
 export function emptyBoosterProgress(): BoosterProgress {
-  return { claimed: [], dirtEarned: 0 };
+  return { claimed: [], dirtEarned: 0, combo: 0, comboAtMs: 0 };
 }
 
-export function normalizeBoosterProgress(raw: unknown): BoosterProgress {
+function parseNonNegInt(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  if (typeof value === "string" && value.length > 0) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return Math.max(0, Math.floor(n));
+  }
+  return 0;
+}
+
+/** Clear combo when the 30s window has elapsed (wall-clock). */
+export function expireBoosterCombo(
+  progress: BoosterProgress,
+  nowMs: number = Date.now(),
+): boolean {
+  if (progress.combo <= 0) {
+    if (progress.comboAtMs !== 0) {
+      progress.comboAtMs = 0;
+      return true;
+    }
+    return false;
+  }
+  if (
+    progress.comboAtMs <= 0 ||
+    nowMs - progress.comboAtMs > BOOSTER_COMBO_TIMEOUT_MS
+  ) {
+    progress.combo = 0;
+    progress.comboAtMs = 0;
+    return true;
+  }
+  return false;
+}
+
+export function clearBoosterCombo(progress: BoosterProgress): void {
+  progress.combo = 0;
+  progress.comboAtMs = 0;
+}
+
+export function noteBoosterComboTap(
+  progress: BoosterProgress,
+  streak: number,
+  nowMs: number = Date.now(),
+): void {
+  progress.combo = Math.max(0, Math.floor(streak));
+  progress.comboAtMs = Math.max(0, Math.floor(nowMs));
+}
+
+export function normalizeBoosterProgress(
+  raw: unknown,
+  nowMs: number = Date.now(),
+): BoosterProgress {
   if (!raw || typeof raw !== "object") return emptyBoosterProgress();
   const o = raw as Record<string, unknown>;
   const claimed: string[] = [];
@@ -69,14 +172,14 @@ export function normalizeBoosterProgress(raw: unknown): BoosterProgress {
       claimed.push(id);
     }
   }
-  let dirtEarned = 0;
-  if (typeof o.dirtEarned === "number" && Number.isFinite(o.dirtEarned)) {
-    dirtEarned = Math.max(0, Math.floor(o.dirtEarned));
-  } else if (typeof o.dirtEarned === "string" && o.dirtEarned.length > 0) {
-    const n = Number(o.dirtEarned);
-    if (Number.isFinite(n)) dirtEarned = Math.max(0, Math.floor(n));
-  }
-  return { claimed, dirtEarned };
+  const out: BoosterProgress = {
+    claimed,
+    dirtEarned: parseNonNegInt(o.dirtEarned),
+    combo: parseNonNegInt(o.combo),
+    comboAtMs: parseNonNegInt(o.comboAtMs),
+  };
+  expireBoosterCombo(out, nowMs);
+  return out;
 }
 
 /** How many coins have been collected. */
@@ -200,14 +303,16 @@ export function claimAutoBoosters(
 }
 
 /**
- * Tap-claim at 2× if the coin is revealed, still within the grace window,
- * and not yet claimed.
+ * Tap-claim with depth × combo mult if the coin is revealed, still within
+ * the grace window, and not yet claimed. `streak` is 1 for the first tap in
+ * a combo chain.
  */
 export function claimTapBooster(
   progress: BoosterProgress,
   worldSeed: number,
   excavatedDepth: number,
   id: string,
+  streak = 1,
 ): BoosterClaim | null {
   if (progress.claimed.includes(id)) return null;
   const list = generateBoosters(worldSeed, excavatedDepth + BOOSTER_AUTO_GRACE_M);
@@ -215,9 +320,10 @@ export function claimTapBooster(
   if (!b) return null;
   if (!isBoosterVisible(b, excavatedDepth)) return null;
   if (isBoosterAutoDue(b, excavatedDepth)) return null;
-  const dirt = b.value * 2;
+  const combo = Math.max(1, Math.floor(streak));
+  const { dirt, mult } = boosterTapDirt(b.value, b.depth, combo);
   if (!markClaimed(progress, b.id, dirt)) return null;
-  return { id: b.id, value: b.value, dirt, via: "tap" };
+  return { id: b.id, value: b.value, dirt, via: "tap", combo, mult };
 }
 
 /** Unclaimed coins currently visible (for mesh sync). */

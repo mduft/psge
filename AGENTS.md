@@ -30,7 +30,7 @@ First-time e2e: `npx playwright install chromium`
 
 ## Milestone 9 (current) — Achievements
 
-**Focus:** durable meta unlocks (toast + tabbed panel), save v9 (`panelSeen` new-dots). Distinct from M7 discoveries (in-world finds).
+**Focus:** durable meta unlocks (toast + tabbed panel), save v10 (`panelSeen` + dirt-coin combo). Distinct from M7 discoveries (in-world finds).
 
 **Play:** M7 loop + M8 agent-loop docs + achievements celebration chrome (no dig-power rewards).
 

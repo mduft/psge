@@ -21,7 +21,7 @@ Dev URL examples:
 ## Milestone 9 (current) — Achievements
 
 - Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards)
-- Save version **9** (`panelSeen` for Finds/Coins/Goals new-dots); v2–v8 migrate
+- Save version **10** (`panelSeen` + dirt-coin combo streak); v2–v9 migrate
 - Tab dots (not counts) for unseen unlocks; opening the tab clears the dot
 - FAB **Achievements** sheet + toast queue; distinct from Finds (discoveries) / Coins (special coins)
 - Hooks: `__psgeState.achievements`, `html[data-psge-achievements-count]`, `[data-achievement="first-dig"]`
@@ -34,7 +34,7 @@ Dev URL examples:
 - Soft dig with linear floor, then × layer hardness
 - Shop: Per tap vs Auto dig; **Pause** on Auto
 - **Offline:** ≥30s → claim at soft auto × hardness × **1/6** (max 24h)
-- **Boosters** / **Special coins** in the shaft (6 m auto grace)
+- **Boosters** / **Special coins** in the shaft (6 m auto grace); dirt-coin tap = depth×combo (`BOOSTER_TAP_*` / `BOOSTER_COMBO_*` in `boosters.ts`), auto ×1
 - HUD panels dig-while-open (wide: right dock; narrow ≤520px: bottom sheets)
 
 Dev hooks: `window.__psgeApp`, `__psgeWorld`, `__psgeScroll`, `__psgeState`, `__psgeSaveStore`

@@ -266,6 +266,39 @@ export function migrateV8ToV9(data: Record<string, unknown>): GameState | null {
   );
 }
 
+/** Migrate a v9 save into v10 (dirt-coin combo streak fields). */
+export function migrateV9ToV10(data: Record<string, unknown>): GameState | null {
+  if (data.version !== 9) return null;
+  const depth = parseDecimalField(data.depth);
+  const dirt = parseDecimalField(data.dirt);
+  if (!depth || !dirt) return null;
+  const upgrades =
+    data.upgrades && typeof data.upgrades === "object"
+      ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
+      : normalizeUpgrades(undefined);
+  const fallbackSeed =
+    ((Date.now() ^ Math.floor(depth.toNumber())) >>> 0) || 1;
+  const discoveries = normalizeDiscoveryProgress(
+    data.discoveries,
+    fallbackSeed,
+  );
+  const boosters = normalizeBoosterProgress(data.boosters);
+  const specialCoins = normalizeSpecialCoinProgress(data.specialCoins);
+  const achievements = normalizeAchievements(data.achievements);
+  const panelSeen = normalizePanelSeen(data.panelSeen);
+  return stateFromFields(
+    depth,
+    dirt,
+    upgrades,
+    parseLastPlayedAtMs(data.lastPlayedAtMs),
+    discoveries,
+    boosters,
+    specialCoins,
+    achievements,
+    panelSeen,
+  );
+}
+
 export function parseGameState(data: unknown): GameState | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
@@ -277,6 +310,7 @@ export function parseGameState(data: unknown): GameState | null {
   if (o.version === 6) return migrateV6ToV7(o);
   if (o.version === 7) return migrateV7ToV8(o);
   if (o.version === 8) return migrateV8ToV9(o);
+  if (o.version === 9) return migrateV9ToV10(o);
 
   if (o.version !== DIG_SAVE_VERSION) return null;
 
@@ -325,6 +359,8 @@ export function serializeGameState(state: GameState): SerializedGameState {
     boosters: {
       claimed: [...state.boosters.claimed],
       dirtEarned: state.boosters.dirtEarned,
+      combo: state.boosters.combo,
+      comboAtMs: state.boosters.comboAtMs,
     },
     specialCoins: {
       unlocked: [...state.specialCoins.unlocked],
