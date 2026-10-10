@@ -32,17 +32,17 @@ First-time e2e: `npx playwright install chromium`
 
 **Focus:** durable meta unlocks (toast + tabbed panel), save v10 (`panelSeen` + dirt-coin combo). Distinct from M7 discoveries (in-world finds).
 
-**Play:** M7 loop + M8 agent-loop docs + achievements celebration chrome (no dig-power rewards).
+**Play:** M7 loop + M8 agent-loop docs + achievements celebration chrome (no dig-power rewards). Side mineshafts in the cutaway walls; **tap minecarts** for a one-shot dirt bonus.
 
 **Hardness:** `gained = softDigAmount(raw) × hardness(layer)` on tap, auto, offline, and short tab catch-up.
 
 **Numbers:** Game-owned `decimal.js`; HUD idle suffixes; dig as **m/tap** and **m/s** (effective = soft × hardness).
 
-**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save; `?offlineMs=N` forces offline claim; `?debug=1` tools. Stress: `?nosave=1&depth=10000`.
+**Testing:** `?depth=N` pre-digs when no save; `?nosave=1` clears save (also skips boot find/achievement popups); `?offlineMs=N` forces offline claim; `?debug=1` tools. Stress: `?nosave=1&depth=10000`. Cart loot sample: `?nosave=1&depth=1642`.
 
 Engine: `createApp`, loop, camera, floating origin / chunks, SaveStore, autosave helpers, `createSeededRng`, `loadGltf`.
 
-Dig rules, geo layers, discoveries, achievements, actors, shop, offline, and save payload live in the **game**.
+Dig rules, geo layers, discoveries, achievements, mineshafts/minecarts, actors, shop, offline, and save payload live in the **game**.
 
 **Next:** Milestone 10 3D artifact inspection (deferred).
 

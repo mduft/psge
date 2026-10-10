@@ -20,8 +20,8 @@ Dev URL examples:
 
 ## Milestone 9 (current) — Achievements
 
-- Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards) — depth 10 m … 10 000 km, geo layers, tool/auto ownership, per-upgrade Lv 10, any Lv 25/50, 100 total levels, dirt, finds, AFK/offline
-- Save version **11** (`autoDigPaused`); v2–v10 migrate
+- Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards) — depth 10 m … 10 000 km, geo layers, tool/auto ownership, per-upgrade Lv 10, any Lv 25/50, 100 total levels, dirt, finds, AFK/offline, first mineshaft, 3/10 minecarts seen
+- Save version **11** (`autoDigPaused` + mineshaft cart claim/seen ids); v2–v10 migrate
 - Unreadable saves: modal with **Reload** (keep blob, refresh) or **Reset progress** (clear, then boot); `html[data-psge-save-error]` while open
 - Tab dots (not counts) for unseen unlocks; opening the tab clears the dot
 - FAB **Achievements** sheet + toast queue; distinct from Finds (discoveries) / Coins (special coins)
@@ -36,6 +36,7 @@ Dev URL examples:
 - Shop: Per tap vs Auto dig; **Pause** on Auto (persisted in save)
 - **Offline:** ≥30s → claim at soft auto × hardness × **1/6** (max 24h)
 - **Boosters** / **Special coins** in the shaft (6 m auto grace); dirt-coin tap = depth×combo (`BOOSTER_TAP_*` / `BOOSTER_COMBO_*` in `boosters.ts`), auto ×1
+- **Side mineshafts** (`mineshafts.ts` + `mineshaftProps.ts`): abandoned tunnels in the cutaway walls (rails, cobwebs, torches, crates). Occasional **minecarts** on the rails — **tap a cart** for a large one-shot dirt bonus (toast; empty carts stay empty). First filled cart ~1642 m; coal fill ≥4 km. Reward: `mineshaftCartDirtReward` (≥1k, scales with depth)
 - HUD panels dig-while-open (wide: right dock; narrow ≤520px: bottom sheets)
 
 Dev hooks: `window.__psgeApp`, `__psgeWorld`, `__psgeScroll`, `__psgeState`, `__psgeSaveStore`
@@ -68,4 +69,4 @@ Deploy updates: production builds emit `dist/version.json` (`buildId`); clients 
 - Logical focus Y: `0` = surface, more negative = deeper
 - Render coords stay near 0 via floating origin
 - 1 block = 1 unit before `BLOCK_SCALE`
-- Side mineshafts: `mineshafts.ts` carves air from cutaway walls; rails/cobwebs in `mineshaftProps.ts`
+- Side mineshafts: `mineshafts.ts` carves air from cutaway walls; rails / cobwebs / torches / crates / minecarts in `mineshaftProps.ts` (pick via `world.pickMinecart`)

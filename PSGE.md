@@ -1795,6 +1795,10 @@ Meta progression distinct from **Discoveries** (M7): discoveries are in-world fi
 | `dirt-hoarder` | dirt ≥ 1 000 |
 | `overnight` | offline claim completed |
 | `first-find` / `collector` / `museum` | 1 / 5 / all discoveries |
+| `first-mineshaft` | side mineshaft entered the loaded window |
+| `carts-3` / `carts-10` | 3 / 10 unique minecarts seen |
+
+Side mineshafts (cutaway-wall tunnels with rails décor) and **tappable minecarts** (one-shot dirt loot) are game presentation polish after M9 — see `games/digger/AGENTS.md`.
 
 Out of MVP: `inspector` (M10), `surface-dweller`, `long-haul`, `spendthrift`.
 
