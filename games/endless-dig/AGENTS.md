@@ -20,8 +20,8 @@ Dev URL examples:
 
 ## Milestone 7
 
-- Tap to dig; HUD stats (Depth / Layer / Dirt / Per tap / Auto) + shop + **Finds** collection
-- **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find toast; collection sheet; shaft props (`discoveryProps.ts`)
+- Tap to dig; HUD stats (Depth / Layer / Dirt / Dirt coins / Per tap / Auto) + shop + **Finds** / **Coins** FABs
+- **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find-reveal modal; collection sheet; shaft props (`discoveryProps.ts`)
 - **Geo layers** (`geoLayers.ts`): Topsoil 0–1k … Abyss 120k+; hardness; fog/sky/lights; layer toast
 - Fine block mix (`strataAt`); digger + cart/drill/crew (`shaftActors.ts`)
 - Soft dig with linear floor, then × layer hardness
@@ -29,7 +29,7 @@ Dev URL examples:
 - **Offline:** ≥30s → claim at soft auto × hardness × **1/6** (max 24h); shorter hide → full-rate catch-up
 - World extent grows in 256 m steps; chunk streaming + floating origin
 - `?debug=1`, `?offlineMs=N`, `?depth=N`, `?nosave=1`
-- **Boosters** (`boosters.ts`): dirt coins in the shaft (~25–50 m apart); tap ×2, auto ×1 after 6 m dig-past; HUD Coins = count · dirt earned
+- **Boosters** (`boosters.ts` / `shaftCoinProps.ts`): dirt coins in the shaft (~25–50 m apart); tap ×2, auto ×1 after 6 m dig-past; HUD Dirt coins = count · dirt earned
 - **Special coins** (`specialCoins.ts`): 20 unique collectibles (~220–480 m apart); hang in shaft like dirt coins (auto after 6 m); tap premium starts at 2K dirt and scales with depth; find reveal + coin collection sheet
 - HUD panels (shop / finds / coins / debug) behind FABs; dig works with a panel open. Wide: dock under the right stats rail; narrow (≤520px): bottom sheets
 - Save version **7** (`specialCoins.unlocked`); v2–v6 migrate

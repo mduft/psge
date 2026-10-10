@@ -407,13 +407,13 @@ The following choices are locked for implementing these milestones. They may sti
 | M4 numbers | Game-owned `decimal.js` for depth/dirt/costs/rates; persist as strings; HUD idle suffixes `K M B T` then `aa ab …` |
 | M4 save | `GameState` version **3**; migrate v2 → Decimals + empty upgrades (slider digPower discarded) |
 | M4 endless | Generation extent **grows** with excavated depth (+ lookahead); 1000 is initial look-ahead, not an end |
-| M5 offline | Depth **and** dirt; soft-capped live auto rate × **1/6**; max **24h**; claim modal when away ≥**30s** (tab hide or unload); shorter hides get full-rate catch-up |
+| M5 offline | Depth **and** dirt; soft-capped live auto × hardness × **1/6**; max **24h**; claim modal when away ≥**30s** (tab hide or unload); shorter hides get full-rate catch-up |
 | M5 clock | Persist `lastPlayedAtMs` (save version **4**; v2/v3 migrate with clock `0`); pure `computeOfflineReward(state, last, now)` |
 | M5 testing | Injectable `nowMs` in unit tests; `?offlineMs=N` forces an offline window in the browser |
 | M6 geo layers | km-scale named bands (Topsoil→Abyss); hardness after soft-cap; HUD label + enter toast |
 | M6 mood | Fog/sky/lights + palette-family tints + layer chip colors |
 | M6 actors | Procedural digger (tool swap) + cart/drill/crew props; no camera polish |
-| M7 discoveries | Depth milestones + seeded dig rolls; collection sheet + find toast; basic shaft props |
+| M7 discoveries | Depth milestones + seeded dig rolls; collection + find-reveal sheets; shaft props; dirt-coin boosters; 20 special coins |
 | M7 save | `GameState` version **7** (`discoveries` + dirt-coin boosters + special coins); v2–v6 migrate |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
@@ -1704,8 +1704,8 @@ Acceptance: unit tests for dig / buy / passive / formatAmount / v2→v3 migrate;
 Locked (see also §4.8):
 
 - Persist `lastPlayedAtMs` (save version **4**); autosave refreshes it while playing.
-- On load, if auto-dig owned and away ≥ 5s: claim modal with duration + depth/dirt.
-- Payout: `softDigAmount(passiveRate) × min(elapsed, 24h) × (1/6)`; dirt = depth × 4.
+- On load / tab return, if auto-dig owned and away ≥ **30s**: claim modal with duration + depth/dirt; shorter hides get full-rate catch-up.
+- Payout: `softDigAmount(passiveRate) × hardness(layer) × min(elapsed, 24h) × (1/6)`; dirt = depth × 4.
 - Automatic saving already from M3; M5 keeps the offline clock coherent with saves.
 - Tests: pure offline helpers + `?offlineMs=` e2e claim path.
 
@@ -1716,7 +1716,7 @@ Locked (see also §4.8):
 - **Geo layers:** Topsoil 0–1 000 m → Packed clay → Bedrock → Deep crust → Ancient rock → The Abyss; hardness multiplies soft-capped dig.
 - **Mood:** fog / sky / lights + block palette family per layer; dig chips tint to the layer.
 - **Actors:** procedural digger (swing on tap, tool from upgrades) + cart / drill / crew props.
-- Particles (burst/trickle) already from earlier milestones; camera left as-is (already good).
+- Particles (burst/trickle) already from earlier milestones; orientation stays locked (framing may tighten later for playability).
 - Tests: `geoLayers` helpers + hardness on dig; e2e `data-psge-layer` at depth ≥ 1000.
 
 The camera remains fixed in orientation throughout.
@@ -1726,12 +1726,13 @@ The camera remains fixed in orientation throughout.
 Locked (see also §4.8):
 
 - **Catalog** (`discoveries.ts`): milestones at band depths + rare seeded dig rolls (`createSeededRng`).
-- **Collection** sheet (FAB) + find toast; CSS icon tiles (placeholder art).
+- **Collection** sheet (FAB) + find-reveal modal (queued, auto-close); CSS icon tiles (placeholder art).
 - **Shaft props** (`discoveryProps.ts`): basic procedural meshes for unlocked / teased milestones.
-- Save version **6**; resolve on dig / tick / offline / `?depth=` fresh runs.
-- Dirt-coin boosters in the shaft (~25–50 m); tap ×2 / auto ×1 after grace.
-- 20 special collectible coins (~220–480 m); find reveal + coin collection sheet.
-- FAB sheets for shop / finds / coins / debug on all viewports; dig while open.
+- Save version **7** (`discoveries` + dirt-coin boosters + `specialCoins.unlocked`); resolve on dig / tick / offline / `?depth=` fresh runs; v2–v6 migrate.
+- Dirt-coin boosters (`boosters.ts`): ~25–50 m apart; tap ×2 / auto ×1 after **6 m** dig-past grace; short claim toast; HUD “Dirt coins”.
+- **20** special collectible coins (`specialCoins.ts`): ~220–480 m apart; same grace; tap premium from **2K** dirt (scales with depth); find reveal + coin collection sheet.
+- Soft dig uses a linear floor so late upgrades stay meaningful; effective dig = soft × layer hardness (tap, auto, offline, short catch-up).
+- FAB sheets for shop / finds / coins / debug on all viewports; dig while open (wide: right dock; narrow ≤520px: bottom sheets). Auto **Pause** stops live auto-dig so players can grab coins.
 - Out of scope: 3D inspect (M8).
 
 ## Milestone 8 — 3D artifact inspection
@@ -1957,9 +1958,9 @@ See §4.8 for the decision table. In short:
 - M2: dig-to-reveal + camera follow; drag-scroll debug-only; game-owned `GameState`.
 - M3: `SaveStore` / `createLocalSaveStore`; 1s debounce + 30s max autosave; `?nosave=1` clears.
 - M4: dirt shop + upgrades + passive dig; `decimal.js` + idle `formatAmount`; `?debug=1` give dirt / Reset / drag-scroll.
-- M5: offline claim at soft auto rate × 1/6 (max 24h); save v4 `lastPlayedAtMs`; `?offlineMs=`.
+- M5: offline claim when away ≥30s at soft auto × hardness × 1/6 (max 24h); shorter hides catch up at full rate; save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
-- M7: discoveries (milestones + seeded rolls); collection UI; shaft props; dirt-coin boosters; special coins; save v7.
+- M7: discoveries + find reveal; dirt-coin boosters (6 m grace); 20 special coins (depth-scaled tap premium); FAB dig-while-open sheets; soft dig linear floor; save v7.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 
@@ -1995,13 +1996,9 @@ See §4.8 for the decision table. In short:
 ## Sample game
 
 - Final name?
-- Exact progression formula?
-- Layer structure?
-- Discovery system?
-- Achievement set size / whether any grant a tiny reward vs toast-only?
-- Artifact puzzle mechanics?
-- Upgrade tree?
-- Visual art direction?
+- Achievement set size / whether any grant a tiny reward vs toast-only? (M10)
+- Artifact puzzle mechanics? (M8)
+- Further upgrade-tree / economy tuning beyond current soft dig + shop?
 
 ## Hosting
 
