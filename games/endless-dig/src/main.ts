@@ -272,7 +272,6 @@ async function boot(): Promise<() => void> {
   const layerPlate = document.querySelector<HTMLElement>("[data-layer-plate]");
   const layerPlateName = document.querySelector("[data-layer-plate-name]");
   const dirtEl = document.querySelector('[data-stat="dirt"]');
-  const coinsEl = document.querySelector('[data-stat="coins"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
   const passiveEl = document.querySelector('[data-stat="passive"]');
   const autoPauseBtn =
@@ -775,9 +774,6 @@ async function boot(): Promise<() => void> {
     if (dirtEl) dirtEl.textContent = formatAmount(state.dirt);
     const coinCount = boosterCoinsCollected(state.boosters);
     const coinDirt = state.boosters.dirtEarned;
-    if (coinsEl) {
-      coinsEl.textContent = `${coinCount} · ${formatAmount(coinDirt)}`;
-    }
     if (collectionBoostersEl) {
       collectionBoostersEl.textContent =
         coinCount === 0

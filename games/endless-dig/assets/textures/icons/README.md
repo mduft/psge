@@ -36,7 +36,7 @@ Match `DiscoveryIcon` in `src/discoveries.ts`:
 | --- | --- |
 | `bone.png` | `bone` |
 | `shard.png` | `shard` |
-| `crystal.png` | `crystal` |
+| `crystal.png` | `crystal` (also source for `public/favicon.ico`) |
 | `gear.png` | `gear` |
 | `stone.png` | `stone` |
 | `tablet.png` | `tablet` |
