@@ -9,6 +9,10 @@ import {
   mineshaftCobwebChance,
   mineshaftFloorY,
   mineshaftHasCobweb,
+  activateBarrelAutoBoost,
+  activeBarrelAutoBoostMps,
+  mineshaftBarrelAutoBoostRate,
+  mineshaftBarrelDirtReward,
   mineshaftCartDirtReward,
   mineshaftCrateX,
   mineshaftDecorStyle,
@@ -223,5 +227,25 @@ describe("crates and décor", () => {
       mineshaftCartDirtReward(50),
     );
     expect(mineshaftCartDirtReward(1_000_000)).toBeLessThanOrEqual(50_000);
+  });
+
+  it("scales barrel dirt rewards below carts", () => {
+    expect(mineshaftBarrelDirtReward(50)).toBeGreaterThanOrEqual(350);
+    expect(mineshaftBarrelDirtReward(10_000)).toBeLessThan(
+      mineshaftCartDirtReward(10_000),
+    );
+    expect(mineshaftBarrelDirtReward(1_000_000)).toBeLessThanOrEqual(18_000);
+  });
+
+  it("soft-scales barrel auto-dig boost from 0.5 toward 3 m/s", () => {
+    expect(mineshaftBarrelAutoBoostRate(0)).toBeCloseTo(0.5, 5);
+    expect(mineshaftBarrelAutoBoostRate(10_000)).toBeGreaterThan(
+      mineshaftBarrelAutoBoostRate(0),
+    );
+    expect(mineshaftBarrelAutoBoostRate(1_000_000)).toBeLessThanOrEqual(3);
+    const now = 1_000_000;
+    expect(activateBarrelAutoBoost(0, now)).toBeCloseTo(0.5, 5);
+    expect(activeBarrelAutoBoostMps(now + 1_000)).toBeCloseTo(0.5, 5);
+    expect(activeBarrelAutoBoostMps(now + 5_000)).toBe(0);
   });
 });

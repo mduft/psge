@@ -41,6 +41,10 @@ export interface MineshaftCartPick {
   id: string;
 }
 
+export interface MineshaftBarrelPick {
+  id: string;
+}
+
 export interface MineshaftSyncResult {
   /** Shaft ids that just entered the near dig-face band. */
   newShaftIds: string[];
@@ -54,11 +58,19 @@ export interface MineshaftProps {
   sync(
     excavatedDepth: number,
     claimedCartIds?: ReadonlySet<string>,
+    claimedBarrelIds?: ReadonlySet<string>,
   ): MineshaftSyncResult;
   pickCart(camera: Camera, ndcX: number, ndcY: number): MineshaftCartPick | null;
   setCartHover(pick: MineshaftCartPick | null): void;
   /** Dim a claimed cart so it reads as looted. */
   markCartClaimed(id: string): void;
+  pickBarrel(
+    camera: Camera,
+    ndcX: number,
+    ndcY: number,
+  ): MineshaftBarrelPick | null;
+  setBarrelHover(pick: MineshaftBarrelPick | null): void;
+  markBarrelClaimed(id: string): void;
   /** Flicker torch glows (call each frame). */
   update(dtSeconds: number): void;
   dispose(): void;
@@ -98,6 +110,7 @@ const fillLumpGeo = new SphereGeometry(0.12, 6, 5);
 const crateGeo = new BoxGeometry(0.42, 0.38, 0.42);
 const barrelGeo = new CylinderGeometry(0.2, 0.22, 0.4, 10);
 const barrelBandGeo = new CylinderGeometry(0.225, 0.225, 0.04, 10);
+const barrelHitGeo = new CylinderGeometry(0.28, 0.3, 0.55, 10);
 const torchPoleGeo = new BoxGeometry(0.06, 0.45, 0.06);
 const torchGlowGeo = new PlaneGeometry(1, 1);
 const cartHitGeo = new BoxGeometry(0.85, 0.55, 0.7);
@@ -340,33 +353,61 @@ function addTorch(parent: Group, x: number, floorY: number): Group {
   return g;
 }
 
-function addCrateOrBarrel(
+function applyBarrelClaimedPose(g: Group): void {
+  // Tip onto its side so looted barrels read as empty.
+  g.rotation.z = Math.PI / 2;
+  g.position.y -= 0.06;
+  g.scale.setScalar(0.92);
+}
+
+function addBarrel(
   parent: Group,
   x: number,
   floorY: number,
-  barrel: boolean,
+  id: string,
+  claimed: boolean,
 ): void {
+  const barrel = new Group();
+  barrel.name = "mineshaft-barrel";
+  barrel.userData.barrelId = id;
+  barrel.userData.claimed = claimed;
   const zMid = 0.35;
-  if (barrel) {
-    const body = new Mesh(barrelGeo, barrelMat);
-    body.position.set(x + 0.5, floorY + 0.32, zMid);
-    body.frustumCulled = false;
-    body.renderOrder = 4;
-    parent.add(body);
-    for (const yOff of [0.08, 0.28]) {
-      const band = new Mesh(barrelBandGeo, barrelBandMat);
-      band.position.set(x + 0.5, floorY + 0.18 + yOff, zMid);
-      band.frustumCulled = false;
-      band.renderOrder = 4;
-      parent.add(band);
-    }
-  } else {
-    const crate = new Mesh(crateGeo, crateMat);
-    crate.position.set(x + 0.5, floorY + 0.3, zMid);
-    crate.frustumCulled = false;
-    crate.renderOrder = 4;
-    parent.add(crate);
+  barrel.position.set(x + 0.5, floorY + 0.32, zMid);
+
+  const body = new Mesh(barrelGeo, barrelMat);
+  body.frustumCulled = false;
+  body.renderOrder = 4;
+  barrel.add(body);
+  for (const yOff of [-0.14, 0.06]) {
+    const band = new Mesh(barrelBandGeo, barrelBandMat);
+    band.position.y = yOff;
+    band.frustumCulled = false;
+    band.renderOrder = 4;
+    barrel.add(band);
   }
+
+  const hit = new Mesh(
+    barrelHitGeo,
+    new MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  hit.userData.isHitProxy = true;
+  hit.frustumCulled = false;
+  barrel.add(hit);
+
+  if (claimed) applyBarrelClaimedPose(barrel);
+  parent.add(barrel);
+}
+
+function addCrate(parent: Group, x: number, floorY: number): void {
+  const crate = new Mesh(crateGeo, crateMat);
+  crate.position.set(x + 0.5, floorY + 0.3, 0.35);
+  crate.frustumCulled = false;
+  crate.renderOrder = 4;
+  parent.add(crate);
 }
 
 function addCartFill(cart: Group, depthM: number): void {
@@ -457,6 +498,7 @@ function addMinecart(
 function buildShaftDecor(
   m: MineshaftPlacement,
   claimedCartIds: ReadonlySet<string>,
+  claimedBarrelIds: ReadonlySet<string>,
   torchesOut: Group[],
 ): Group {
   const g = new Group();
@@ -475,12 +517,11 @@ function buildShaftDecor(
   }
   if (mineshaftHasCrate(m.band, m.side)) {
     const cx = mineshaftCrateX(m.band, m.side, m.xMin, m.xMax);
-    addCrateOrBarrel(
-      g,
-      cx,
-      m.floorY,
-      mineshaftCrateIsBarrel(m.band, m.side),
-    );
+    if (mineshaftCrateIsBarrel(m.band, m.side)) {
+      addBarrel(g, cx, m.floorY, m.id, claimedBarrelIds.has(m.id));
+    } else {
+      addCrate(g, cx, m.floorY);
+    }
   }
   if (mineshaftHasMinecart(m.band, m.side)) {
     const cx = mineshaftMinecartX(m.band, m.side, m.xMin, m.xMax);
@@ -489,10 +530,22 @@ function buildShaftDecor(
   return g;
 }
 
-function pickFromObject(obj: Object3D): MineshaftCartPick | null {
+function pickCartFromObject(obj: Object3D): MineshaftCartPick | null {
   let o: Object3D | null = obj;
   while (o) {
     const id = o.userData.minecartId;
+    if (typeof id === "string" && o.userData.claimed !== true) {
+      return { id };
+    }
+    o = o.parent;
+  }
+  return null;
+}
+
+function pickBarrelFromObject(obj: Object3D): MineshaftBarrelPick | null {
+  let o: Object3D | null = obj;
+  while (o) {
+    const id = o.userData.barrelId;
     if (typeof id === "string" && o.userData.claimed !== true) {
       return { id };
     }
@@ -507,6 +560,14 @@ function setCartGroupHover(g: Group, hovered: boolean): void {
   );
 }
 
+function setBarrelGroupHover(g: Group, hovered: boolean): void {
+  if (g.userData.claimed === true) {
+    g.scale.setScalar(0.92);
+    return;
+  }
+  g.scale.setScalar(hovered ? HOVER_SCALE : 1);
+}
+
 export function createMineshaftProps(parent: Object3D): MineshaftProps {
   const root = new Group();
   root.name = "mineshaft-props";
@@ -517,7 +578,8 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
   let prevNearShaftIds = new Set<string>();
   let prevNearCartIds = new Set<string>();
   let syncedOnce = false;
-  let hoverId: string | null = null;
+  let cartHoverId: string | null = null;
+  let barrelHoverId: string | null = null;
   let torchTime = 0;
   let torches: Group[] = [];
 
@@ -530,8 +592,21 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
     return found;
   };
 
+  const findBarrel = (id: string): Group | null => {
+    let found: Group | null = null;
+    root.traverse((o) => {
+      if (found) return;
+      if (o instanceof Group && o.userData.barrelId === id) found = o;
+    });
+    return found;
+  };
+
   return {
-    sync(excavatedDepth, claimedCartIds = new Set()): MineshaftSyncResult {
+    sync(
+      excavatedDepth,
+      claimedCartIds = new Set(),
+      claimedBarrelIds = new Set(),
+    ): MineshaftSyncResult {
       const depth = Math.max(0, excavatedDepth);
       const lo = Math.max(0, depth - LOOK_BEHIND_M);
       const hi = depth + LOOK_AHEAD_M;
@@ -539,7 +614,9 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
       const key =
         list.map((m) => m.id).join("|") +
         "#" +
-        [...claimedCartIds].sort().join(",");
+        [...claimedCartIds].sort().join(",") +
+        "#" +
+        [...claimedBarrelIds].sort().join(",");
       // Spot / SFX when the shaft is beside the dig face — not when it
       // merely enters the wide load window (~140 m ahead).
       const nearLo = depth - NEAR_BEHIND_M;
@@ -567,10 +644,13 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
       if (key !== lastKey) {
         lastKey = key;
         clearGroup(root);
-        hoverId = null;
+        cartHoverId = null;
+        barrelHoverId = null;
         torches = [];
         for (const m of list) {
-          root.add(buildShaftDecor(m, claimedCartIds, torches));
+          root.add(
+            buildShaftDecor(m, claimedCartIds, claimedBarrelIds, torches),
+          );
         }
       }
       return { newShaftIds, newCartIds, cartAppeared };
@@ -581,7 +661,7 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
       raycaster.setFromCamera(ndc, camera);
       const hits = raycaster.intersectObjects(root.children, true);
       for (const h of hits) {
-        const pick = pickFromObject(h.object);
+        const pick = pickCartFromObject(h.object);
         if (pick) return pick;
       }
       return null;
@@ -589,12 +669,12 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
 
     setCartHover(pick): void {
       const next = pick?.id ?? null;
-      if (next === hoverId) return;
-      if (hoverId) {
-        const prev = findCart(hoverId);
+      if (next === cartHoverId) return;
+      if (cartHoverId) {
+        const prev = findCart(cartHoverId);
         if (prev) setCartGroupHover(prev, false);
       }
-      hoverId = next;
+      cartHoverId = next;
       if (next) {
         const g = findCart(next);
         if (g) setCartGroupHover(g, true);
@@ -616,7 +696,41 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
         }
       }
       setCartGroupHover(g, false);
-      if (hoverId === id) hoverId = null;
+      if (cartHoverId === id) cartHoverId = null;
+    },
+
+    pickBarrel(camera, ndcX, ndcY): MineshaftBarrelPick | null {
+      ndc.set(ndcX, ndcY);
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObjects(root.children, true);
+      for (const h of hits) {
+        const pick = pickBarrelFromObject(h.object);
+        if (pick) return pick;
+      }
+      return null;
+    },
+
+    setBarrelHover(pick): void {
+      const next = pick?.id ?? null;
+      if (next === barrelHoverId) return;
+      if (barrelHoverId) {
+        const prev = findBarrel(barrelHoverId);
+        if (prev) setBarrelGroupHover(prev, false);
+      }
+      barrelHoverId = next;
+      if (next) {
+        const g = findBarrel(next);
+        if (g) setBarrelGroupHover(g, true);
+      }
+    },
+
+    markBarrelClaimed(id): void {
+      const g = findBarrel(id);
+      if (!g) return;
+      if (g.userData.claimed === true) return;
+      g.userData.claimed = true;
+      applyBarrelClaimedPose(g);
+      if (barrelHoverId === id) barrelHoverId = null;
     },
 
     update(dtSeconds: number): void {

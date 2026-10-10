@@ -234,6 +234,10 @@ body {
   display: block;
 }
 
+.stat-auto.is-boosted [data-stat="passive"] {
+  color: #e2c48f;
+}
+
 .stat-auto.is-paused [data-stat="passive"] {
   color: rgba(196, 165, 116, 0.95);
 }
@@ -1708,7 +1712,8 @@ html[data-psge-panel="open"] #hud-panel {
 .update-banner {
   position: absolute;
   left: 50%;
-  bottom: calc(4.1rem + var(--safe-bottom));
+  /* Sit clearly above the bottom layer plate (+ gap). */
+  bottom: calc(5.6rem + var(--safe-bottom));
   z-index: 6;
   display: flex;
   align-items: center;

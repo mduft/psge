@@ -229,19 +229,24 @@ export function dig(state: GameState, maxDepth?: Decimal.Value): string[] {
  * Apply passive digging for `dt` seconds.
  * Soft-caps the nominal blocks/s the same way as tap dig power, then applies
  * geological layer hardness at the current depth.
+ * `extraRateMps` is added after hardness (e.g. barrel auto-dig buff).
  * @returns newly unlocked ids (empty if depth unchanged).
  */
 export function tickProduction(
   state: GameState,
   dt: number,
   maxDepth?: Decimal.Value,
+  extraRateMps = 0,
 ): string[] {
   if (!Number.isFinite(dt) || dt <= 0) return [];
   const rate = passiveRateOf(state);
-  if (rate.lte(0)) return [];
   const softRate = softDigAmount(rate.toNumber());
   const hardRate = applyLayerHardness(softRate, state.depth.toNumber());
-  let next = state.depth.plus(new Decimal(hardRate).mul(dt));
+  const bonus =
+    Number.isFinite(extraRateMps) && extraRateMps > 0 ? extraRateMps : 0;
+  const totalRate = hardRate + bonus;
+  if (!(totalRate > 0)) return [];
+  let next = state.depth.plus(new Decimal(totalRate).mul(dt));
   if (maxDepth !== undefined) {
     next = Decimal.min(next, Decimal.max(0, toDecimal(maxDepth)));
   }

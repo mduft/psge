@@ -310,3 +310,48 @@ export function mineshaftCartDirtReward(depthM: number): number {
   // Floor 1k; ~0.5 dirt/m so deep carts stay worth the detour.
   return Math.min(50_000, Math.floor(1000 + d * 0.5));
 }
+
+/** Dirt granted once when tapping a barrel (supplies — less than a cart). */
+export function mineshaftBarrelDirtReward(depthM: number): number {
+  const d = Math.max(0, depthM);
+  // Floor 350; ~0.18 dirt/m so barrels stay a smaller find than carts.
+  return Math.min(18_000, Math.floor(350 + d * 0.18));
+}
+
+/** Wall-clock length of the barrel auto-dig speed buff. */
+export const BARREL_AUTO_BOOST_MS = 5_000;
+/** Surface auto-dig bonus from a barrel (m/s). */
+export const BARREL_AUTO_BOOST_BASE_MPS = 0.5;
+/** Soft ceiling for the barrel auto-dig bonus (m/s). */
+export const BARREL_AUTO_BOOST_CAP_MPS = 3;
+
+/**
+ * Additive auto-dig bonus (m/s) from a barrel at `depthM`.
+ * Soft-scales from 0.5 → 3 with the same depth curve as dirt-coin tap mult.
+ */
+export function mineshaftBarrelAutoBoostRate(depthM: number): number {
+  const d = Math.max(0, depthM);
+  const t = Math.min(1, Math.asinh(d / 2500) / Math.asinh(4));
+  return (
+    BARREL_AUTO_BOOST_BASE_MPS +
+    (BARREL_AUTO_BOOST_CAP_MPS - BARREL_AUTO_BOOST_BASE_MPS) * t
+  );
+}
+
+let barrelBoostUntilMs = 0;
+let barrelBoostRateMps = 0;
+
+/** Start / refresh the 5s barrel auto-dig buff. Returns the rate applied. */
+export function activateBarrelAutoBoost(
+  depthM: number,
+  nowMs = Date.now(),
+): number {
+  barrelBoostRateMps = mineshaftBarrelAutoBoostRate(depthM);
+  barrelBoostUntilMs = nowMs + BARREL_AUTO_BOOST_MS;
+  return barrelBoostRateMps;
+}
+
+/** Active additive auto-dig bonus (m/s), or 0 if the buff expired. */
+export function activeBarrelAutoBoostMps(nowMs = Date.now()): number {
+  return nowMs < barrelBoostUntilMs ? barrelBoostRateMps : 0;
+}

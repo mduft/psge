@@ -19,6 +19,7 @@ import { applyDigCursor, digToolOf } from "./digCursor.js";
 import {
   initAudio,
   isMuted,
+  playBarrelThud,
   playCoinAppear,
   playRailClink,
   toggleMuted,
@@ -44,12 +45,18 @@ import {
   evaluateAchievements,
   getAchievementDef,
   noteAfkDig,
+  noteBarrelClaimed,
   noteMinecartClaimed,
   noteMinecartsSeen,
   noteMineshaftSeen,
   noteOvernightClaim,
 } from "./achievements.js";
-import { mineshaftCartDirtReward } from "./mineshafts.js";
+import {
+  activateBarrelAutoBoost,
+  activeBarrelAutoBoostMps,
+  mineshaftBarrelDirtReward,
+  mineshaftCartDirtReward,
+} from "./mineshafts.js";
 import {
   refreshAchievementsList,
   refreshDiscoveryList,
@@ -767,12 +774,20 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeBooster = claims[claims.length - 1]!.id;
   };
 
-  /** Reuse dirt-coin toast chrome for minecart loot. */
-  const showCartLootToast = (dirt: number): void => {
+  /** Reuse dirt-coin toast chrome for shaft loot (cart / barrel). */
+  const showShaftLootToast = (
+    label: string,
+    dirt: number,
+    detail?: string,
+  ): void => {
     if (!boosterToast || dirt <= 0) return;
     boosterToast.dataset.combo = "0";
     boosterToast.style.setProperty("--combo", "0");
-    if (boosterToastEyebrow) boosterToastEyebrow.textContent = "Minecart";
+    if (boosterToastEyebrow) {
+      boosterToastEyebrow.textContent = detail
+        ? `${label} · ${detail}`
+        : label;
+    }
     if (boosterToastCombo) {
       boosterToastCombo.hidden = true;
       boosterToastCombo.textContent = "";
@@ -846,6 +861,7 @@ async function boot(): Promise<() => void> {
   const clearCoinHover = (): void => {
     world.setShaftCoinHover(null);
     world.setMinecartHover(null);
+    world.setBarrelHover(null);
     if (!hoveringLoot) return;
     hoveringLoot = false;
     if (!coarsePointer) restoreDigCursor();
@@ -862,9 +878,13 @@ async function boot(): Promise<() => void> {
     const cartHit = coinHit
       ? null
       : world.pickMinecart(app.camera, ndcX, ndcY);
+    const barrelHit =
+      coinHit || cartHit ? null : world.pickBarrel(app.camera, ndcX, ndcY);
     world.setShaftCoinHover(coinHit);
     world.setMinecartHover(cartHit);
-    const next = coinHit !== null || cartHit !== null;
+    world.setBarrelHover(barrelHit);
+    const next =
+      coinHit !== null || cartHit !== null || barrelHit !== null;
     if (next === hoveringLoot) {
       if (next && !coarsePointer) canvas.style.cursor = "pointer";
       return;
@@ -937,7 +957,8 @@ async function boot(): Promise<() => void> {
   const updateHud = (): void => {
     const depth = depthNumber(state);
     const power = effectiveDigPowerOf(state);
-    const passive = effectivePassiveRateOf(state);
+    const boost = state.autoDigPaused ? 0 : activeBarrelAutoBoostMps();
+    const passive = effectivePassiveRateOf(state) + boost;
     const layer = geoLayerAt(depth);
     if (depthEl) depthEl.textContent = `${formatAmount(state.depth)} m`;
     if (layerPlateName) layerPlateName.textContent = layer.name;
@@ -963,8 +984,9 @@ async function boot(): Promise<() => void> {
       // Keep the rate visible while paused — the button icon/color carries state.
       passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
+    autoStat?.classList.toggle("is-boosted", boost > 0);
     if (autoPauseBtn) {
-      if (passive > 0 || state.autoDigPaused) {
+      if (passive > 0 || state.autoDigPaused || boost > 0) {
         autoPauseBtn.hidden = false;
         autoPauseBtn.setAttribute(
           "aria-pressed",
@@ -995,7 +1017,8 @@ async function boot(): Promise<() => void> {
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
     const claimedCarts = new Set(state.achievements.claimedMinecarts);
-    const shaftSync = world.syncMineshafts(depth, claimedCarts);
+    const claimedBarrels = new Set(state.achievements.claimedBarrels);
+    const shaftSync = world.syncMineshafts(depth, claimedCarts, claimedBarrels);
     if (shaftSync.newShaftIds.length > 0) {
       noteMineshaftSeen(state);
     }
@@ -1322,7 +1345,23 @@ async function boot(): Promise<() => void> {
           state.dirt = state.dirt.plus(toDecimal(reward));
           world.markMinecartClaimed(cart.id);
           playRailClink();
-          showCartLootToast(reward);
+          showShaftLootToast("Minecart", reward);
+          applyPlayView();
+          autosave.markDirty();
+          return;
+        }
+        const barrel = world.pickBarrel(app.camera, ndcX, ndcY);
+        if (barrel && noteBarrelClaimed(state, barrel.id)) {
+          const reward = mineshaftBarrelDirtReward(depth);
+          const boostMps = activateBarrelAutoBoost(depth);
+          state.dirt = state.dirt.plus(toDecimal(reward));
+          world.markBarrelClaimed(barrel.id);
+          playBarrelThud();
+          showShaftLootToast(
+            "Barrel",
+            reward,
+            `+${formatMeters(boostMps)} m/s · 5s`,
+          );
           applyPlayView();
           autosave.markDirty();
           return;
@@ -1429,28 +1468,51 @@ async function boot(): Promise<() => void> {
 
   /** Pace subtle passive chips so high rates don't look like tap bursts. */
   let trickleCooldown = 0;
+  let barrelBoostHudActive = false;
   app.startLoop((dt) => {
     world.update(dt);
     // Pause live auto-dig while claim / find reveal is open, or player paused.
-    if (pendingOffline || findReveal.isOpen || state.autoDigPaused) return;
+    if (pendingOffline || findReveal.isOpen || state.autoDigPaused) {
+      if (barrelBoostHudActive) {
+        barrelBoostHudActive = false;
+        updateHud();
+      }
+      return;
+    }
+    const boost = activeBarrelAutoBoostMps();
     trickleCooldown = Math.max(0, trickleCooldown - dt);
     const depthBefore = depthNumber(state);
-    const found = tickProduction(state, dt);
-    if (depthNumber(state) === depthBefore) return;
-    noteAfkDig(state);
-    enqueueFinds(found);
-    collectShaftCoins();
-    syncFromState();
-    applyCamera();
-    if (flushAchievements()) autosave.markDirty();
-    updateHud();
-    autosave.markDirty();
-    if (trickleCooldown <= 0) {
-      world.trickleDigParticles();
-      world.playCrewChip();
-      const rate = effectivePassiveRateOf(state);
-      // ~3–12 Hz depending on effective passive rate; stays visibly quieter than taps.
-      trickleCooldown = Math.min(0.32, Math.max(0.08, 0.28 / Math.sqrt(1 + rate)));
+    const found = tickProduction(state, dt, undefined, boost);
+    const dug = depthNumber(state) !== depthBefore;
+    if (dug) {
+      noteAfkDig(state);
+      enqueueFinds(found);
+      collectShaftCoins();
+      syncFromState();
+      applyCamera();
+      if (flushAchievements()) autosave.markDirty();
+      updateHud();
+      autosave.markDirty();
+      barrelBoostHudActive = boost > 0;
+      if (trickleCooldown <= 0) {
+        world.trickleDigParticles();
+        world.playCrewChip();
+        const rate = effectivePassiveRateOf(state) + boost;
+        // ~3–12 Hz depending on effective passive rate; stays visibly quieter than taps.
+        trickleCooldown = Math.min(
+          0.32,
+          Math.max(0.08, 0.28 / Math.sqrt(1 + rate)),
+        );
+      }
+      return;
+    }
+    // Refresh Auto m/s while a barrel buff is running / just expired.
+    if (boost > 0) {
+      barrelBoostHudActive = true;
+      updateHud();
+    } else if (barrelBoostHudActive) {
+      barrelBoostHudActive = false;
+      updateHud();
     }
   });
 

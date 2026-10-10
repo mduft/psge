@@ -110,3 +110,28 @@ export function playRailClink(): void {
     /* ignore */
   }
 }
+
+/** Soft wood thud when looting a barrel. */
+export function playBarrelThud(): void {
+  if (muted) return;
+  const ctx = ensureRailAudioCtx();
+  if (!ctx) return;
+  try {
+    void ctx.resume().catch(() => {});
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(180, t0);
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.1);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.18);
+  } catch {
+    /* ignore */
+  }
+}

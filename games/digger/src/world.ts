@@ -39,6 +39,7 @@ import { isMineshaftAir } from "./mineshafts.js";
 import {
   createMineshaftProps,
   type MineshaftCartPick,
+  type MineshaftBarrelPick,
   type MineshaftSyncResult,
 } from "./mineshaftProps.js";
 import { createShaftActors, type ShaftActors } from "./shaftActors.js";
@@ -80,6 +81,7 @@ export interface DigWorld {
   syncMineshafts(
     excavatedDepth: number,
     claimedCartIds?: ReadonlySet<string>,
+    claimedBarrelIds?: ReadonlySet<string>,
   ): MineshaftSyncResult;
   /** Sync visible dirt + special coins; returns count of newly appeared coins. */
   syncShaftCoins(
@@ -104,6 +106,14 @@ export interface DigWorld {
   ): MineshaftCartPick | null;
   setMinecartHover(pick: MineshaftCartPick | null): void;
   markMinecartClaimed(id: string): void;
+  /** NDC ray pick against looting barrels (−1…1). */
+  pickBarrel(
+    camera: Camera,
+    ndcX: number,
+    ndcY: number,
+  ): MineshaftBarrelPick | null;
+  setBarrelHover(pick: MineshaftBarrelPick | null): void;
+  markBarrelClaimed(id: string): void;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -482,8 +492,8 @@ export function buildDigWorld(
     syncActors(depth: number, upgrades: UpgradeLevels): void {
       actors.sync(depth, upgrades);
     },
-    syncMineshafts(depth, claimedCartIds): MineshaftSyncResult {
-      return mineshaftProps.sync(depth, claimedCartIds);
+    syncMineshafts(depth, claimedCartIds, claimedBarrelIds): MineshaftSyncResult {
+      return mineshaftProps.sync(depth, claimedCartIds, claimedBarrelIds);
     },
     syncShaftCoins(
       depth: number,
@@ -511,6 +521,15 @@ export function buildDigWorld(
     },
     markMinecartClaimed(id: string): void {
       mineshaftProps.markCartClaimed(id);
+    },
+    pickBarrel(camera, ndcX, ndcY): MineshaftBarrelPick | null {
+      return mineshaftProps.pickBarrel(camera, ndcX, ndcY);
+    },
+    setBarrelHover(pick: MineshaftBarrelPick | null): void {
+      mineshaftProps.setBarrelHover(pick);
+    },
+    markBarrelClaimed(id: string): void {
+      mineshaftProps.markBarrelClaimed(id);
     },
     playDigSwing(): void {
       actors.playDigSwing();

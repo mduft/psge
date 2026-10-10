@@ -434,6 +434,7 @@ export function serializeGameState(state: GameState): SerializedGameState {
       mineshaftSeen: state.achievements.mineshaftSeen,
       seenMinecarts: [...state.achievements.seenMinecarts],
       claimedMinecarts: [...state.achievements.claimedMinecarts],
+      claimedBarrels: [...state.achievements.claimedBarrels],
     },
     panelSeen: {
       discoveries: [...state.panelSeen.discoveries],

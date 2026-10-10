@@ -42,6 +42,8 @@ export interface AchievementProgress {
   seenMinecarts: string[];
   /** Minecart ids already tapped for dirt loot. */
   claimedMinecarts: string[];
+  /** Barrel ids already tapped for dirt loot. */
+  claimedBarrels: string[];
 }
 
 const LAYER_ACHIEVEMENTS: readonly {
@@ -340,7 +342,20 @@ export function emptyAchievementProgress(): AchievementProgress {
     mineshaftSeen: false,
     seenMinecarts: [],
     claimedMinecarts: [],
+    claimedBarrels: [],
   };
+}
+
+function normalizeIdList(raw: unknown): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  if (!Array.isArray(raw)) return out;
+  for (const id of raw) {
+    if (typeof id !== "string" || !id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
 }
 
 export function normalizeAchievements(raw: unknown): AchievementProgress {
@@ -356,31 +371,14 @@ export function normalizeAchievements(raw: unknown): AchievementProgress {
       unlocked.push(id);
     }
   }
-  const seenMinecarts: string[] = [];
-  const seenSet = new Set<string>();
-  if (Array.isArray(o.seenMinecarts)) {
-    for (const id of o.seenMinecarts) {
-      if (typeof id !== "string" || !id || seenSet.has(id)) continue;
-      seenSet.add(id);
-      seenMinecarts.push(id);
-    }
-  }
-  const claimedMinecarts: string[] = [];
-  const claimedSeen = new Set<string>();
-  if (Array.isArray(o.claimedMinecarts)) {
-    for (const id of o.claimedMinecarts) {
-      if (typeof id !== "string" || !id || claimedSeen.has(id)) continue;
-      claimedSeen.add(id);
-      claimedMinecarts.push(id);
-    }
-  }
   return {
     unlocked,
     afkDigSeen: o.afkDigSeen === true,
     overnightClaimed: o.overnightClaimed === true,
     mineshaftSeen: o.mineshaftSeen === true,
-    seenMinecarts,
-    claimedMinecarts,
+    seenMinecarts: normalizeIdList(o.seenMinecarts),
+    claimedMinecarts: normalizeIdList(o.claimedMinecarts),
+    claimedBarrels: normalizeIdList(o.claimedBarrels),
   };
 }
 
@@ -549,5 +547,15 @@ export function noteMinecartClaimed(
 ): boolean {
   if (state.achievements.claimedMinecarts.includes(cartId)) return false;
   state.achievements.claimedMinecarts.push(cartId);
+  return true;
+}
+
+/** Record a barrel loot claim (idempotent). */
+export function noteBarrelClaimed(
+  state: AchievementEvalState,
+  barrelId: string,
+): boolean {
+  if (state.achievements.claimedBarrels.includes(barrelId)) return false;
+  state.achievements.claimedBarrels.push(barrelId);
   return true;
 }
