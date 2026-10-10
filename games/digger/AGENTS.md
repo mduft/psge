@@ -21,7 +21,7 @@ Dev URL examples:
 ## Milestone 9 (current) — Achievements
 
 - Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards) — depth 10 m … 10 000 km, geo layers, tool/auto ownership, per-upgrade Lv 10, any Lv 25/50, 100 total levels, dirt, finds, AFK/offline
-- Save version **10** (`panelSeen` + dirt-coin combo streak); v2–v9 migrate
+- Save version **11** (`autoDigPaused`); v2–v10 migrate
 - Unreadable saves: modal with **Reload** (keep blob, refresh) or **Reset progress** (clear, then boot); `html[data-psge-save-error]` while open
 - Tab dots (not counts) for unseen unlocks; opening the tab clears the dot
 - FAB **Achievements** sheet + toast queue; distinct from Finds (discoveries) / Coins (special coins)
@@ -33,7 +33,7 @@ Dev URL examples:
 - **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find-reveal modal; collection sheet; shaft props
 - **Geo layers** (`geoLayers.ts`): Topsoil 0–1k … Abyss 120k+; hardness; fog/sky/lights; layer toast
 - Soft dig with linear floor, then × layer hardness
-- Shop: Per tap vs Auto dig; **Pause** on Auto
+- Shop: Per tap vs Auto dig; **Pause** on Auto (persisted in save)
 - **Offline:** ≥30s → claim at soft auto × hardness × **1/6** (max 24h)
 - **Boosters** / **Special coins** in the shaft (6 m auto grace); dirt-coin tap = depth×combo (`BOOSTER_TAP_*` / `BOOSTER_COMBO_*` in `boosters.ts`), auto ×1
 - HUD panels dig-while-open (wide: right dock; narrow ≤520px: bottom sheets)
@@ -68,3 +68,4 @@ Deploy updates: production builds emit `dist/version.json` (`buildId`); clients 
 - Logical focus Y: `0` = surface, more negative = deeper
 - Render coords stay near 0 via floating origin
 - 1 block = 1 unit before `BLOCK_SCALE`
+- Side mineshafts: `mineshafts.ts` carves air from cutaway walls; rails/cobwebs in `mineshaftProps.ts`

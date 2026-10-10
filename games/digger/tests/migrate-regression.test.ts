@@ -46,7 +46,8 @@ describe("mid-game migration fidelity", () => {
   it("v9 → current keeps depth, dirt, upgrades, and catalogs", () => {
     const s = parseGameState(richV9);
     expect(s).not.toBeNull();
-    expect(s!.version).toBe(10);
+    expect(s!.version).toBe(11);
+    expect(s!.autoDigPaused).toBe(false);
     expect(s!.depth.toString()).toBe("12345.67");
     expect(s!.dirt.toString()).toBe("99999");
     expect(s!.upgrades.shovel).toBe(3);
@@ -82,5 +83,24 @@ describe("mid-game migration fidelity", () => {
     expect(s!.depth.toString()).toBe("12345.67");
     expect(s!.dirt.toString()).toBe("99999");
     expect(s!.achievements.unlocked).toEqual(["first-dig", "depth-100"]);
+  });
+
+  it("v10 → current defaults autoDigPaused false", () => {
+    const s = parseGameState({
+      ...richV9,
+      version: 10,
+      boosters: {
+        claimed: ["b0", "b1", "b2"],
+        dirtEarned: 1500,
+        combo: 2,
+        comboAtMs: Date.now() - 1_000,
+      },
+    });
+    expect(s).not.toBeNull();
+    expect(s!.version).toBe(11);
+    expect(s!.autoDigPaused).toBe(false);
+    expect(s!.depth.toString()).toBe("12345.67");
+    expect(s!.boosters.claimed).toEqual(["b0", "b1", "b2"]);
+    expect(s!.boosters.combo).toBe(2);
   });
 });

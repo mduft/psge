@@ -46,8 +46,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (v10+: dirt-coin combo streak). */
-export const GAME_STATE_VERSION = 10;
+/** Persist / GameState schema version (v11+: auto-dig pause). */
+export const GAME_STATE_VERSION = 11;
 
 export interface GameState {
   version: number;
@@ -62,6 +62,8 @@ export interface GameState {
    * `0` means unknown — no offline claim on load.
    */
   lastPlayedAtMs: number;
+  /** When true, live auto-dig is paused (persisted across sessions). */
+  autoDigPaused: boolean;
   /** M7 discovery collection + roll state. */
   discoveries: DiscoveryProgress;
   /** Claimed shaft dirt-coin boosters. */
@@ -85,6 +87,7 @@ export function createInitialState(
     dirt?: Decimal.Value;
     upgrades?: Partial<UpgradeLevels>;
     lastPlayedAtMs?: number;
+    autoDigPaused?: boolean;
     discoveries?: DiscoveryProgress | Partial<DiscoveryProgress>;
     boosters?: BoosterProgress | Partial<BoosterProgress>;
     specialCoins?: SpecialCoinProgress | Partial<SpecialCoinProgress>;
@@ -132,6 +135,7 @@ export function createInitialState(
     dirt: toDecimal(overrides.dirt ?? 0),
     upgrades,
     lastPlayedAtMs: last,
+    autoDigPaused: overrides.autoDigPaused === true,
     discoveries,
     boosters,
     specialCoins,
@@ -267,6 +271,7 @@ export function resetProgress(state: GameState): void {
   state.upgrades = emptyUpgrades();
   state.version = GAME_STATE_VERSION;
   state.lastPlayedAtMs = 0;
+  state.autoDigPaused = false;
   state.discoveries = emptyDiscoveryProgress();
   state.boosters = emptyBoosterProgress();
   state.specialCoins = emptySpecialCoinProgress();

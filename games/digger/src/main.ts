@@ -390,8 +390,6 @@ async function boot(): Promise<() => void> {
   const collectionBoostersEl = document.querySelector<HTMLElement>(
     "[data-collection-boosters]",
   );
-  /** Session-only: pause live auto-dig so coins stay tappable. */
-  let autoDigPaused = false;
   const layerToast = document.querySelector<HTMLElement>("#layer-toast");
   const layerToastName = document.querySelector("[data-layer-toast-name]");
   const debugPanel = document.querySelector<HTMLElement>("#debug-panel");
@@ -834,8 +832,9 @@ async function boot(): Promise<() => void> {
   const onAutoPauseToggle = (e: Event): void => {
     e.preventDefault();
     e.stopPropagation();
-    autoDigPaused = !autoDigPaused;
+    state.autoDigPaused = !state.autoDigPaused;
     updateHud();
+    autosave.markDirty();
   };
   autoPauseBtn?.addEventListener("click", onAutoPauseToggle);
   autoPauseBtn?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
@@ -903,25 +902,25 @@ async function boot(): Promise<() => void> {
       passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
     if (autoPauseBtn) {
-      if (passive > 0 || autoDigPaused) {
+      if (passive > 0 || state.autoDigPaused) {
         autoPauseBtn.hidden = false;
         autoPauseBtn.setAttribute(
           "aria-pressed",
-          autoDigPaused ? "true" : "false",
+          state.autoDigPaused ? "true" : "false",
         );
         autoPauseBtn.setAttribute(
           "aria-label",
-          autoDigPaused ? "Resume auto-dig" : "Pause auto-dig",
+          state.autoDigPaused ? "Resume auto-dig" : "Pause auto-dig",
         );
-        autoPauseBtn.title = autoDigPaused
+        autoPauseBtn.title = state.autoDigPaused
           ? "Resume auto-dig"
           : "Pause auto-dig to grab coins";
       } else {
         autoPauseBtn.hidden = true;
       }
     }
-    autoStat?.classList.toggle("is-paused", autoDigPaused);
-    document.documentElement.dataset.psgeAutoPaused = autoDigPaused
+    autoStat?.classList.toggle("is-paused", state.autoDigPaused);
+    document.documentElement.dataset.psgeAutoPaused = state.autoDigPaused
       ? "1"
       : "0";
     document.documentElement.dataset.psgeLayer = layer.id;
@@ -934,6 +933,7 @@ async function boot(): Promise<() => void> {
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
     world.syncDiscoveries(depth, state.discoveries);
+    world.syncMineshafts(depth);
     const coinsAppeared = world.syncShaftCoins(
       depth,
       state.discoveries.worldSeed,
@@ -1345,7 +1345,7 @@ async function boot(): Promise<() => void> {
   app.startLoop((dt) => {
     world.update(dt);
     // Pause live auto-dig while claim / find reveal is open, or player paused.
-    if (pendingOffline || findReveal.isOpen || autoDigPaused) return;
+    if (pendingOffline || findReveal.isOpen || state.autoDigPaused) return;
     trickleCooldown = Math.max(0, trickleCooldown - dt);
     const depthBefore = depthNumber(state);
     const found = tickProduction(state, dt);

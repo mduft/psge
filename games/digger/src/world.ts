@@ -37,6 +37,8 @@ import {
   wallAccentAt,
   wallAccentVariant,
 } from "./geoLayers.js";
+import { isMineshaftAir } from "./mineshafts.js";
+import { createMineshaftProps } from "./mineshaftProps.js";
 import { createShaftActors, type ShaftActors } from "./shaftActors.js";
 import type { UpgradeLevels } from "./upgrades.js";
 
@@ -74,6 +76,8 @@ export interface DigWorld {
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
   /** Sync discovery props on cutaway walls. */
   syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
+  /** Sync side-mineshaft rails / cobwebs near the dig face. */
+  syncMineshafts(excavatedDepth: number): void;
   /** Sync visible dirt + special coins; returns count of newly appeared coins. */
   syncShaftCoins(
     excavatedDepth: number,
@@ -261,6 +265,7 @@ export function buildDigWorld(
   const particles = createDigParticles(content);
   const actors: ShaftActors = createShaftActors(content);
   const discoveryProps = createDiscoveryProps(content);
+  const mineshaftProps = createMineshaftProps(content);
   const shaftCoins = createShaftCoinProps(content);
   const chunkGroups = new Map<number, Group>();
   /** Dig-face partials live here so intra-block dig does not reload chunks. */
@@ -470,6 +475,9 @@ export function buildDigWorld(
     syncDiscoveries(depth: number, progress: DiscoveryProgress): void {
       discoveryProps.sync(depth, progress);
     },
+    syncMineshafts(depth: number): void {
+      mineshaftProps.sync(depth);
+    },
     syncShaftCoins(
       depth: number,
       worldSeed: number,
@@ -509,6 +517,7 @@ export function buildDigWorld(
       actors.dispose();
       shaftCoins.dispose();
       discoveryProps.dispose();
+      mineshaftProps.dispose();
       particles.dispose();
       disposeChunkGroup(digFaceRoot);
       chunks.dispose();
@@ -784,6 +793,9 @@ function placeColumnBlock(
     add(strataAt(x, y, z), x, y, z, remain);
     return;
   }
+
+  // Abandoned side tunnels (carved regardless of dig progress).
+  if (isMineshaftAir(x, y, z)) return;
 
   const base = strataAt(x, y, z);
   const accent = wallAccentAt(x, y, z);

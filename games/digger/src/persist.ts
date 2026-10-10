@@ -48,6 +48,7 @@ export interface SerializedGameState {
   dirt: string;
   upgrades: Record<string, number>;
   lastPlayedAtMs: number;
+  autoDigPaused: boolean;
   discoveries: DiscoveryProgress;
   boosters: BoosterProgress;
   specialCoins: SpecialCoinProgress;
@@ -97,6 +98,10 @@ function parseLastPlayedAtMs(value: unknown): number {
   return 0;
 }
 
+function parseAutoDigPaused(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
 function stateFromFields(
   depth: Decimal,
   dirt: Decimal,
@@ -107,6 +112,7 @@ function stateFromFields(
   specialCoins?: SpecialCoinProgress,
   achievements?: AchievementProgress,
   panelSeen?: PanelSeenProgress,
+  autoDigPaused = false,
 ): GameState {
   return createInitialState({
     version: DIG_SAVE_VERSION,
@@ -114,6 +120,7 @@ function stateFromFields(
     dirt,
     upgrades,
     lastPlayedAtMs,
+    autoDigPaused,
     discoveries: discoveries ?? emptyDiscoveryProgress(),
     boosters: boosters ?? emptyBoosterProgress(),
     specialCoins: specialCoins ?? emptySpecialCoinProgress(),
@@ -315,6 +322,40 @@ export function migrateV9ToV10(data: Record<string, unknown>): GameState | null 
   );
 }
 
+/** Migrate a v10 save into v11 (auto-dig pause; default unpaused). */
+export function migrateV10ToV11(data: Record<string, unknown>): GameState | null {
+  if (parseSaveVersion(data.version) !== 10) return null;
+  const depth = parseDecimalField(data.depth);
+  const dirt = parseDecimalField(data.dirt);
+  if (depth === null || dirt === null) return null;
+  const upgrades =
+    data.upgrades && typeof data.upgrades === "object"
+      ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
+      : normalizeUpgrades(undefined);
+  const fallbackSeed =
+    ((Date.now() ^ Math.floor(depth.toNumber())) >>> 0) || 1;
+  const discoveries = normalizeDiscoveryProgress(
+    data.discoveries,
+    fallbackSeed,
+  );
+  const boosters = normalizeBoosterProgress(data.boosters);
+  const specialCoins = normalizeSpecialCoinProgress(data.specialCoins);
+  const achievements = normalizeAchievements(data.achievements);
+  const panelSeen = normalizePanelSeen(data.panelSeen);
+  return stateFromFields(
+    depth,
+    dirt,
+    upgrades,
+    parseLastPlayedAtMs(data.lastPlayedAtMs),
+    discoveries,
+    boosters,
+    specialCoins,
+    achievements,
+    panelSeen,
+    false,
+  );
+}
+
 export function parseGameState(data: unknown): GameState | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
@@ -329,6 +370,7 @@ export function parseGameState(data: unknown): GameState | null {
   if (version === 7) return migrateV7ToV8(o);
   if (version === 8) return migrateV8ToV9(o);
   if (version === 9) return migrateV9ToV10(o);
+  if (version === 10) return migrateV10ToV11(o);
 
   if (version !== DIG_SAVE_VERSION) return null;
 
@@ -359,6 +401,7 @@ export function parseGameState(data: unknown): GameState | null {
     specialCoins,
     achievements,
     panelSeen,
+    parseAutoDigPaused(o.autoDigPaused),
   );
 }
 
@@ -369,6 +412,7 @@ export function serializeGameState(state: GameState): SerializedGameState {
     dirt: state.dirt.toString(),
     upgrades: { ...state.upgrades },
     lastPlayedAtMs: state.lastPlayedAtMs,
+    autoDigPaused: state.autoDigPaused === true,
     discoveries: {
       unlocked: [...state.discoveries.unlocked],
       worldSeed: state.discoveries.worldSeed,
