@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: MIT
  *
  * Discovery + special-coin + achievement collection sheet row builders.
+ *
+ * Lists are rebuilt only when the unlock signature changes — `updateHud` runs
+ * every frame, and Chrome scroll-anchoring jumps to the bottom if we churn
+ * the DOM while the user has scrolled.
  */
 import { ACHIEVEMENT_DEFS } from "./achievements.js";
 import { DISCOVERY_DEFS } from "./discoveries.js";
@@ -13,11 +17,28 @@ import {
 } from "./icons.js";
 import { SPECIAL_COIN_DEFS } from "./specialCoins.js";
 
+const lastSig = new WeakMap<HTMLElement, string>();
+
+function unlockSig(ids: readonly string[]): string {
+  return ids.join("\0");
+}
+
+/** Skip a no-op rebuild; returns true when the list still needs painting. */
+function needsRebuild(
+  list: HTMLElement,
+  unlockedIds: readonly string[],
+): boolean {
+  const sig = unlockSig(unlockedIds);
+  if (lastSig.get(list) === sig && list.childElementCount > 0) return false;
+  lastSig.set(list, sig);
+  return true;
+}
+
 export function refreshDiscoveryList(
   list: HTMLElement | null,
   unlockedIds: readonly string[],
 ): void {
-  if (!list) return;
+  if (!list || !needsRebuild(list, unlockedIds)) return;
   const owned = new Set(unlockedIds);
   list.replaceChildren();
   for (const def of DISCOVERY_DEFS) {
@@ -49,7 +70,7 @@ export function refreshSpecialCoinsList(
   list: HTMLElement | null,
   unlockedIds: readonly string[],
 ): void {
-  if (!list) return;
+  if (!list || !needsRebuild(list, unlockedIds)) return;
   const owned = new Set(unlockedIds);
   list.replaceChildren();
   for (const def of SPECIAL_COIN_DEFS) {
@@ -83,7 +104,7 @@ export function refreshAchievementsList(
   list: HTMLElement | null,
   unlockedIds: readonly string[],
 ): void {
-  if (!list) return;
+  if (!list || !needsRebuild(list, unlockedIds)) return;
   const owned = new Set(unlockedIds);
   list.replaceChildren();
   for (const def of ACHIEVEMENT_DEFS) {

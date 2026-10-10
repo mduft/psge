@@ -12,6 +12,10 @@ export default defineConfig({
       "@psge/engine": path.resolve(__dirname, "packages/psge/src/index.ts"),
     },
   },
+  define: {
+    // Match vite.versionPlugin default for any code that reads the global.
+    __PSGE_BUILD_ID__: JSON.stringify("dev"),
+  },
   test: {
     include: [
       "packages/*/tests/**/*.test.ts",

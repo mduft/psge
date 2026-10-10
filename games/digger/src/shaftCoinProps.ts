@@ -37,12 +37,16 @@ export type ShaftCoinPick =
   | { kind: "special"; id: string };
 
 export interface ShaftCoinProps {
+  /**
+   * Rebuild visible coin meshes. Returns how many **new** coins were added
+   * (0 on the first sync so boot does not chime for already-visible coins).
+   */
   sync(
     excavatedDepth: number,
     worldSeed: number,
     boosters: BoosterProgress,
     special: SpecialCoinProgress,
-  ): void;
+  ): number;
   /** NDC pick (−1…1). */
   pick(camera: Camera, ndcX: number, ndcY: number): ShaftCoinPick | null;
   /** Hover highlight for the given coin (or clear). */
@@ -306,6 +310,8 @@ export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
   const ndc = new Vector2();
   let spin = 0;
   let hoverKey: string | null = null;
+  /** After the first sync, newly added coins are counted for SFX. */
+  let syncedOnce = false;
 
   const clear = (): void => {
     while (root.children.length > 0) {
@@ -337,7 +343,7 @@ export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
   };
 
   return {
-    sync(excavatedDepth, worldSeed, boosters, special): void {
+    sync(excavatedDepth, worldSeed, boosters, special): number {
       const dirt = visibleBoosters(boosters, worldSeed, excavatedDepth);
       const rare = visibleSpecialCoins(special, worldSeed, excavatedDepth);
       const wanted = new Set<string>([
@@ -360,6 +366,7 @@ export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
         }
         existing.set(key, child);
       }
+      let added = 0;
       for (const b of dirt) {
         const key = meshKey("dirt", b.id);
         if (existing.has(key)) continue;
@@ -367,6 +374,7 @@ export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
         applySpinPose(mesh);
         if (key === hoverKey) setGroupHover(mesh, true);
         root.add(mesh);
+        added += 1;
       }
       for (const c of rare) {
         const key = meshKey("special", c.id);
@@ -375,7 +383,13 @@ export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
         applySpinPose(mesh);
         if (key === hoverKey) setGroupHover(mesh, true);
         root.add(mesh);
+        added += 1;
       }
+      if (!syncedOnce) {
+        syncedOnce = true;
+        return 0;
+      }
+      return added;
     },
 
     pick(camera, ndcX, ndcY): ShaftCoinPick | null {

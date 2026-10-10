@@ -16,7 +16,18 @@ import {
   fogScaleForCameraDistance,
 } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
+import {
+  initAudio,
+  isMuted,
+  playCoinAppear,
+  toggleMuted,
+} from "./audio.js";
 import { applyDomIcons, createUiIconImg, uiIconUrl } from "./icons.js";
+import {
+  startUpdateCheck,
+  type VersionManifest,
+} from "./updateCheck.js";
+import { GAME_VERSION } from "./version.js";
 import {
   boosterCoinsCollected,
   boosterComboMult,
@@ -83,7 +94,11 @@ import {
   formatOfflineDuration,
   type OfflineReward,
 } from "./offline.js";
-import { DIG_SAVE_KEY, loadGameState, saveGameState } from "./persist.js";
+import {
+  DIG_SAVE_KEY,
+  parseGameState,
+  saveGameState,
+} from "./persist.js";
 import {
   SHOP_SECTIONS,
   UPGRADE_DEFS,
@@ -177,6 +192,39 @@ function freshState(excavatedDepth: number): {
   return { state, found };
 }
 
+/**
+ * Block boot until the player chooses Reset. Reload keeps the blob and
+ * refreshes the page (for picking up a fixed build).
+ */
+function waitForSaveErrorReset(): Promise<void> {
+  const backdrop = document.querySelector<HTMLElement>("#save-error-backdrop");
+  const reloadBtn = document.querySelector<HTMLButtonElement>(
+    "#save-error-reload",
+  );
+  const resetBtn = document.querySelector<HTMLButtonElement>(
+    "#save-error-reset",
+  );
+  if (!backdrop || !reloadBtn || !resetBtn) {
+    throw new Error("Expected #save-error-backdrop UI");
+  }
+  return new Promise((resolve) => {
+    document.documentElement.dataset.psgeSaveError = "1";
+    backdrop.hidden = false;
+    const onReload = (): void => {
+      location.reload();
+    };
+    const onReset = (): void => {
+      reloadBtn.removeEventListener("click", onReload);
+      resetBtn.removeEventListener("click", onReset);
+      backdrop.hidden = true;
+      document.documentElement.dataset.psgeSaveError = "0";
+      resolve();
+    };
+    reloadBtn.addEventListener("click", onReload);
+    resetBtn.addEventListener("click", onReset);
+  });
+}
+
 function depthNumber(state: GameState): number {
   return state.depth.toNumber();
 }
@@ -193,6 +241,60 @@ async function boot(): Promise<() => void> {
   }
   // Wire `<img data-icon>` slots — swap PNGs under assets/textures/icons/.
   applyDomIcons();
+  initAudio();
+  const muteFab = document.querySelector<HTMLButtonElement>("#mute-fab");
+  const applyMuteUi = (): void => {
+    const muted = isMuted();
+    document.documentElement.dataset.psgeMuted = muted ? "1" : "0";
+    if (!muteFab) return;
+    muteFab.setAttribute("aria-pressed", muted ? "true" : "false");
+    muteFab.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+    muteFab.title = muted ? "Unmute sound" : "Mute sound";
+  };
+  applyMuteUi();
+  const onMuteToggle = (): void => {
+    toggleMuted();
+    applyMuteUi();
+  };
+  muteFab?.addEventListener("click", onMuteToggle);
+  muteFab?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+  const gameVersionEl = document.querySelector("[data-game-version]");
+  if (gameVersionEl) gameVersionEl.textContent = `v${GAME_VERSION}`;
+
+  const updateBanner = document.querySelector<HTMLElement>("#update-banner");
+  const updateVersionEl = document.querySelector<HTMLElement>(
+    "[data-update-version]",
+  );
+  const updateReload = document.querySelector<HTMLButtonElement>(
+    "#update-reload",
+  );
+  const updateDismiss = document.querySelector<HTMLButtonElement>(
+    "#update-dismiss",
+  );
+  const showUpdateBanner = (remote: VersionManifest): void => {
+    if (updateVersionEl) {
+      updateVersionEl.textContent = `v${remote.version}`;
+      updateVersionEl.hidden = false;
+    }
+    if (updateBanner) updateBanner.hidden = false;
+    document.documentElement.dataset.psgeUpdate = "1";
+  };
+  const hideUpdateBanner = (): void => {
+    if (updateBanner) updateBanner.hidden = true;
+    delete document.documentElement.dataset.psgeUpdate;
+  };
+  const onUpdateReload = (): void => {
+    location.reload();
+  };
+  const onUpdateDismiss = (): void => {
+    hideUpdateBanner();
+  };
+  updateReload?.addEventListener("click", onUpdateReload);
+  updateDismiss?.addEventListener("click", onUpdateDismiss);
+  const updateCheck = startUpdateCheck({
+    localBuildId: __PSGE_BUILD_ID__,
+    onUpdateAvailable: showUpdateBanner,
+  });
 
   const {
     excavatedDepth: depthQuery,
@@ -210,9 +312,17 @@ async function boot(): Promise<() => void> {
     await store.clear();
     ({ state, found: bootFinds } = freshState(depthQuery));
   } else {
-    const loaded = await loadGameState(store);
+    const raw = await store.load();
+    const loaded = parseGameState(raw);
     if (loaded) {
       state = loaded;
+    } else if (raw != null) {
+      console.error(
+        "[psge] Save present but could not be parsed; waiting for Reload or Reset.",
+      );
+      await waitForSaveErrorReset();
+      await store.clear();
+      ({ state, found: bootFinds } = freshState(depthQuery));
     } else {
       ({ state, found: bootFinds } = freshState(depthQuery));
     }
@@ -824,12 +934,13 @@ async function boot(): Promise<() => void> {
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
     world.syncDiscoveries(depth, state.discoveries);
-    world.syncShaftCoins(
+    const coinsAppeared = world.syncShaftCoins(
       depth,
       state.discoveries.worldSeed,
       state.boosters,
       state.specialCoins,
     );
+    if (coinsAppeared > 0) playCoinAppear();
     // Viewing a catalog tab clears its new-dot (including unlocks while open).
     if (sheets.isPanelOpen() && markPanelTabSeen(state, sheets.getTab())) {
       autosave.markDirty();
@@ -1271,6 +1382,7 @@ async function boot(): Promise<() => void> {
 
   document.documentElement.dataset.psgeReady = "true";
   document.documentElement.dataset.psgeMilestone = "9";
+  document.documentElement.dataset.psgeVersion = GAME_VERSION;
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -1289,6 +1401,10 @@ async function boot(): Promise<() => void> {
     canvas.removeEventListener("pointerleave", onCanvasPointerLeave);
     world.setShaftCoinHover(null);
     autoPauseBtn?.removeEventListener("click", onAutoPauseToggle);
+    muteFab?.removeEventListener("click", onMuteToggle);
+    updateReload?.removeEventListener("click", onUpdateReload);
+    updateDismiss?.removeEventListener("click", onUpdateDismiss);
+    updateCheck.dispose();
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
       btn.removeEventListener("click", onGiveDirt);

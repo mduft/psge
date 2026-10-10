@@ -10,8 +10,8 @@
     "games/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @psge/endless-dig",
-    "build": "npm run build -w @psge/engine && npm run build -w @psge/endless-dig",
+    "dev": "npm run dev -w @psge/digger",
+    "build": "npm run build -w @psge/engine && npm run build -w @psge/digger",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest"

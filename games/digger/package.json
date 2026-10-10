@@ -1,6 +1,6 @@
 {
-  "name": "@psge/endless-dig",
-  "version": "0.0.0",
+  "name": "@psge/digger",
+  "version": "0.9.1",
   "private": true,
   "license": "MIT",
   "author": "Markus Duft",

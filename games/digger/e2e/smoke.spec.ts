@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 type DecLike = { toNumber: () => number; toString: () => string };
 
-const DIG_SAVE_KEY = "psge:endless-dig:save";
+const DIG_SAVE_KEY = "psge:digger:save";
 
 /** Seed localStorage before game boot (survives prior-page pagehide flush). */
 async function seedSaveBeforeGoto(
@@ -114,7 +114,7 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
   });
 
   await page.goto("/?nosave=1&depth=1000");
-  await expect(page.getByRole("heading", { name: "The Endless Dig" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Digger" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "9");
   await expect

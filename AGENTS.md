@@ -13,7 +13,7 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 ```text
 /
 ├── packages/psge/          → @psge/engine
-└── games/endless-dig/      → sample game (The Endless Dig)
+└── games/digger/           → sample game (Digger)
 ```
 
 ## Commands (repo root)
@@ -21,7 +21,7 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 | Command | Purpose |
 | --- | --- |
 | `npm install` | Install workspace dependencies |
-| `npm run dev` | Launch Endless Dig on `0.0.0.0:5173` (localhost + LAN) |
+| `npm run dev` | Launch Digger on `0.0.0.0:5173` (localhost + LAN) |
 | `npm run build` | Build engine + game |
 | `npm test` | Vitest unit tests |
 | `npm run test:e2e` | Playwright (Chromium) |
@@ -63,7 +63,7 @@ modify code → assets if needed → tests → build → launch
 4. Interact; assert via `__psge*` / `data-psge-*`
 5. `npm run test:e2e`
 
-### Runtime hooks (Endless Dig)
+### Runtime hooks (Digger)
 
 ```js
 __psgeState.depth.toString()
@@ -72,7 +72,7 @@ __psgeState.achievements.unlocked
 await __psgeSaveStore.load()
 ```
 
-Game guide: [games/endless-dig/AGENTS.md](./games/endless-dig/AGENTS.md).
+Game guide: [games/digger/AGENTS.md](./games/digger/AGENTS.md).
 
 ## Visual verification
 

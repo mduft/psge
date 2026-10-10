@@ -1,5 +1,5 @@
 <!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
-# The Endless Dig — Agent Guide
+# Digger — Agent Guide
 
 Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 9).
 
@@ -20,8 +20,9 @@ Dev URL examples:
 
 ## Milestone 9 (current) — Achievements
 
-- Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards)
+- Catalog + evaluate: `achievements.ts` (toast-only; no dig-power rewards) — depth 10 m … 10 000 km, geo layers, tool/auto ownership, per-upgrade Lv 10, any Lv 25/50, 100 total levels, dirt, finds, AFK/offline
 - Save version **10** (`panelSeen` + dirt-coin combo streak); v2–v9 migrate
+- Unreadable saves: modal with **Reload** (keep blob, refresh) or **Reset progress** (clear, then boot); `html[data-psge-save-error]` while open
 - Tab dots (not counts) for unseen unlocks; opening the tab clears the dot
 - FAB **Achievements** sheet + toast queue; distinct from Finds (discoveries) / Coins (special coins)
 - Hooks: `__psgeState.achievements`, `html[data-psge-achievements-count]`, `[data-achievement="first-dig"]`
@@ -46,12 +47,19 @@ __psgeState.discoveries.unlocked
 await __psgeSaveStore.load()
 ```
 
-Useful DOM: `html[data-psge-ready]`, `data-psge-milestone`, `data-psge-dig-power`, `data-psge-achievements-count`, `[data-shop-buy="<id>"]` (icon-only; `data-shop-action="unlock|upgrade"`).
+Useful DOM: `html[data-psge-ready]`, `data-psge-milestone`, `data-psge-version` (game semver from `package.json`), `data-psge-help` (manual modal), `data-psge-dig-power`, `data-psge-achievements-count`, `[data-shop-buy="<id>"]` (icon-only; `data-shop-action="unlock|upgrade"`).
+
+Help: `#help-fab` opens a full-screen how-to-play modal (`#help-backdrop`).
+Mute: `#mute-fab` above help; preference in `localStorage` key `psge:digger:muted` (`html[data-psge-muted]`). Coin appear SFX: `assets/audio/coin.wav`.
+
+Game version: bump `@psge/digger` `package.json` `"version"` (shown as `v…` under the title).
+Deploy updates: production builds emit `dist/version.json` (`buildId`); clients poll and show `#update-banner` (`html[data-psge-update]`) when it changes.
 
 ## Art replace slots
 
 - Dig cursors: `assets/textures/cursors/` → `src/digCursor.ts`
 - HUD / collection icons: `assets/textures/icons/` → `src/icons.ts` (`img[data-icon]`, discovery/`coin`/`achievement` helpers)
+- SFX: `assets/audio/` → `src/audio.ts`
 - Swap PNGs in place; see each folder’s README.
 
 ## World conventions

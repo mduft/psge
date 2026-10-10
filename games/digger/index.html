@@ -10,17 +10,17 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>The Endless Dig</title>
+    <title>Digger</title>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="app">
-      <canvas id="game-canvas" aria-label="The Endless Dig game view"></canvas>
+      <canvas id="game-canvas" aria-label="Digger game view"></canvas>
       <div id="hud" aria-live="polite">
         <header class="hud-top">
-          <h1>The Endless Dig</h1>
-          <p class="tagline">Something is down there.</p>
+          <h1>Digger</h1>
+          <p class="game-version" data-game-version>v0.9.1</p>
         </header>
 
         <div class="hud-rail">
@@ -70,6 +70,49 @@
           </aside>
 
           <aside class="hud-actions" aria-label="Game panels">
+            <button
+              type="button"
+              id="mute-fab"
+              class="mute-fab"
+              aria-pressed="false"
+              aria-label="Mute sound"
+              title="Mute sound"
+            >
+              <img
+                class="mute-fab-icon mute-fab-icon-on psge-icon"
+                data-icon="sound"
+                width="22"
+                height="22"
+                alt=""
+                aria-hidden="true"
+              />
+              <img
+                class="mute-fab-icon mute-fab-icon-off psge-icon"
+                data-icon="sound-mute"
+                width="22"
+                height="22"
+                alt=""
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              id="help-fab"
+              class="help-fab"
+              aria-label="How to play"
+              aria-expanded="false"
+              aria-controls="help-backdrop"
+              title="How to play"
+            >
+              <img
+                class="help-fab-icon psge-icon"
+                data-icon="help"
+                width="22"
+                height="22"
+                alt=""
+                aria-hidden="true"
+              />
+            </button>
             <button
               type="button"
               id="panel-toggle"
@@ -489,6 +532,29 @@
           Saved
         </div>
         <div
+          id="update-banner"
+          class="update-banner"
+          hidden
+          role="status"
+          aria-live="polite"
+        >
+          <p class="update-banner-copy">
+            New version available
+            <span class="update-banner-ver" data-update-version hidden></span>
+          </p>
+          <button type="button" id="update-reload" class="update-banner-reload">
+            Reload
+          </button>
+          <button
+            type="button"
+            id="update-dismiss"
+            class="update-banner-dismiss"
+            aria-label="Dismiss update notice"
+          >
+            ×
+          </button>
+        </div>
+        <div
           class="layer-plate"
           aria-live="polite"
           aria-label="Current layer"
@@ -527,6 +593,277 @@
               <span class="find-continue-fill" aria-hidden="true"></span>
               <span class="find-continue-label">Continue</span>
             </button>
+          </div>
+        </div>
+
+        <div
+          id="help-backdrop"
+          class="help-backdrop"
+          hidden
+          data-help-backdrop
+        >
+          <div
+            class="help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="help-title"
+          >
+            <header class="help-modal-header">
+              <h2 id="help-title" class="help-title">How to play</h2>
+              <button
+                type="button"
+                id="help-close"
+                class="shop-close"
+                aria-label="Close help"
+              >
+                <img
+                  class="panel-close-icon psge-icon"
+                  data-icon="panel-close"
+                  width="16"
+                  height="16"
+                  alt=""
+                  aria-hidden="true"
+                />
+              </button>
+            </header>
+            <div class="help-manual">
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="spoon"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Dig
+                </h3>
+                <p>
+                  Tap the shaft to dig deeper. You earn
+                  <strong>dirt</strong> as you go — spend it in the
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="tab-shop"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    <strong>Shop</strong>
+                  </span>.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="tab-shop"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Shop
+                </h3>
+                <p>
+                  Open panels with the
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="panel-menu"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    menu
+                  </span>
+                  (or the tabs on wide screens).
+                  <strong>Per tap</strong> upgrades make each click dig more.
+                  <strong>Auto dig</strong> keeps digging while you watch (or
+                  while you are away). Use
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="auto-pause"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    Pause
+                  </span>
+                  /
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="auto-play"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    Resume
+                  </span>
+                  on Auto dig when you need a break.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="coin"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Dirt coins
+                </h3>
+                <p>
+                  Bronze coins appear in the shaft. Tap them before you dig past
+                  for a bonus. Deeper coins pay more; chaining pickups builds a
+                  <strong>combo</strong>. Pause auto dig if you need time to
+                  grab them.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="tab-finds"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="tab-coins"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Finds &amp; special coins
+                </h3>
+                <p>
+                  Discoveries unlock as you dig — browse them under
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="tab-finds"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    <strong>Finds</strong>
+                  </span>. Rarer
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="tab-coins"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    <strong>special coins</strong>
+                  </span>
+                  are collectibles with their own tap bonus.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="tab-goals"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Goals
+                </h3>
+                <p>
+                  Achievements celebrate milestones. They do not boost dig power
+                  — just the thrill of the descent. A
+                  <span class="help-ui-ref">
+                    <img
+                      class="help-inline-icon psge-icon"
+                      data-icon="trophy"
+                      width="14"
+                      height="14"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    toast
+                  </span>
+                  pops when you unlock one.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>Layers</h3>
+                <p>
+                  Deeper rock is harder. Your dig rates slow as you enter new
+                  layers — keep upgrading to push through.
+                </p>
+              </section>
+              <section class="help-section">
+                <h3>
+                  <img
+                    class="help-section-icon psge-icon"
+                    data-icon="auto-play"
+                    width="16"
+                    height="16"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  Offline
+                </h3>
+                <p>
+                  If you own auto dig and step away for a while, claim a reduced
+                  offline reward when you return (capped at 24 hours).
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="save-error-backdrop"
+          class="offline-backdrop save-error-backdrop"
+          hidden
+          data-save-error-backdrop
+        >
+          <div
+            class="offline-modal save-error-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-error-title"
+          >
+            <h2 id="save-error-title" class="offline-title">
+              Can't load save
+            </h2>
+            <p class="offline-away save-error-copy">
+              Your save could not be read. Reload after updating to a fixed
+              build, or reset to start over (progress will be lost).
+            </p>
+            <div class="save-error-actions">
+              <button type="button" id="save-error-reload" class="offline-claim">
+                Reload
+              </button>
+              <button
+                type="button"
+                id="save-error-reset"
+                class="hud-reset save-error-reset"
+              >
+                Reset progress
+              </button>
+            </div>
           </div>
         </div>
 

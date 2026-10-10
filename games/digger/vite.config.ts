@@ -5,12 +5,14 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import { versionManifestPlugin } from "./vite.versionPlugin.js";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   root: ".",
   publicDir: "public",
+  plugins: [versionManifestPlugin()],
   resolve: {
     alias: {
       "@psge/engine": path.resolve(rootDir, "../../packages/psge/src/index.ts"),

@@ -22,6 +22,10 @@ import coinUrl from "../assets/textures/icons/ui/coin.png";
 import lockedUrl from "../assets/textures/icons/ui/locked.png";
 import shopUnlockUrl from "../assets/textures/icons/ui/shop-unlock.png";
 import shopUpgradeUrl from "../assets/textures/icons/ui/shop-upgrade.png";
+import helpUrl from "../assets/textures/icons/ui/help.png";
+import soundUrl from "../assets/textures/icons/ui/sound.png";
+import soundMuteUrl from "../assets/textures/icons/ui/sound-mute.png";
+import spoonUrl from "../assets/textures/cursors/spoon.png";
 
 import boneUrl from "../assets/textures/icons/discoveries/bone.png";
 import shardUrl from "../assets/textures/icons/discoveries/shard.png";
@@ -48,7 +52,12 @@ export type UiIconId =
   | "coin"
   | "locked"
   | "shop-unlock"
-  | "shop-upgrade";
+  | "shop-upgrade"
+  | "help"
+  | "sound"
+  | "sound-mute"
+  /** Starter dig tool — help manual “Dig” section. */
+  | "spoon";
 
 const UI_URLS: Record<UiIconId, string> = {
   "panel-menu": panelMenuUrl,
@@ -67,6 +76,10 @@ const UI_URLS: Record<UiIconId, string> = {
   locked: lockedUrl,
   "shop-unlock": shopUnlockUrl,
   "shop-upgrade": shopUpgradeUrl,
+  help: helpUrl,
+  sound: soundUrl,
+  "sound-mute": soundMuteUrl,
+  spoon: spoonUrl,
 };
 
 const DISCOVERY_URLS: Record<DiscoveryIcon, string> = {

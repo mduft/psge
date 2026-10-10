@@ -10,4 +10,4 @@ test-results/
 .DS_Store
 .vite/
 *.tsbuildinfo
-games/endless-dig/e2e/screenshots/
+games/digger/e2e/screenshots/

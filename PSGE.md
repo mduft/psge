@@ -125,7 +125,7 @@ The repository is an **npm workspaces monorepo** with a predictable, shallow lay
 │       ├── src/
 │       └── tests/
 └── games/
-    └── endless-dig/
+    └── digger/
         ├── game.json
         ├── package.json
         ├── AGENTS.md         # game-specific
@@ -139,7 +139,7 @@ The repository is an **npm workspaces monorepo** with a predictable, shallow lay
         └── public/
 ```
 
-Root scripts (documented in `AGENTS.md`): `dev` (endless-dig), `build`, `test`, `test:e2e`.
+Root scripts (documented in `AGENTS.md`): `dev` (digger), `build`, `test`, `test:e2e`.
 
 Important properties: predictable, discoverable, convention-driven, easy to search, and easy for agents to modify safely.
 
@@ -149,8 +149,8 @@ Each game should expose basic metadata in `game.json`. For Milestone 0/1 the sch
 
 ```json
 {
-  "id": "endless-dig",
-  "name": "The Endless Dig",
+  "id": "digger",
+  "name": "Digger",
   "engine": "psge",
   "entry": "src/game.ts"
 }
@@ -379,7 +379,7 @@ The following choices are locked for implementing these milestones. They may sti
 
 | Topic | Decision |
 | --- | --- |
-| Layout | npm workspaces monorepo: `packages/psge` + `games/endless-dig` |
+| Layout | npm workspaces monorepo: `packages/psge` + `games/digger` |
 | Engine package | `@psge/engine` |
 | Package manager | npm |
 | Bundler / app host | Vite |
@@ -508,7 +508,7 @@ This applies especially to ECS, event buses, scene systems, prefab systems, depe
 
 ---
 
-# 6. The Endless Dig — Sample Game
+# 6. Digger — Sample Game
 
 ## 6.1 Concept
 
@@ -516,7 +516,7 @@ The first sample game should be an incremental excavation game.
 
 Working title:
 
-> **The Endless Dig**
+> **Digger**
 
 The player operates an excavation that begins as a simple manual digging operation and eventually becomes a completely absurd industrial-scale excavation.
 
@@ -564,7 +564,7 @@ The player is operating an excavation.
 
 Early digging should feel tiny: with the initial gear, each dig advances the excavation by roughly **a pixel** on screen. As equipment and production improve, visible descent should speed up **slowly**, until late-game motion looks and feels very fast.
 
-Endless Dig: nominal dig power / passive rate (sum of upgrades) is applied through `softDigAmount` in `softDig.ts` — `floor·raw + (1−floor)·s·asinh(raw/s)` (`SOFT_DIG_SCALE` 3, `SOFT_DIG_LINEAR_FLOOR` 0.25) — so early taps stay nearly full strength, high stacks bend below linear, and each upgrade still contributes at least ~25% of its nominal amount. **Current depth does not affect dig speed** beyond geo-layer hardness (M6); only instantaneous power/rate feeds the soft map. Shaft and camera follow the resulting depth 1:1. Pickaxe / jackhammer per-level steps are `+2/32` / `+8/32`.
+Digger: nominal dig power / passive rate (sum of upgrades) is applied through `softDigAmount` in `softDig.ts` — `floor·raw + (1−floor)·s·asinh(raw/s)` (`SOFT_DIG_SCALE` 3, `SOFT_DIG_LINEAR_FLOOR` 0.25) — so early taps stay nearly full strength, high stacks bend below linear, and each upgrade still contributes at least ~25% of its nominal amount. **Current depth does not affect dig speed** beyond geo-layer hardness (M6); only instantaneous power/rate feeds the soft map. Shaft and camera follow the resulting depth 1:1. Pickaxe / jackhammer per-level steps are `+2/32` / `+8/32`.
 
 ---
 
@@ -580,7 +580,7 @@ The camera simply removes unnecessary movement from the player's responsibilitie
 
 ## 8.0 Art direction — block cutaway (locked)
 
-Endless Dig presentation constraints (Milestone 1+):
+Digger presentation constraints (Milestone 1+):
 
 1. **Minecraft-like blocks.** The world is built from unit cubes with a chunky voxel look. Digging later removes layers/blocks rather than morphing a smooth mesh hole.
 2. **Side-view cutaway shaft.** The shaft is cut open toward the camera so the player reads depth as a vertical cross-section. The surface **extends left and right**. As the game progresses, the view **scrolls down** the shaft (camera follows depth; orientation stays locked).
@@ -1145,7 +1145,7 @@ Only the camera position along the vertical excavation axis changes.
 
 ## 19.3 World and camera defaults (Milestone 1)
 
-Locked conventions for the Endless Dig diorama:
+Locked conventions for the Digger diorama:
 
 - **Y-up** world; **1 block = 1 world unit**.
 - Excavation descends along **−Y** (deeper = more negative Y).
@@ -1161,7 +1161,7 @@ HTML and CSS are first-class parts of PSGE.
 
 The engine should not replace browser UI technology.
 
-### Shell (locked for Endless Dig)
+### Shell (locked for Digger)
 
 - Canvas is **full-bleed** (`100vw` × `100vh` / dynamic viewport) — no inset card or second “window” frame.
 - Title, resources, and hints are **transparent overlays** (`pointer-events: none` except interactive controls).
@@ -1185,7 +1185,7 @@ Conceptually:
 
 ```text
 ┌─ browser viewport (full bleed) ─────────────────────────┐
-│  THE ENDLESS DIG          Depth 12 m   Dirt 840         │  ← HUD overlay
+│  DIGGER                   Depth 12 m   Dirt 840         │  ← HUD overlay
 │                                                          │
 │           block surface ──┼── block surface              │
 │                           │ cutaway shaft                │
@@ -1562,7 +1562,7 @@ Deliver the npm workspaces monorepo from §3.2:
 ├── package.json
 ├── AGENTS.md
 ├── packages/psge/          (@psge/engine — may be nearly empty stubs)
-└── games/endless-dig/
+└── games/digger/
     ├── game.json           ({ id, name, engine, entry })
     ├── AGENTS.md
     ├── src/
@@ -1662,7 +1662,7 @@ Acceptance: unit tests for `dig()`; e2e tap increases Depth/Dirt and moves focus
 
 Locked in §4.8:
 
-- engine `SaveStore` / `createLocalSaveStore` (key e.g. `psge:endless-dig:save`);
+- engine `SaveStore` / `createLocalSaveStore` (key e.g. `psge:digger:save`);
 - persist `GameState` (`version` gate; M3 accepts version 2);
 - autosave: **1s** debounce, **30s** max-while-dirty, flush on `pagehide` / hidden (await in-flight; re-arm timers on save failure);
 - fading **Saved** indicator (bottom-right);
@@ -1738,7 +1738,7 @@ Locked (see also §4.8):
 
 ## Milestone 8 — Agent development loop
 
-Process / benchmark milestone (not a new dig-loop system). Prove agents can ship a small Endless Dig feature end-to-end.
+Process / benchmark milestone (not a new dig-loop system). Prove agents can ship a small Digger feature end-to-end.
 
 Canonical exercise (for agents practicing the loop — do **not** leave throwaway shop SKUs after the proof):
 
@@ -1926,7 +1926,7 @@ Another equally important rule is:
 See §4.8 for the decision table. In short:
 
 - Toolchain: npm, Vite, Vitest, Playwright (Chromium); no hardcoded browser matrix.
-- Layout: monorepo with `@psge/engine` and `games/endless-dig`.
+- Layout: monorepo with `@psge/engine` and `games/digger`.
 - M1 API surface: §28.1 (`createApp`, `startLoop`, `loadGltf`, `setCamera`, `dispose`).
 - Camera/world defaults: §19.3 (Y-up, depth −Y, camera +Z, 1 block = 1 unit).
 - M1.1: vertical chunks + floating origin; `?depth=` testing helper (with save rules in M3).

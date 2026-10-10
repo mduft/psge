@@ -52,6 +52,51 @@ describe("evaluateAchievements", () => {
     expect(newly).not.toContain("museum");
   });
 
+  it("unlocks deep depth tiers in order", () => {
+    const at100k = createInitialState({ depth: 150_000 });
+    const newly = evaluateAchievements(at100k);
+    expect(newly).toContain("depth-10k");
+    expect(newly).toContain("depth-100k");
+    expect(newly).toContain("layer-abyss");
+    expect(newly).not.toContain("depth-1m");
+
+    const at10m = createInitialState({ depth: 10_000_000 });
+    const deep = evaluateAchievements(at10m);
+    expect(deep).toContain("depth-1m");
+    expect(deep).toContain("depth-10m");
+  });
+
+  it("unlocks auto fleet and per-upgrade level tiers", () => {
+    const state = createInitialState({
+      upgrades: { shovel: 10, pickaxe: 3, cart: 1, drill: 1, crew: 12 },
+    });
+    const newly = evaluateAchievements(state);
+    expect(newly).toContain("own-drill");
+    expect(newly).toContain("own-crew");
+    expect(newly).toContain("full-fleet");
+    expect(newly).toContain("shovel-10");
+    expect(newly).toContain("crew-10");
+    expect(newly).not.toContain("pickaxe-10");
+    expect(newly).not.toContain("cart-10");
+    expect(newly).not.toContain("any-25");
+    expect(newly).not.toContain("levels-100");
+  });
+
+  it("unlocks any-level and total-level milestones", () => {
+    const specialist = createInitialState({ upgrades: { jackhammer: 25 } });
+    const a = evaluateAchievements(specialist);
+    expect(a).toContain("any-25");
+    expect(a).not.toContain("any-50");
+    expect(a).not.toContain("levels-100");
+
+    const century = createInitialState({
+      upgrades: { shovel: 50, pickaxe: 20, cart: 30 },
+    });
+    const b = evaluateAchievements(century);
+    expect(b).toContain("any-50");
+    expect(b).toContain("levels-100");
+  });
+
   it("unlocks museum when all discoveries are owned", () => {
     const state = createInitialState({
       discoveries: {

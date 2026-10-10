@@ -37,7 +37,7 @@ import {
 } from "./specialCoins.js";
 import { normalizeUpgrades } from "./upgrades.js";
 
-export const DIG_SAVE_KEY = "psge:endless-dig:save";
+export const DIG_SAVE_KEY = "psge:digger:save";
 
 /** Accepted save blob version (matches GameState.version). */
 export const DIG_SAVE_VERSION = GAME_STATE_VERSION;
@@ -66,6 +66,22 @@ function parseDecimalField(value: unknown): Decimal | null {
     } catch {
       return null;
     }
+  }
+  return null;
+}
+
+/** Coerce save `version` (number or numeric string) to an integer. */
+export function parseSaveVersion(value: unknown): number | null {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value)
+  ) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const n = Number(value);
+    if (Number.isFinite(n) && Number.isInteger(n)) return n;
   }
   return null;
 }
@@ -108,19 +124,19 @@ function stateFromFields(
 
 /** Migrate a v2 save blob into current GameState (discards digPower). */
 export function migrateV2ToV3(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 2) return null;
+  if (parseSaveVersion(data.version) !== 2) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   return stateFromFields(depth, dirt, normalizeUpgrades(undefined), 0);
 }
 
 /** Migrate a v3 save blob into v4 (adds lastPlayedAtMs = 0). */
 export function migrateV3ToV4(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 3) return null;
+  if (parseSaveVersion(data.version) !== 3) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -130,10 +146,10 @@ export function migrateV3ToV4(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v4 save into v5 (adds empty discoveries + world seed). */
 export function migrateV4ToV5(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 4) return null;
+  if (parseSaveVersion(data.version) !== 4) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -151,10 +167,10 @@ export function migrateV4ToV5(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v5 save into v6 (adds empty booster claims). */
 export function migrateV5ToV6(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 5) return null;
+  if (parseSaveVersion(data.version) !== 5) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -177,10 +193,10 @@ export function migrateV5ToV6(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v6 save into v7 (adds empty special-coin collection). */
 export function migrateV6ToV7(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 6) return null;
+  if (parseSaveVersion(data.version) !== 6) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -206,10 +222,10 @@ export function migrateV6ToV7(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v7 save into v8 (adds empty achievements). */
 export function migrateV7ToV8(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 7) return null;
+  if (parseSaveVersion(data.version) !== 7) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -236,10 +252,10 @@ export function migrateV7ToV8(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v8 save into v9 (panelSeen; existing unlocks count as viewed). */
 export function migrateV8ToV9(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 8) return null;
+  if (parseSaveVersion(data.version) !== 8) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -268,10 +284,10 @@ export function migrateV8ToV9(data: Record<string, unknown>): GameState | null {
 
 /** Migrate a v9 save into v10 (dirt-coin combo streak fields). */
 export function migrateV9ToV10(data: Record<string, unknown>): GameState | null {
-  if (data.version !== 9) return null;
+  if (parseSaveVersion(data.version) !== 9) return null;
   const depth = parseDecimalField(data.depth);
   const dirt = parseDecimalField(data.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
   const upgrades =
     data.upgrades && typeof data.upgrades === "object"
       ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
@@ -302,21 +318,23 @@ export function migrateV9ToV10(data: Record<string, unknown>): GameState | null 
 export function parseGameState(data: unknown): GameState | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
+  const version = parseSaveVersion(o.version);
+  if (version === null) return null;
 
-  if (o.version === 2) return migrateV2ToV3(o);
-  if (o.version === 3) return migrateV3ToV4(o);
-  if (o.version === 4) return migrateV4ToV5(o);
-  if (o.version === 5) return migrateV5ToV6(o);
-  if (o.version === 6) return migrateV6ToV7(o);
-  if (o.version === 7) return migrateV7ToV8(o);
-  if (o.version === 8) return migrateV8ToV9(o);
-  if (o.version === 9) return migrateV9ToV10(o);
+  if (version === 2) return migrateV2ToV3(o);
+  if (version === 3) return migrateV3ToV4(o);
+  if (version === 4) return migrateV4ToV5(o);
+  if (version === 5) return migrateV5ToV6(o);
+  if (version === 6) return migrateV6ToV7(o);
+  if (version === 7) return migrateV7ToV8(o);
+  if (version === 8) return migrateV8ToV9(o);
+  if (version === 9) return migrateV9ToV10(o);
 
-  if (o.version !== DIG_SAVE_VERSION) return null;
+  if (version !== DIG_SAVE_VERSION) return null;
 
   const depth = parseDecimalField(o.depth);
   const dirt = parseDecimalField(o.dirt);
-  if (!depth || !dirt) return null;
+  if (depth === null || dirt === null) return null;
 
   const upgrades =
     o.upgrades && typeof o.upgrades === "object"

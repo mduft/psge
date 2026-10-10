@@ -1,6 +1,6 @@
 {
-  "id": "endless-dig",
-  "name": "The Endless Dig",
+  "id": "digger",
+  "name": "Digger",
   "engine": "psge",
   "entry": "src/main.ts",
   "license": "MIT",

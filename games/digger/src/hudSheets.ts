@@ -14,7 +14,7 @@ export interface HudSheetsOptions {
 }
 
 export interface HudSheets {
-  /** Open panel and select a tab (closes debug). */
+  /** Open panel and select a tab (closes debug / help). */
   openTab(tab: HudPanelTab): void;
   setTab(tab: HudPanelTab): void;
   setPanelOpen(open: boolean): void;
@@ -26,6 +26,7 @@ export interface HudSheets {
   setCoinsOpen(open: boolean): void;
   setAchievementsOpen(open: boolean): void;
   setDebugSheetOpen(open: boolean): void;
+  setHelpOpen(open: boolean): void;
   closeAll(): void;
   bind(): () => void;
 }
@@ -82,6 +83,10 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
   const debugBackdrop = qs<HTMLElement>("#debug-backdrop");
   const debugPanel = qs<HTMLElement>("#debug-panel");
 
+  const helpFab = qs<HTMLButtonElement>("#help-fab");
+  const helpClose = qs<HTMLButtonElement>("#help-close");
+  const helpBackdrop = qs<HTMLElement>("#help-backdrop");
+
   let tab: HudPanelTab = "shop";
   let panelOpen = false;
 
@@ -128,10 +133,24 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     notify();
   };
 
+  const setHelpOpen = (open: boolean): void => {
+    if (open) {
+      panelOpen = false;
+      applyPanelUi();
+      document.documentElement.dataset.psgeDebugSheet = "closed";
+      setExpanded(debugFab, false);
+      setHidden(debugBackdrop, true);
+    }
+    document.documentElement.dataset.psgeHelp = open ? "open" : "closed";
+    setExpanded(helpFab, open);
+    setHidden(helpBackdrop, !open);
+  };
+
   const setDebugSheetOpen = (open: boolean): void => {
     if (open) {
       panelOpen = false;
       applyPanelUi();
+      setHelpOpen(false);
     }
     document.documentElement.dataset.psgeDebugSheet = open ? "open" : "closed";
     setExpanded(debugFab, open);
@@ -139,7 +158,10 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
   };
 
   const setPanelOpen = (open: boolean): void => {
-    if (open) setDebugSheetOpen(false);
+    if (open) {
+      setDebugSheetOpen(false);
+      setHelpOpen(false);
+    }
     panelOpen = open;
     applyPanelUi();
   };
@@ -176,6 +198,7 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
   const closeAll = (): void => {
     setPanelOpen(false);
     setDebugSheetOpen(false);
+    setHelpOpen(false);
   };
 
   const bind = (): (() => void) => {
@@ -213,6 +236,22 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
       e.stopPropagation();
       setDebugSheetOpen(false);
     };
+    const onHelpToggle = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      setHelpOpen(document.documentElement.dataset.psgeHelp !== "open");
+    };
+    const onHelpClose = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      setHelpOpen(false);
+    };
+    const onHelpBackdrop = (e: Event): void => {
+      if (e.target !== helpBackdrop) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHelpOpen(false);
+    };
 
     panelToggle?.addEventListener("click", onPanelToggle);
     panelToggle?.addEventListener("pointerdown", stopBubble);
@@ -227,7 +266,15 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     debugClose?.addEventListener("pointerdown", stopBubble);
     debugPanel?.addEventListener("pointerdown", stopBubble);
 
+    helpFab?.addEventListener("click", onHelpToggle);
+    helpFab?.addEventListener("pointerdown", stopBubble);
+    helpClose?.addEventListener("click", onHelpClose);
+    helpClose?.addEventListener("pointerdown", stopBubble);
+    helpBackdrop?.addEventListener("click", onHelpBackdrop);
+    helpBackdrop?.addEventListener("pointerdown", stopBubble);
+
     applyPanelUi();
+    setHelpOpen(false);
 
     return () => {
       panelToggle?.removeEventListener("click", onPanelToggle);
@@ -242,6 +289,13 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
       debugClose?.removeEventListener("click", onDebugClose);
       debugClose?.removeEventListener("pointerdown", stopBubble);
       debugPanel?.removeEventListener("pointerdown", stopBubble);
+
+      helpFab?.removeEventListener("click", onHelpToggle);
+      helpFab?.removeEventListener("pointerdown", stopBubble);
+      helpClose?.removeEventListener("click", onHelpClose);
+      helpClose?.removeEventListener("pointerdown", stopBubble);
+      helpBackdrop?.removeEventListener("click", onHelpBackdrop);
+      helpBackdrop?.removeEventListener("pointerdown", stopBubble);
     };
   };
 
@@ -256,6 +310,7 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     setCoinsOpen,
     setAchievementsOpen,
     setDebugSheetOpen,
+    setHelpOpen,
     closeAll,
     bind,
   };

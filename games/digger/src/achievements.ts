@@ -7,7 +7,11 @@
 import Decimal from "decimal.js";
 import { DISCOVERY_DEFS } from "./discoveries.js";
 import { geoLayerAt, type GeoLayerId } from "./geoLayers.js";
-import { UPGRADE_IDS, type UpgradeLevels } from "./upgrades.js";
+import {
+  UPGRADE_IDS,
+  type UpgradeId,
+  type UpgradeLevels,
+} from "./upgrades.js";
 
 /** Minimal state shape for unlock checks (avoids import cycles with gameState). */
 export interface AchievementEvalState {
@@ -72,6 +76,64 @@ const LAYER_ACHIEVEMENTS: readonly {
   },
 ];
 
+const LEVEL_ACHIEVEMENTS: readonly {
+  id: string;
+  upgradeId: UpgradeId;
+  level: number;
+  label: string;
+  name: string;
+  blurb: string;
+}[] = [
+  {
+    id: "shovel-10",
+    upgradeId: "shovel",
+    level: 10,
+    label: "Shovel",
+    name: "Seasoned shovel",
+    blurb: "Ten upgrades of honest digging.",
+  },
+  {
+    id: "pickaxe-10",
+    upgradeId: "pickaxe",
+    level: 10,
+    label: "Pickaxe",
+    name: "Sharpened pickaxe",
+    blurb: "Every swing bites deeper.",
+  },
+  {
+    id: "jackhammer-10",
+    upgradeId: "jackhammer",
+    level: 10,
+    label: "Jackhammer",
+    name: "Tuned jackhammer",
+    blurb: "The whole shaft rattles.",
+  },
+  {
+    id: "cart-10",
+    upgradeId: "cart",
+    level: 10,
+    label: "Hand cart",
+    name: "Cart convoy",
+    blurb: "A steady line of carts.",
+  },
+  {
+    id: "drill-10",
+    upgradeId: "drill",
+    level: 10,
+    label: "Drill",
+    name: "Industrial drill",
+    blurb: "Rock dust never settles.",
+  },
+  {
+    id: "crew-10",
+    upgradeId: "crew",
+    level: 10,
+    label: "Dig crew",
+    name: "Veteran crew",
+    blurb: "They know the shaft better than you.",
+  },
+];
+
 /** Catalog order = sheet order. */
 export const ACHIEVEMENT_DEFS: readonly AchievementDef[] = [
   {
@@ -103,6 +165,24 @@ export const ACHIEVEMENT_DEFS: readonly AchievementDef[] = [
     name: "Ten kilometres",
     blurb: "The surface is a rumour.",
     hint: "Reach 10 000 m.",
+  },
+  {
+    id: "depth-100k",
+    name: "Hundred kilometres",
+    blurb: "Deeper than any mine ever dared.",
+    hint: "Reach 100 000 m.",
+  },
+  {
+    id: "depth-1m",
+    name: "Megametre",
+    blurb: "A million metres of shaft.",
+    hint: "Reach 1 000 000 m.",
+  },
+  {
+    id: "depth-10m",
+    name: "Through and through",
+    blurb: "Longer than the planet is wide.",
+    hint: "Reach 10 000 000 m.",
   },
   ...LAYER_ACHIEVEMENTS.map((l) => ({
     id: l.id,
@@ -145,6 +225,48 @@ export const ACHIEVEMENT_DEFS: readonly AchievementDef[] = [
     name: "Idle help",
     blurb: "Something digs while you watch.",
     hint: "Own any auto dig upgrade.",
+  },
+  {
+    id: "own-drill",
+    name: "Drill owner",
+    blurb: "Spinning steel does the work.",
+    hint: "Own a drill.",
+  },
+  {
+    id: "own-crew",
+    name: "Crew boss",
+    blurb: "You hired people to dig for you.",
+    hint: "Own a dig crew.",
+  },
+  {
+    id: "full-fleet",
+    name: "Full fleet",
+    blurb: "Cart, drill, and crew.",
+    hint: "Own all three auto dig upgrades.",
+  },
+  ...LEVEL_ACHIEVEMENTS.map((l) => ({
+    id: l.id,
+    name: l.name,
+    blurb: l.blurb,
+    hint: `Raise ${l.label} to level ${l.level}.`,
+  })),
+  {
+    id: "any-25",
+    name: "Specialist",
+    blurb: "One upgrade, twenty-five times.",
+    hint: "Raise any upgrade to level 25.",
+  },
+  {
+    id: "any-50",
+    name: "Obsessed",
+    blurb: "Fifty levels into a single upgrade.",
+    hint: "Raise any upgrade to level 50.",
+  },
+  {
+    id: "levels-100",
+    name: "Century",
+    blurb: "A hundred upgrade levels combined.",
+    hint: "Reach 100 total upgrade levels.",
   },
   {
     id: "afk-digger",
@@ -232,6 +354,11 @@ function isMet(state: AchievementEvalState, id: string): boolean {
   const finds = state.discoveries.unlocked.length;
   const u = state.upgrades;
   const anyUpgrade = UPGRADE_IDS.some((k) => u[k] > 0);
+  const maxLevel = Math.max(...UPGRADE_IDS.map((k) => u[k]));
+  const totalLevels = UPGRADE_IDS.reduce((sum, k) => sum + u[k], 0);
+
+  const levelDef = LEVEL_ACHIEVEMENTS.find((l) => l.id === id);
+  if (levelDef) return u[levelDef.upgradeId] >= levelDef.level;
 
   switch (id) {
     case "first-dig":
@@ -244,6 +371,12 @@ function isMet(state: AchievementEvalState, id: string): boolean {
       return depth >= 1_000;
     case "depth-10k":
       return depth >= 10_000;
+    case "depth-100k":
+      return depth >= 100_000;
+    case "depth-1m":
+      return depth >= 1_000_000;
+    case "depth-10m":
+      return depth >= 10_000_000;
     case "layer-clay":
     case "layer-bedrock":
     case "layer-deep_crust":
@@ -264,6 +397,18 @@ function isMet(state: AchievementEvalState, id: string): boolean {
       return u.shovel >= 1 && u.pickaxe >= 1 && u.jackhammer >= 1;
     case "cart-crew":
       return u.cart >= 1 || u.drill >= 1 || u.crew >= 1;
+    case "own-drill":
+      return u.drill >= 1;
+    case "own-crew":
+      return u.crew >= 1;
+    case "full-fleet":
+      return u.cart >= 1 && u.drill >= 1 && u.crew >= 1;
+    case "any-25":
+      return maxLevel >= 25;
+    case "any-50":
+      return maxLevel >= 50;
+    case "levels-100":
+      return totalLevels >= 100;
     case "afk-digger":
       return state.achievements.afkDigSeen;
     case "dirt-hoarder":

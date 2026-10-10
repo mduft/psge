@@ -74,13 +74,13 @@ export interface DigWorld {
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
   /** Sync discovery props on cutaway walls. */
   syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
-  /** Sync visible dirt + special coins in the shaft. */
+  /** Sync visible dirt + special coins; returns count of newly appeared coins. */
   syncShaftCoins(
     excavatedDepth: number,
     worldSeed: number,
     boosters: BoosterProgress,
     special: SpecialCoinProgress,
-  ): void;
+  ): number;
   /** NDC ray pick against shaft coins (−1…1). */
   pickShaftCoin(
     camera: Camera,
@@ -103,7 +103,7 @@ export interface DigWorld {
 export interface DigWorldOptions {
   /**
    * Initial solid-earth generation look-ahead (grows as the player digs).
-   * Not a hard game end — The Endless Dig expands this automatically.
+   * Not a hard game end — Digger expands this automatically.
    */
   worldExtent?: number;
   /** Initial open shaft depth (normally 0 until the player digs). */
@@ -475,8 +475,8 @@ export function buildDigWorld(
       worldSeed: number,
       boosters: BoosterProgress,
       special: SpecialCoinProgress,
-    ): void {
-      shaftCoins.sync(depth, worldSeed, boosters, special);
+    ): number {
+      return shaftCoins.sync(depth, worldSeed, boosters, special);
     },
     pickShaftCoin(
       camera: Camera,

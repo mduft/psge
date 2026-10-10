@@ -27,6 +27,11 @@ larger is fine if you keep the same aspect — CSS sizes the `<img>`.
 | `locked.png` | Generic locked placeholder |
 | `shop-unlock.png` | Shop buy button, item not yet owned (`data-shop-action="unlock"`) |
 | `shop-upgrade.png` | Shop buy button, item owned (`data-shop-action="upgrade"`) |
+| `help.png` | Help FAB (opens the user manual modal) |
+| `sound.png` | Mute FAB — sound on |
+| `sound-mute.png` | Mute FAB — muted |
+
+Help-manual sections also reuse these icons (via `data-icon`) so players can match HUD chrome: `tab-shop`, `tab-finds`, `tab-coins`, `tab-goals`, `panel-menu`, `coin`, `trophy`, `auto-pause`, `auto-play`, plus dig-tool `../cursors/spoon.png` as `spoon`.
 
 ## Discoveries (`discoveries/`)
 
