@@ -415,6 +415,7 @@ The following choices are locked for implementing these milestones. They may sti
 | M6 actors | Procedural digger (tool swap) + cart/drill/crew props; no camera polish |
 | M7 discoveries | Depth milestones + seeded dig rolls; collection + find-reveal sheets; shaft props; dirt-coin boosters; 20 special coins |
 | M7 save | `GameState` version **7** (`discoveries` + dirt-coin boosters + special coins); v2–v6 migrate |
+| M9 achievements | Toast + FAB sheet; pure evaluate; save version **8**; v2–v7 migrate |
 
 > **The public PSGE API is never frozen.** A second sample game may require refactoring `@psge/engine`. That cost is accepted; do not treat early exports as permanent contracts.
 
@@ -1765,84 +1766,44 @@ modify code
 
 - Repo + game `AGENTS.md` document the agent loop (commands, URL flags, `__psge*` hooks, verify recipe).
 - E2e covers interact → inspect state (`__psgeState` / `data-psge-dig-power`) → screenshot on a real shop buy (e.g. shovel).
-- `data-psge-milestone="8"` while M8 is current.
+- `data-psge-milestone` reflects the current milestone (9 while M9 is current).
 - Out of scope: 3D inspect, achievements UI, new engine APIs unless strictly required for the benchmark; permanent “proof-only” upgrades.
 
 ## Milestone 9 — Achievements
 
 Meta progression distinct from **Discoveries** (M7): discoveries are in-world finds; achievements are durable unlocks for reaching milestones of play (depth, upgrades, idle, collection).
 
-### Goals
+### Locked
 
-- Game-owned achievement definitions + unlock checks (engine may later offer a tiny toast/list helper; not required for M9).
-- Persist unlocked ids in `GameState` / save (new save version + migrate).
-- Lightweight UI: toast on unlock + a simple Achievements panel (list name, short blurb, locked/unlocked).
-- Deterministic: same play history → same unlocks; Vitest covers triggers without WebGL.
+- Game-owned catalog + `evaluateAchievements` (`achievements.ts`); toast-only (no dig-power rewards).
+- Save version **8** (`achievements.unlocked` + `afkDigSeen` / `overnightClaimed`); v2–v7 migrate.
+- FAB Achievements sheet (dig while open) + toast queue; `data-psge-achievements-count`.
+- Deterministic Vitest predicates; e2e `first-dig` + reload retain.
 
-### Potential Endless Dig achievements (illustrative; tune names/thresholds in impl)
+### Catalog (MVP)
 
-**Depth**
-
-| Id | Idea |
+| Id | Trigger |
 | --- | --- |
-| `first-dig` | Excavate the first block |
-| `depth-10` | Reach 10 m |
-| `depth-100` | Reach 100 m |
-| `depth-1k` | Reach 1 000 m |
-| `depth-10k` | Reach 10 000 m |
-| `new-layer` | Enter each named geological layer (ties to M6) |
+| `first-dig` | depth &gt; 0 |
+| `depth-10` / `depth-100` / `depth-1k` / `depth-10k` | depth thresholds |
+| `layer-clay` … `layer-abyss` | geo layer reached (skip soil) |
+| `first-purchase` | any upgrade ≥ 1 |
+| `own-shovel` / `own-pickaxe` / `own-jackhammer` | that upgrade ≥ 1 |
+| `full-kit` | shovel + pickaxe + jackhammer |
+| `cart-crew` | cart / drill / crew |
+| `afk-digger` | passive dig advanced depth once |
+| `dirt-hoarder` | dirt ≥ 1 000 |
+| `overnight` | offline claim completed |
+| `first-find` / `collector` / `museum` | 1 / 5 / all discoveries |
 
-**Tools & shop**
+Out of MVP: `inspector` (M10), `surface-dweller`, `long-haul`, `spendthrift`.
 
-| Id | Idea |
-| --- | --- |
-| `first-purchase` | Buy any shop upgrade |
-| `own-shovel` | Own a shovel |
-| `own-pickaxe` | Own a pickaxe |
-| `own-jackhammer` | Own a jackhammer |
-| `full-kit` | Own shovel + pickaxe + jackhammer |
-| `cart-crew` | Own any passive generator (cart / drill / crew) |
-
-**Idle & session**
-
-| Id | Idea |
-| --- | --- |
-| `afk-digger` | Gain depth from passive dig alone |
-| `dirt-hoarder` | Hold a large Dirt balance (e.g. 1 000 / 1 M thresholds) |
-| `overnight` | Claim offline progress once (after M5) |
-| `long-haul` | Single session dig streak / many taps in one sitting |
-
-**Discoveries & artifacts** (after M7 / M10)
-
-| Id | Idea |
-| --- | --- |
-| `first-find` | Unlock first discovery |
-| `collector` | Unlock N discoveries |
-| `museum` | Complete a discovery set / all common finds |
-| `inspector` | Finish one 3D artifact inspection / puzzle (M10) |
-
-**Curiosity / debug-safe**
-
-| Id | Idea |
-| --- | --- |
-| `surface-dweller` | Return focus to the surface after digging deep |
-| `spendthrift` | Spend a large total of Dirt in the shop |
-
-Do **not** gate core dig loop behind achievements; they are optional celebration + collection chrome. Avoid achievements that require `?debug=1` or save wipe.
-
-### Sample flow
-
-```text
-dig / buy / idle / discover
-→ unlock check (pure)
-→ toast + persist id
-→ Achievements panel shows progress
-```
+Do **not** gate the dig loop behind achievements.
 
 ### Acceptance
 
-- Unit tests for unlock predicates + save migrate of `achievements: string[]` (or equivalent).
-- E2e: trigger one easy unlock (e.g. `first-dig`), see toast or panel state; reload retains it.
+- Unit tests for unlock predicates + save migrate v7→v8.
+- E2e: `first-dig` toast/sheet; reload retains unlocked id.
 - Docs distinguish achievements (M9) from discoveries (M7).
 
 Out of scope for M9: cloud sync, leaderboards, Steam-style rare %, monetized unlocks.
@@ -1960,7 +1921,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7 / 8
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 / 9
 
 See §4.8 for the decision table. In short:
 
@@ -1975,7 +1936,8 @@ See §4.8 for the decision table. In short:
 - M5: offline claim when away ≥30s at soft auto × hardness × 1/6 (max 24h); shorter hides catch up at full rate; save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
 - M7: discoveries + find reveal; dirt-coin boosters (6 m grace); 20 special coins (depth-scaled tap premium); FAB dig-while-open sheets; soft dig linear floor; save v7.
-- M8: agent development loop playbook + e2e verify path (shop buy / state / screenshot); 3D inspect deferred to M10; achievements are M9.
+- M8: agent development loop playbook + e2e verify path (shop buy / state / screenshot); 3D inspect deferred to M10.
+- M9: achievements catalog + toast/FAB sheet; save v8; distinct from discoveries.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 

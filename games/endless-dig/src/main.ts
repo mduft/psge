@@ -16,6 +16,7 @@ import {
   fogScaleForCameraDistance,
 } from "./digCamera.js";
 import { applyDigCursor, digToolOf } from "./digCursor.js";
+import { applyDomIcons, createUiIconImg, uiIconUrl } from "./icons.js";
 import {
   boosterCoinsCollected,
   claimAutoBoosters,
@@ -23,6 +24,14 @@ import {
   type BoosterClaim,
 } from "./boosters.js";
 import {
+  ACHIEVEMENT_DEFS,
+  evaluateAchievements,
+  getAchievementDef,
+  noteAfkDig,
+  noteOvernightClaim,
+} from "./achievements.js";
+import {
+  refreshAchievementsList,
   refreshDiscoveryList,
   refreshSpecialCoinsList,
 } from "./collectionLists.js";
@@ -32,6 +41,10 @@ import {
 } from "./discoveries.js";
 import { createFindReveal } from "./findReveal.js";
 import { createHudSheets } from "./hudSheets.js";
+import {
+  hasUnseen,
+  markPanelTabSeen,
+} from "./panelSeen.js";
 import {
   claimAutoSpecialCoins,
   claimTapSpecialCoin,
@@ -71,6 +84,7 @@ import {
   SHOP_SECTIONS,
   UPGRADE_DEFS,
   upgradeCost,
+  visibleShopUpgradeIds,
   type UpgradeId,
 } from "./upgrades.js";
 import {
@@ -83,6 +97,7 @@ const DEFAULT_WORLD_EXTENT = 1000;
 const SAVE_INDICATOR_MS = 1800;
 const LAYER_TOAST_MS = 2800;
 const BOOSTER_TOAST_MS = 2200;
+const ACHIEVEMENT_TOAST_MS = 2400;
 const FIND_AUTO_CLOSE_MS = 5000;
 
 /** Outdoor cutaway lighting — Dig-specific, not engine defaults. */
@@ -172,6 +187,8 @@ async function boot(): Promise<() => void> {
   if (!canvas) {
     throw new Error("Expected #game-canvas");
   }
+  // Wire `<img data-icon>` slots — swap PNGs under assets/textures/icons/.
+  applyDomIcons();
 
   const {
     excavatedDepth: depthQuery,
@@ -310,10 +327,12 @@ async function boot(): Promise<() => void> {
   const debugFab = document.querySelector<HTMLButtonElement>("#debug-fab");
   const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
   const shopList = document.querySelector<HTMLElement>("#shop-list");
-  const shopToggle =
-    document.querySelector<HTMLButtonElement>("#shop-toggle");
+  const panelToggle =
+    document.querySelector<HTMLButtonElement>("#panel-toggle");
   const shopAffordDot =
     document.querySelector<HTMLElement>("[data-shop-afford]");
+  const shopAffordTab =
+    document.querySelector<HTMLElement>("[data-shop-afford-tab]");
   const resetButton =
     document.querySelector<HTMLButtonElement>("#reset-progress");
   const saveIndicator = document.querySelector("#save-indicator");
@@ -329,18 +348,68 @@ async function boot(): Promise<() => void> {
 
   const collectionList =
     document.querySelector<HTMLElement>("#collection-list");
-  const collectionCountEl = document.querySelector<HTMLElement>(
-    "[data-collection-count]",
+  const collectionNewEl = document.querySelector<HTMLElement>(
+    "[data-collection-new]",
   );
   const coinsList = document.querySelector<HTMLElement>("#coins-list");
-  const coinsCountEl = document.querySelector<HTMLElement>("[data-coins-count]");
+  const coinsNewEl = document.querySelector<HTMLElement>("[data-coins-new]");
   const coinsProgressEl = document.querySelector<HTMLElement>(
     "[data-coins-progress]",
   );
+  const achievementsList = document.querySelector<HTMLElement>(
+    "#achievements-list",
+  );
+  const achievementsNewEl = document.querySelector<HTMLElement>(
+    "[data-achievements-new]",
+  );
+  const achievementsProgressEl = document.querySelector<HTMLElement>(
+    "[data-achievements-progress]",
+  );
 
-  const sheets = createHudSheets();
+  const setTabNewDot = (el: HTMLElement | null, show: boolean): void => {
+    if (!el) return;
+    if (show) el.removeAttribute("hidden");
+    else el.setAttribute("hidden", "");
+  };
+
+  const syncPanelNewDots = (): void => {
+    const findsNew = hasUnseen(
+      state.discoveries.unlocked,
+      state.panelSeen.discoveries,
+    );
+    const coinsNew = hasUnseen(
+      state.specialCoins.unlocked,
+      state.panelSeen.specialCoins,
+    );
+    const goalsNew = hasUnseen(
+      state.achievements.unlocked,
+      state.panelSeen.achievements,
+    );
+    setTabNewDot(collectionNewEl, findsNew);
+    setTabNewDot(coinsNewEl, coinsNew);
+    setTabNewDot(achievementsNewEl, goalsNew);
+    document.documentElement.dataset.psgeCollectionNew = findsNew ? "1" : "0";
+    document.documentElement.dataset.psgeCoinsNew = coinsNew ? "1" : "0";
+    document.documentElement.dataset.psgeAchievementsNew = goalsNew
+      ? "1"
+      : "0";
+  };
+
+  let markPanelSeenDirty: () => void = () => {};
+  const sheets = createHudSheets({
+    onChange: ({ open, tab }) => {
+      if (open && markPanelTabSeen(state, tab)) {
+        markPanelSeenDirty();
+      }
+      syncPanelNewDots();
+    },
+  });
   sheets.closeAll();
   const unbindSheets = sheets.bind();
+  // Wide: keep the tabbed dock open under the stats rail by default.
+  if (window.matchMedia("(min-width: 521px)").matches) {
+    sheets.openTab("shop");
+  }
 
   const findReveal = createFindReveal({
     autoCloseMs: FIND_AUTO_CLOSE_MS,
@@ -353,6 +422,15 @@ async function boot(): Promise<() => void> {
   );
   const boosterToastName = document.querySelector("[data-booster-toast-name]");
   let boosterToastTimer = 0;
+  const achievementToast = document.querySelector<HTMLElement>(
+    "#achievement-toast",
+  );
+  const achievementToastName = document.querySelector(
+    "[data-achievement-toast-name]",
+  );
+  let achievementToastTimer = 0;
+  const achievementToastQueue: string[] = [];
+  let achievementToastShowing = false;
   /** Last canvas pointer in CSS pixels relative to canvas (for NDC pick). */
   let lastPointer = { x: 0.5, y: 0.5 };
   /** Fine pointer: swap to pointer cursor while hovering a shaft coin. */
@@ -409,6 +487,7 @@ async function boot(): Promise<() => void> {
     },
     onSaved: showSavedIndicator,
   });
+  markPanelSeenDirty = () => autosave.markDirty();
 
   const hideOfflineModal = (): void => {
     offlineBackdrop?.setAttribute("hidden", "");
@@ -440,6 +519,46 @@ async function boot(): Promise<() => void> {
       if (c.dirt > 0) state.dirt = state.dirt.plus(c.dirt);
     }
     findReveal.enqueueSpecialClaims(claims);
+  };
+
+  const pumpAchievementToast = (): void => {
+    if (achievementToastShowing || achievementToastQueue.length === 0) return;
+    const id = achievementToastQueue.shift()!;
+    const def = getAchievementDef(id);
+    if (!achievementToast || !def) {
+      pumpAchievementToast();
+      return;
+    }
+    if (achievementToastName) achievementToastName.textContent = def.name;
+    // Retrigger confetti / trophy pop even when toasts queue back-to-back.
+    achievementToast.classList.remove("is-visible");
+    void achievementToast.offsetWidth;
+    achievementToast.classList.add("is-visible");
+    achievementToast.setAttribute("aria-hidden", "false");
+    document.documentElement.dataset.psgeAchievement = id;
+    achievementToastShowing = true;
+    if (achievementToastTimer !== 0) clearTimeout(achievementToastTimer);
+    achievementToastTimer = window.setTimeout(() => {
+      achievementToastTimer = 0;
+      achievementToast.classList.remove("is-visible");
+      achievementToast.setAttribute("aria-hidden", "true");
+      achievementToastShowing = false;
+      pumpAchievementToast();
+    }, ACHIEVEMENT_TOAST_MS);
+  };
+
+  const enqueueAchievementToasts = (ids: string[]): void => {
+    if (ids.length === 0) return;
+    achievementToastQueue.push(...ids);
+    pumpAchievementToast();
+  };
+
+  /** Evaluate unlocks; toast newly earned; returns whether any unlocked. */
+  const flushAchievements = (): boolean => {
+    const newly = evaluateAchievements(state);
+    if (newly.length === 0) return false;
+    enqueueAchievementToasts(newly);
+    return true;
   };
 
   const showBoosterToast = (claims: BoosterClaim[]): void => {
@@ -572,11 +691,16 @@ async function boot(): Promise<() => void> {
     const found = claimOfflineReward(state, pendingOffline);
     pendingOffline = null;
     state.lastPlayedAtMs = wallClock();
+    noteOvernightClaim(state);
     hideOfflineModal();
     document.documentElement.dataset.psgeOffline = "claimed";
     enqueueFinds(found);
     collectShaftCoins();
     applyPlayView();
+    // Offline claim closes the dock; restore it on wide so tabs stay handy.
+    if (window.matchMedia("(min-width: 521px)").matches) {
+      sheets.setPanelOpen(true);
+    }
     autosave.markDirty();
     void autosave.flush().catch((err) => console.error(err));
   };
@@ -614,7 +738,6 @@ async function boot(): Promise<() => void> {
           : `Dirt coins ${coinCount} · dirt from coins ${formatAmount(coinDirt)}`;
     }
     const specialCount = state.specialCoins.unlocked.length;
-    if (coinsCountEl) coinsCountEl.textContent = String(specialCount);
     if (coinsProgressEl) {
       coinsProgressEl.textContent =
         specialCount === 0
@@ -664,25 +787,60 @@ async function boot(): Promise<() => void> {
       state.boosters,
       state.specialCoins,
     );
-    if (collectionCountEl) {
-      collectionCountEl.textContent = String(state.discoveries.unlocked.length);
+    // Viewing a catalog tab clears its new-dot (including unlocks while open).
+    if (sheets.isPanelOpen() && markPanelTabSeen(state, sheets.getTab())) {
+      autosave.markDirty();
     }
     refreshDiscoveryList(collectionList, state.discoveries.unlocked);
     refreshSpecialCoinsList(coinsList, state.specialCoins.unlocked);
+    const achCount = state.achievements.unlocked.length;
+    if (achievementsProgressEl) {
+      achievementsProgressEl.textContent =
+        achCount === 0
+          ? `0 / ${ACHIEVEMENT_DEFS.length} — keep digging`
+          : `${achCount} / ${ACHIEVEMENT_DEFS.length} unlocked`;
+    }
+    refreshAchievementsList(achievementsList, state.achievements.unlocked);
+    document.documentElement.dataset.psgeAchievementsCount = String(achCount);
+    syncPanelNewDots();
 
+    const visibleUpgrades = visibleShopUpgradeIds(state.upgrades, state.dirt);
     let anyAffordable = false;
     for (const def of UPGRADE_DEFS) {
       const level = state.upgrades[def.id];
       const cost = upgradeCost(def.id, level);
       const affordable = canBuyUpgrade(state, def.id);
       if (affordable) anyAffordable = true;
+      const row = shopList?.querySelector<HTMLElement>(
+        `[data-upgrade="${def.id}"]`,
+      );
+      const visible = visibleUpgrades.has(def.id);
+      if (row) {
+        row.hidden = !visible;
+        row.dataset.shopVisible = visible ? "1" : "0";
+        row.classList.toggle("is-owned", level > 0);
+        row.classList.toggle("is-locked", level === 0);
+        row.classList.toggle("is-affordable", affordable);
+      }
       const effect = shopList?.querySelector(`[data-shop-effect="${def.id}"]`);
       if (effect) {
         effect.textContent = `Lv ${level} · ${def.effectLabel} · ${formatAmount(cost)} dirt`;
       }
       const buy = shopButtons.get(def.id);
       if (buy) {
-        buy.textContent = "Buy";
+        const action = level === 0 ? "unlock" : "upgrade";
+        if (buy.dataset.shopAction !== action) {
+          buy.dataset.shopAction = action;
+          const label = action === "unlock" ? "Unlock" : "Upgrade";
+          buy.setAttribute("aria-label", `${label} ${def.name}`);
+          buy.title = label;
+          const icon = buy.querySelector<HTMLImageElement>("img[data-icon]");
+          if (icon) {
+            const iconId = action === "unlock" ? "shop-unlock" : "shop-upgrade";
+            icon.dataset.icon = iconId;
+            icon.src = uiIconUrl(iconId);
+          }
+        }
         buy.disabled = !affordable;
       }
     }
@@ -690,7 +848,11 @@ async function boot(): Promise<() => void> {
       if (anyAffordable) shopAffordDot.removeAttribute("hidden");
       else shopAffordDot.setAttribute("hidden", "");
     }
-    shopToggle?.classList.toggle("has-affordable", anyAffordable);
+    if (shopAffordTab) {
+      if (anyAffordable) shopAffordTab.removeAttribute("hidden");
+      else shopAffordTab.setAttribute("hidden", "");
+    }
+    panelToggle?.classList.toggle("has-affordable", anyAffordable);
 
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
@@ -702,6 +864,7 @@ async function boot(): Promise<() => void> {
   const applyPlayView = (): void => {
     syncFromState();
     applyCamera();
+    if (flushAchievements()) autosave.markDirty();
     updateHud();
   };
 
@@ -720,7 +883,10 @@ async function boot(): Promise<() => void> {
       const hint = document.createElement("p");
       hint.className = "shop-section-hint";
       hint.textContent = section.hint;
-      group.append(heading, hint);
+      const sectionHeader = document.createElement("header");
+      sectionHeader.className = "shop-section-header";
+      sectionHeader.append(heading, hint);
+      group.append(sectionHeader);
 
       for (const def of UPGRADE_DEFS) {
         if (def.kind !== section.kind) continue;
@@ -743,6 +909,7 @@ async function boot(): Promise<() => void> {
         buy.type = "button";
         buy.className = "shop-buy";
         buy.dataset.shopBuy = def.id;
+        buy.append(createUiIconImg("shop-unlock", "psge-icon shop-buy-icon"));
         buy.addEventListener("pointerdown", (e) => e.stopPropagation());
         buy.addEventListener("click", (e) => {
           e.preventDefault();
@@ -1019,10 +1186,12 @@ async function boot(): Promise<() => void> {
     const depthBefore = depthNumber(state);
     const found = tickProduction(state, dt);
     if (depthNumber(state) === depthBefore) return;
+    noteAfkDig(state);
     enqueueFinds(found);
     collectShaftCoins();
     syncFromState();
     applyCamera();
+    if (flushAchievements()) autosave.markDirty();
     updateHud();
     autosave.markDirty();
     if (trickleCooldown <= 0) {
@@ -1048,7 +1217,7 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "8";
+  document.documentElement.dataset.psgeMilestone = "9";
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -1077,6 +1246,7 @@ async function boot(): Promise<() => void> {
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
     if (layerToastTimer !== 0) clearTimeout(layerToastTimer);
     if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
+    if (achievementToastTimer !== 0) clearTimeout(achievementToastTimer);
     void autosave.flush().finally(() => {
       autosave.dispose();
     });

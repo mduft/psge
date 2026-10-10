@@ -2,29 +2,46 @@
  * Copyright (c) 2026 Markus Duft
  * SPDX-License-Identifier: MIT
  *
- * FAB sheet open/close mutex (shop / finds / special coins / debug).
+ * Tabbed HUD panel (shop / finds / coins / achievements) + debug sheet.
+ * Wide: docked under stats rail. Narrow: bottom sheet. Dig while open.
  */
 
-export type HudSheetId = "shop" | "collection" | "coins" | "debug";
+export type HudPanelTab = "shop" | "collection" | "coins" | "achievements";
+
+export interface HudSheetsOptions {
+  /** Fired when open state or active tab changes. */
+  onChange?: (state: { open: boolean; tab: HudPanelTab }) => void;
+}
 
 export interface HudSheets {
+  /** Open panel and select a tab (closes debug). */
+  openTab(tab: HudPanelTab): void;
+  setTab(tab: HudPanelTab): void;
+  setPanelOpen(open: boolean): void;
+  getTab(): HudPanelTab;
+  isPanelOpen(): boolean;
+  /** Compatibility: open shop tab / close panel. */
   setShopOpen(open: boolean): void;
   setCollectionOpen(open: boolean): void;
   setCoinsOpen(open: boolean): void;
+  setAchievementsOpen(open: boolean): void;
   setDebugSheetOpen(open: boolean): void;
   closeAll(): void;
-  /** Wire FAB / close / sheet pointer listeners; returns disposer. */
   bind(): () => void;
 }
+
+const TABS: readonly HudPanelTab[] = [
+  "shop",
+  "collection",
+  "coins",
+  "achievements",
+];
 
 function qs<T extends Element>(sel: string): T | null {
   return document.querySelector<T>(sel);
 }
 
-function setExpanded(
-  btn: HTMLButtonElement | null,
-  open: boolean,
-): void {
+function setExpanded(btn: HTMLButtonElement | null, open: boolean): void {
   btn?.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
@@ -38,130 +55,151 @@ function stopBubble(ev: Event): void {
   ev.stopPropagation();
 }
 
+function isTab(v: string | undefined): v is HudPanelTab {
+  return (
+    v === "shop" ||
+    v === "collection" ||
+    v === "coins" ||
+    v === "achievements"
+  );
+}
+
 /**
- * Query DOM once and own sheet open-state + listeners.
- * Backdrops are visual-only (`pointer-events: none`) — no click-to-close.
+ * One panel shell, tab-switched content. Dataset:
+ * - `data-psge-panel` open|closed
+ * - `data-psge-panel-tab` shop|collection|coins|achievements
+ * Legacy mirrors: psgeShop / Collection / CoinSheet / Achievements = open only
+ * when panel is open on that tab (for existing e2e selectors).
  */
-export function createHudSheets(): HudSheets {
-  const shopToggle = qs<HTMLButtonElement>("#shop-toggle");
-  const shopClose = qs<HTMLButtonElement>("#shop-close");
-  const shopBackdrop = qs<HTMLElement>("#shop-backdrop");
-  const shopSheet = qs<HTMLElement>("#shop-sheet");
-
-  const collectionToggle = qs<HTMLButtonElement>("#collection-toggle");
-  const collectionClose = qs<HTMLButtonElement>("#collection-close");
-  const collectionBackdrop = qs<HTMLElement>("#collection-backdrop");
-  const collectionSheet = qs<HTMLElement>("#collection-sheet");
-
-  const coinsToggle = qs<HTMLButtonElement>("#coins-toggle");
-  const coinsClose = qs<HTMLButtonElement>("#coins-close");
-  const coinsBackdrop = qs<HTMLElement>("#coins-backdrop");
-  const coinsSheet = qs<HTMLElement>("#coins-sheet");
+export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
+  const panelToggle = qs<HTMLButtonElement>("#panel-toggle");
+  const panelClose = qs<HTMLButtonElement>("#panel-close");
+  const panelBackdrop = qs<HTMLElement>("#panel-backdrop");
+  const panel = qs<HTMLElement>("#hud-panel");
 
   const debugFab = qs<HTMLButtonElement>("#debug-fab");
   const debugClose = qs<HTMLButtonElement>("#debug-close");
   const debugBackdrop = qs<HTMLElement>("#debug-backdrop");
   const debugPanel = qs<HTMLElement>("#debug-panel");
 
+  let tab: HudPanelTab = "shop";
+  let panelOpen = false;
+
+  const notify = (): void => {
+    options.onChange?.({ open: panelOpen, tab });
+  };
+
+  const syncLegacyDataset = (): void => {
+    const root = document.documentElement.dataset;
+    root.psgePanel = panelOpen ? "open" : "closed";
+    root.psgePanelTab = tab;
+    root.psgeShop =
+      panelOpen && tab === "shop" ? "open" : "closed";
+    root.psgeCollection =
+      panelOpen && tab === "collection" ? "open" : "closed";
+    root.psgeCoinSheet =
+      panelOpen && tab === "coins" ? "open" : "closed";
+    root.psgeAchievements =
+      panelOpen && tab === "achievements" ? "open" : "closed";
+  };
+
+  const applyTabUi = (): void => {
+    for (const id of TABS) {
+      const tabBtn = qs<HTMLButtonElement>(`[data-panel-tab="${id}"]`);
+      const pane = qs<HTMLElement>(`[data-panel-pane="${id}"]`);
+      const selected = id === tab;
+      tabBtn?.setAttribute("aria-selected", selected ? "true" : "false");
+      tabBtn?.classList.toggle("is-active", selected);
+      setHidden(pane, !selected);
+    }
+  };
+
+  const applyPanelUi = (): void => {
+    setExpanded(panelToggle, panelOpen);
+    setHidden(panelBackdrop, !panelOpen);
+    if (panelToggle) {
+      panelToggle.setAttribute(
+        "aria-label",
+        panelOpen ? "Close panels" : "Open panels",
+      );
+    }
+    applyTabUi();
+    syncLegacyDataset();
+    notify();
+  };
+
   const setDebugSheetOpen = (open: boolean): void => {
     if (open) {
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCollection = "closed";
-      document.documentElement.dataset.psgeCoinSheet = "closed";
-      setExpanded(shopToggle, false);
-      setExpanded(collectionToggle, false);
-      setExpanded(coinsToggle, false);
-      setHidden(shopBackdrop, true);
-      setHidden(collectionBackdrop, true);
-      setHidden(coinsBackdrop, true);
+      panelOpen = false;
+      applyPanelUi();
     }
     document.documentElement.dataset.psgeDebugSheet = open ? "open" : "closed";
     setExpanded(debugFab, open);
     setHidden(debugBackdrop, !open);
   };
 
-  const setCoinsOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCollection = "closed";
-      setExpanded(shopToggle, false);
-      setExpanded(collectionToggle, false);
-      setHidden(shopBackdrop, true);
-      setHidden(collectionBackdrop, true);
-    }
-    document.documentElement.dataset.psgeCoinSheet = open ? "open" : "closed";
-    setExpanded(coinsToggle, open);
-    setHidden(coinsBackdrop, !open);
+  const setPanelOpen = (open: boolean): void => {
+    if (open) setDebugSheetOpen(false);
+    panelOpen = open;
+    applyPanelUi();
   };
 
-  const setCollectionOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCoinSheet = "closed";
-      setExpanded(shopToggle, false);
-      setExpanded(coinsToggle, false);
-      setHidden(shopBackdrop, true);
-      setHidden(coinsBackdrop, true);
-    }
-    document.documentElement.dataset.psgeCollection = open
-      ? "open"
-      : "closed";
-    setExpanded(collectionToggle, open);
-    setHidden(collectionBackdrop, !open);
+  const setTab = (next: HudPanelTab): void => {
+    tab = next;
+    applyTabUi();
+    syncLegacyDataset();
+    notify();
+  };
+
+  const openTab = (next: HudPanelTab): void => {
+    tab = next;
+    setPanelOpen(true);
   };
 
   const setShopOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      setCollectionOpen(false);
-      setCoinsOpen(false);
-    }
-    document.documentElement.dataset.psgeShop = open ? "open" : "closed";
-    setExpanded(shopToggle, open);
-    setHidden(shopBackdrop, !open);
+    if (open) openTab("shop");
+    else if (tab === "shop") setPanelOpen(false);
+  };
+  const setCollectionOpen = (open: boolean): void => {
+    if (open) openTab("collection");
+    else if (tab === "collection") setPanelOpen(false);
+  };
+  const setCoinsOpen = (open: boolean): void => {
+    if (open) openTab("coins");
+    else if (tab === "coins") setPanelOpen(false);
+  };
+  const setAchievementsOpen = (open: boolean): void => {
+    if (open) openTab("achievements");
+    else if (tab === "achievements") setPanelOpen(false);
   };
 
   const closeAll = (): void => {
-    setShopOpen(false);
-    setCollectionOpen(false);
-    setCoinsOpen(false);
+    setPanelOpen(false);
     setDebugSheetOpen(false);
   };
 
   const bind = (): (() => void) => {
-    const onShopToggle = (e: Event): void => {
+    const onPanelToggle = (e: Event): void => {
       e.preventDefault();
       e.stopPropagation();
-      setShopOpen(document.documentElement.dataset.psgeShop !== "open");
+      setPanelOpen(!panelOpen);
     };
-    const onShopClose = (e: Event): void => {
+    const onPanelClose = (e: Event): void => {
       e.preventDefault();
       e.stopPropagation();
-      setShopOpen(false);
+      setPanelOpen(false);
     };
-    const onCollectionToggle = (e: Event): void => {
+    const onTabClick = (e: Event): void => {
+      const btn = (e.target as Element | null)?.closest?.(
+        "[data-panel-tab]",
+      ) as HTMLElement | null;
+      if (!btn) return;
+      const id = btn.dataset.panelTab;
+      if (!isTab(id)) return;
       e.preventDefault();
       e.stopPropagation();
-      setCollectionOpen(
-        document.documentElement.dataset.psgeCollection !== "open",
-      );
-    };
-    const onCollectionClose = (e: Event): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      setCollectionOpen(false);
-    };
-    const onCoinsToggle = (e: Event): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      setCoinsOpen(document.documentElement.dataset.psgeCoinSheet !== "open");
-    };
-    const onCoinsClose = (e: Event): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      setCoinsOpen(false);
+      if (!panelOpen) openTab(id);
+      else setTab(id);
     };
     const onDebugToggle = (e: Event): void => {
       e.preventDefault();
@@ -176,23 +214,12 @@ export function createHudSheets(): HudSheets {
       setDebugSheetOpen(false);
     };
 
-    shopToggle?.addEventListener("click", onShopToggle);
-    shopToggle?.addEventListener("pointerdown", stopBubble);
-    shopClose?.addEventListener("click", onShopClose);
-    shopClose?.addEventListener("pointerdown", stopBubble);
-    shopSheet?.addEventListener("pointerdown", stopBubble);
-
-    collectionToggle?.addEventListener("click", onCollectionToggle);
-    collectionToggle?.addEventListener("pointerdown", stopBubble);
-    collectionClose?.addEventListener("click", onCollectionClose);
-    collectionClose?.addEventListener("pointerdown", stopBubble);
-    collectionSheet?.addEventListener("pointerdown", stopBubble);
-
-    coinsToggle?.addEventListener("click", onCoinsToggle);
-    coinsToggle?.addEventListener("pointerdown", stopBubble);
-    coinsClose?.addEventListener("click", onCoinsClose);
-    coinsClose?.addEventListener("pointerdown", stopBubble);
-    coinsSheet?.addEventListener("pointerdown", stopBubble);
+    panelToggle?.addEventListener("click", onPanelToggle);
+    panelToggle?.addEventListener("pointerdown", stopBubble);
+    panelClose?.addEventListener("click", onPanelClose);
+    panelClose?.addEventListener("pointerdown", stopBubble);
+    panel?.addEventListener("click", onTabClick);
+    panel?.addEventListener("pointerdown", stopBubble);
 
     debugFab?.addEventListener("click", onDebugToggle);
     debugFab?.addEventListener("pointerdown", stopBubble);
@@ -200,24 +227,15 @@ export function createHudSheets(): HudSheets {
     debugClose?.addEventListener("pointerdown", stopBubble);
     debugPanel?.addEventListener("pointerdown", stopBubble);
 
+    applyPanelUi();
+
     return () => {
-      shopToggle?.removeEventListener("click", onShopToggle);
-      shopToggle?.removeEventListener("pointerdown", stopBubble);
-      shopClose?.removeEventListener("click", onShopClose);
-      shopClose?.removeEventListener("pointerdown", stopBubble);
-      shopSheet?.removeEventListener("pointerdown", stopBubble);
-
-      collectionToggle?.removeEventListener("click", onCollectionToggle);
-      collectionToggle?.removeEventListener("pointerdown", stopBubble);
-      collectionClose?.removeEventListener("click", onCollectionClose);
-      collectionClose?.removeEventListener("pointerdown", stopBubble);
-      collectionSheet?.removeEventListener("pointerdown", stopBubble);
-
-      coinsToggle?.removeEventListener("click", onCoinsToggle);
-      coinsToggle?.removeEventListener("pointerdown", stopBubble);
-      coinsClose?.removeEventListener("click", onCoinsClose);
-      coinsClose?.removeEventListener("pointerdown", stopBubble);
-      coinsSheet?.removeEventListener("pointerdown", stopBubble);
+      panelToggle?.removeEventListener("click", onPanelToggle);
+      panelToggle?.removeEventListener("pointerdown", stopBubble);
+      panelClose?.removeEventListener("click", onPanelClose);
+      panelClose?.removeEventListener("pointerdown", stopBubble);
+      panel?.removeEventListener("click", onTabClick);
+      panel?.removeEventListener("pointerdown", stopBubble);
 
       debugFab?.removeEventListener("click", onDebugToggle);
       debugFab?.removeEventListener("pointerdown", stopBubble);
@@ -228,9 +246,15 @@ export function createHudSheets(): HudSheets {
   };
 
   return {
+    openTab,
+    setTab,
+    setPanelOpen,
+    getTab: () => tab,
+    isPanelOpen: () => panelOpen,
     setShopOpen,
     setCollectionOpen,
     setCoinsOpen,
+    setAchievementsOpen,
     setDebugSheetOpen,
     closeAll,
     bind,

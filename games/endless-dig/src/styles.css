@@ -216,22 +216,20 @@ body {
   color: rgba(196, 165, 116, 0.95);
 }
 
-/* FABs + sheets on all viewports — dig still works with a panel open
-   (backdrops do not capture pointer events). */
+/* Panel dock FAB (narrow) + debug FAB — dig works with panel open. */
 .hud-actions,
 .hud-debug {
   position: contents;
   pointer-events: none;
 }
 
-.shop-fab,
+.panel-dock-fab,
 .debug-fab:not([hidden]) {
   display: flex;
   align-items: center;
   justify-content: center;
   position: fixed;
   bottom: calc(4.25rem + var(--safe-bottom));
-  /* Below panels — close the open sheet to reach other FABs. */
   z-index: 3;
   width: 3.1rem;
   height: 3.1rem;
@@ -246,18 +244,8 @@ body {
   pointer-events: auto;
 }
 
-.shop-fab {
+.panel-dock-fab {
   right: calc(0.9rem + var(--safe-right));
-}
-
-.collection-fab {
-  bottom: calc(8rem + var(--safe-bottom));
-  border-color: rgba(160, 190, 200, 0.55);
-}
-
-.coins-fab {
-  bottom: calc(11.75rem + var(--safe-bottom));
-  border-color: rgba(212, 178, 74, 0.65);
 }
 
 .debug-fab:not([hidden]) {
@@ -266,24 +254,31 @@ body {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
-.shop-fab:hover,
-.shop-fab:focus-visible,
+.panel-dock-fab:hover,
+.panel-dock-fab:focus-visible,
 .debug-fab:hover,
 .debug-fab:focus-visible {
   background: rgba(196, 165, 116, 0.28);
   outline: none;
 }
 
-.shop-fab.has-affordable {
+.panel-dock-fab.has-affordable {
   border-color: rgba(196, 165, 116, 0.9);
 }
 
 .shop-fab-icon,
-.debug-fab-icon {
+.debug-fab-icon,
+.panel-close-icon,
+.hud-panel-tab-icon,
+.auto-pause-icon,
+.achievement-toast-trophy {
   display: block;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
-.shop-afford-dot {
+.shop-afford-dot,
+.tab-badge {
   position: absolute;
   top: 0.2rem;
   right: 0.2rem;
@@ -294,7 +289,8 @@ body {
   box-shadow: 0 0 0 2px rgba(10, 14, 20, 0.9);
 }
 
-.shop-afford-dot[hidden] {
+.shop-afford-dot[hidden],
+.tab-badge[hidden] {
   display: none !important;
 }
 
@@ -309,9 +305,7 @@ body {
   pointer-events: none;
 }
 
-html[data-psge-shop="open"] #shop-backdrop,
-html[data-psge-collection="open"] #collection-backdrop,
-html[data-psge-coin-sheet="open"] #coins-backdrop,
+html[data-psge-panel="open"] #panel-backdrop,
 html[data-psge-debug-sheet="open"] .debug-backdrop {
   display: block;
 }
@@ -386,77 +380,31 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
   opacity: 0.45;
 }
 
+.psge-icon {
+  display: block;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex: 0 0 auto;
+  pointer-events: none;
+  user-select: none;
+}
+
 .discovery-icon {
   flex: 0 0 2.2rem;
   width: 2.2rem;
   height: 2.2rem;
+  padding: 0.2rem;
+  box-sizing: border-box;
   border-radius: 0.35rem;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.06);
-  position: relative;
+  object-fit: contain;
 }
 
-.discovery-icon::after {
-  content: "";
-  position: absolute;
-  inset: 22%;
-  background: currentColor;
-  opacity: 0.85;
-}
-
-.discovery-icon.icon-bone {
-  color: #e8dcc8;
-}
-.discovery-icon.icon-bone::after {
-  border-radius: 2px;
-  inset: 18% 38%;
-}
-
-.discovery-icon.icon-shard {
-  color: #b07040;
-}
-.discovery-icon.icon-shard::after {
-  clip-path: polygon(20% 10%, 90% 30%, 70% 90%, 10% 70%);
-}
-
-.discovery-icon.icon-crystal {
-  color: #70c8e8;
-}
-.discovery-icon.icon-crystal::after {
-  clip-path: polygon(50% 5%, 90% 90%, 10% 90%);
-}
-
-.discovery-icon.icon-gear {
-  color: #8a9098;
-}
-.discovery-icon.icon-gear::after {
-  clip-path: polygon(0 40%, 40% 40%, 40% 0, 60% 0, 60% 40%, 100% 40%, 100% 60%, 60% 60%, 60% 100%, 40% 100%, 40% 60%, 0 60%);
-}
-
-.discovery-icon.icon-stone {
-  color: #6a7a88;
-}
-.discovery-icon.icon-stone::after {
-  border-radius: 30% 40% 35% 45%;
-}
-
-.discovery-icon.icon-tablet {
-  color: #3a4450;
-}
-.discovery-icon.icon-tablet::after {
-  inset: 15% 22%;
-  border-radius: 2px;
-}
-
-.discovery-icon.icon-orb {
-  color: #ff6622;
-}
-.discovery-icon.icon-orb::after {
-  border-radius: 40%;
-}
-
+.discovery-icon.is-locked,
 .collection-row.is-locked .discovery-icon {
-  color: #4a5560;
+  filter: grayscale(0.85) brightness(0.75);
+  opacity: 0.85;
 }
 
 .collection-meta {
@@ -480,6 +428,150 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
 .booster-toast {
   top: calc(38% + var(--safe-top));
   border-color: rgba(212, 178, 74, 0.45);
+}
+
+.achievement-toast {
+  top: calc(46% + var(--safe-top));
+  z-index: 8;
+  overflow: visible;
+  padding: 0.65rem 1.05rem 0.7rem;
+  background: rgba(10, 14, 20, 0.92);
+  border-color: rgba(212, 178, 74, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(212, 178, 74, 0.12),
+    0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.achievement-toast-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-align: left;
+}
+
+.achievement-toast-trophy {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  filter: drop-shadow(0 0 6px rgba(226, 192, 106, 0.45));
+}
+
+.achievement-toast-copy {
+  min-width: 0;
+}
+
+.achievement-toast .layer-toast-eyebrow {
+  color: rgba(226, 192, 106, 0.9);
+}
+
+.achievement-toast-fx {
+  position: absolute;
+  left: 1.55rem;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ach-confetti,
+.ach-spark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.ach-confetti {
+  width: 0.48rem;
+  height: 0.28rem;
+  border-radius: 0.07rem;
+  background: hsl(var(--hue, 40) 82% 64%);
+  box-shadow: 0 0 5px hsl(var(--hue, 40) 82% 64% / 0.7);
+}
+
+.ach-spark {
+  width: 0.26rem;
+  height: 0.26rem;
+  border-radius: 50%;
+  background: #ffe7a0;
+  box-shadow: 0 0 8px rgba(255, 231, 160, 1);
+}
+
+.achievement-toast.is-visible .ach-confetti {
+  animation: ach-confetti-burst 1.15s cubic-bezier(0.16, 0.84, 0.3, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+.achievement-toast.is-visible .ach-spark {
+  animation: ach-spark-burst 0.9s cubic-bezier(0.12, 0.8, 0.28, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+.achievement-toast.is-visible .achievement-toast-trophy {
+  animation: ach-trophy-pop 0.55s cubic-bezier(0.2, 1.2, 0.35, 1) both;
+}
+
+@keyframes ach-confetti-burst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.55);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+      rotate(var(--spin, 40deg))
+      scale(1);
+  }
+}
+
+@keyframes ach-spark-burst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+      scale(0.15);
+  }
+}
+
+@keyframes ach-trophy-pop {
+  0% {
+    transform: scale(0.7) rotate(-8deg);
+    filter: drop-shadow(0 0 2px rgba(226, 192, 106, 0.2));
+  }
+  55% {
+    transform: scale(1.12) rotate(4deg);
+    filter: drop-shadow(0 0 10px rgba(226, 192, 106, 0.7));
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 6px rgba(226, 192, 106, 0.45));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-toast.is-visible .ach-confetti,
+  .achievement-toast.is-visible .ach-spark,
+  .achievement-toast.is-visible .achievement-toast-trophy {
+    animation: none;
+  }
+
+  .achievement-toast.is-visible .ach-confetti,
+  .achievement-toast.is-visible .ach-spark {
+    opacity: 0;
+  }
 }
 
 .find-backdrop {
@@ -629,8 +721,9 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
   }
 }
 
-/* Default: bottom sheets (narrow / short). Wide docks to the right rail. */
-.shop {
+/* Default: bottom sheet (narrow). Wide docks under the right stats rail. */
+.shop,
+.hud-panel {
   display: none;
   flex-direction: column;
   position: fixed;
@@ -651,15 +744,102 @@ html[data-psge-debug-sheet="open"] .debug-backdrop {
   pointer-events: auto;
 }
 
-html[data-psge-shop="open"] #shop-sheet,
-html[data-psge-collection="open"] #collection-sheet,
-html[data-psge-coin-sheet="open"] #coins-sheet {
+html[data-psge-panel="open"] #hud-panel {
   display: flex;
 }
 
-/* Wide: dock panels under the right stats rail (not bottom sheets). */
+.hud-panel-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+  margin-bottom: 0.45rem;
+}
+
+/* Close above the tab strip so it never steals tab width. */
+.hud-panel-header > .shop-close {
+  order: -1;
+  align-self: flex-end;
+  margin: -0.1rem -0.15rem 0 0;
+}
+
+.hud-panel-tabs {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 0.2rem;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.hud-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-panel-tab {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0.4rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--hud-muted);
+  cursor: pointer;
+}
+
+.hud-panel-tab.is-active,
+.hud-panel-tab[aria-selected="true"] {
+  color: var(--hud-ink);
+  background: rgba(196, 165, 116, 0.16);
+  border-color: rgba(196, 165, 116, 0.4);
+}
+
+.hud-panel-tab-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.hud-panel-tab .tab-badge {
+  top: 0.2rem;
+  right: 0.25rem;
+}
+
+.hud-panel-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0.35rem;
+}
+
+.hud-panel-pane[hidden] {
+  display: none !important;
+}
+
+/* Wide: dock under the right stats rail; FAB only when panel is closed. */
 @media (min-width: 521px) {
-  .shop {
+  .panel-dock-fab {
+    display: none;
+    position: absolute;
+    bottom: auto;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    left: auto;
+  }
+
+  html[data-psge-panel="closed"] .panel-dock-fab {
+    display: flex;
+  }
+
+  .shop,
+  .hud-panel {
     position: absolute;
     left: 0;
     right: 0;
@@ -723,47 +903,93 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
   overscroll-behavior: contain;
 }
 
-.coin-mark {
+.coin-mark,
+.achievement-mark {
   flex: 0 0 2.2rem;
   width: 2.2rem;
   height: 2.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0.25rem;
+  box-sizing: border-box;
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.35);
-  font-size: 0.95rem;
-  font-weight: 750;
-  line-height: 1;
-  color: #0a0e14;
+  object-fit: contain;
+  background: #c4a050;
 }
 
-.find-icon.coin-mark {
+.achievement-mark {
+  background: #c4a050;
+}
+
+.collection-row.is-locked .achievement-mark,
+.collection-row.is-locked .coin-mark {
+  background: #3a4048;
+  border-color: rgba(0, 0, 0, 0.25);
+  filter: grayscale(0.4) brightness(0.9);
+}
+
+.find-icon.coin-mark,
+.find-icon.discovery-icon {
   flex: none;
   width: 3.6rem;
   height: 3.6rem;
-  font-size: 1.55rem;
   margin: 0 auto;
+  padding: 0.35rem;
 }
 
 .shop-section {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.55rem;
+  background: rgba(5, 8, 12, 0.3);
+}
+
+.shop-section-header {
+  position: relative;
+  padding: 0.52rem 0.65rem 0.48rem 0.8rem;
+  background:
+    linear-gradient(90deg, rgba(196, 165, 116, 0.17), transparent 78%),
+    rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid rgba(196, 165, 116, 0.2);
+}
+
+.shop-section-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.22rem;
+  background: rgba(196, 165, 116, 0.8);
+}
+
+.shop-section[data-shop-section="auto"] .shop-section-header {
+  background:
+    linear-gradient(90deg, rgba(105, 164, 187, 0.16), transparent 78%),
+    rgba(255, 255, 255, 0.035);
+  border-bottom-color: rgba(105, 164, 187, 0.2);
+}
+
+.shop-section[data-shop-section="auto"] .shop-section-header::before {
+  background: rgba(105, 164, 187, 0.82);
 }
 
 .shop-section-title {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--hud-ink);
+  color: #e2c48f;
+}
+
+.shop-section[data-shop-section="auto"] .shop-section-title {
+  color: #a9cfdd;
 }
 
 .shop-section-hint {
-  margin: 0 0 0.2rem;
-  font-size: 0.65rem;
+  margin: 0.12rem 0 0;
+  font-size: 0.62rem;
+  line-height: 1.25;
   color: var(--hud-muted);
 }
 
@@ -772,12 +998,25 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
   grid-template-columns: 1fr auto;
   gap: 0.15rem 0.5rem;
   align-items: center;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background 0.2s ease;
 }
 
 .shop-row:last-child {
   border-bottom: none;
+}
+
+.shop-row[hidden] {
+  display: none !important;
+}
+
+.shop-row.is-owned {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.shop-row.is-affordable {
+  background: rgba(196, 165, 116, 0.07);
 }
 
 .shop-meta {
@@ -788,8 +1027,8 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
 }
 
 .shop-name {
-  font-size: 0.82rem;
-  font-weight: 650;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .shop-effect {
@@ -799,18 +1038,21 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
 
 .shop-buy {
   justify-self: end;
-  padding: 0.28rem 0.5rem;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
   color: var(--hud-ink);
-  text-shadow: none;
   background: rgba(196, 165, 116, 0.22);
   border: 1px solid rgba(196, 165, 116, 0.45);
   cursor: pointer;
-  white-space: nowrap;
+}
+
+.shop-buy-icon {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .shop-buy:hover:not(:disabled),
@@ -822,6 +1064,10 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
 .shop-buy:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.shop-buy:disabled .shop-buy-icon {
+  filter: grayscale(0.7);
 }
 
 .debug-panel[hidden] {

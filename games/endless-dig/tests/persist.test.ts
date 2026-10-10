@@ -12,6 +12,8 @@ import {
   migrateV4ToV5,
   migrateV5ToV6,
   migrateV6ToV7,
+  migrateV7ToV8,
+  migrateV8ToV9,
   parseGameState,
   saveGameState,
   serializeGameState,
@@ -27,12 +29,13 @@ describe("parseGameState", () => {
     });
     expect(s?.depth.toNumber()).toBe(1.5);
     expect(s?.dirt.toNumber()).toBe(6);
-    expect(s?.version).toBe(7);
+    expect(s?.version).toBe(9);
     expect(s?.upgrades.shovel).toBe(0);
     expect(s?.lastPlayedAtMs).toBe(0);
     expect(s?.discoveries.unlocked).toEqual([]);
     expect(s?.boosters.claimed).toEqual([]);
     expect(s?.specialCoins.unlocked).toEqual([]);
+    expect(s?.achievements.unlocked).toEqual([]);
   });
 
   it("migrates version 3 upgrades and clears offline clock", () => {
@@ -45,7 +48,7 @@ describe("parseGameState", () => {
     expect(s?.depth.toNumber()).toBe(12.5);
     expect(s?.upgrades.shovel).toBe(2);
     expect(s?.upgrades.cart).toBe(1);
-    expect(s?.version).toBe(7);
+    expect(s?.version).toBe(9);
     expect(s?.lastPlayedAtMs).toBe(0);
   });
 
@@ -59,7 +62,7 @@ describe("parseGameState", () => {
     });
     expect(s?.lastPlayedAtMs).toBe(1_700_000_000_000);
     expect(s?.upgrades.cart).toBe(1);
-    expect(s?.version).toBe(7);
+    expect(s?.version).toBe(9);
     expect(s?.discoveries.unlocked).toEqual([]);
     expect(s?.discoveries.worldSeed).toBeGreaterThan(0);
   });
@@ -79,7 +82,7 @@ describe("parseGameState", () => {
     });
     expect(s?.discoveries.unlocked).toEqual(["bone_shard"]);
     expect(s?.discoveries.worldSeed).toBe(7);
-    expect(s?.version).toBe(7);
+    expect(s?.version).toBe(9);
     expect(s?.boosters.claimed).toEqual([]);
     expect(
       migrateV5ToV6({
@@ -110,7 +113,7 @@ describe("parseGameState", () => {
     expect(s?.boosters.claimed).toEqual(["b0", "b1"]);
     expect(s?.boosters.dirtEarned).toBe(300);
     expect(s?.specialCoins.unlocked).toEqual([]);
-    expect(s?.version).toBe(7);
+    expect(s?.version).toBe(9);
     expect(
       migrateV6ToV7({
         version: 6,
@@ -124,7 +127,7 @@ describe("parseGameState", () => {
     ).toEqual([]);
   });
 
-  it("accepts version 7 with special coins", () => {
+  it("migrates version 7 into empty achievements", () => {
     const s = parseGameState({
       version: 7,
       depth: "30",
@@ -140,7 +143,80 @@ describe("parseGameState", () => {
       specialCoins: { unlocked: ["copper_bit"] },
     });
     expect(s?.specialCoins.unlocked).toEqual(["copper_bit"]);
-    expect(s?.version).toBe(7);
+    expect(s?.achievements.unlocked).toEqual([]);
+    expect(s?.version).toBe(9);
+    expect(
+      migrateV7ToV8({
+        version: 7,
+        depth: "1",
+        dirt: "4",
+        upgrades: {},
+        lastPlayedAtMs: 0,
+        discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
+        boosters: { claimed: [], dirtEarned: 0 },
+        specialCoins: { unlocked: [] },
+      })?.achievements.unlocked,
+    ).toEqual([]);
+  });
+
+  it("migrates version 8 achievements and marks unlocks as seen", () => {
+    const s = parseGameState({
+      version: 8,
+      depth: "30",
+      dirt: "120",
+      upgrades: {},
+      lastPlayedAtMs: 1,
+      discoveries: {
+        unlocked: ["bone_shard"],
+        worldSeed: 7,
+        digRollMeter: 0.2,
+      },
+      boosters: { claimed: ["b0"], dirtEarned: 100 },
+      specialCoins: { unlocked: ["copper_bit"] },
+      achievements: {
+        unlocked: ["first-dig"],
+        afkDigSeen: false,
+        overnightClaimed: true,
+      },
+    });
+    expect(s?.achievements.unlocked).toEqual(["first-dig"]);
+    expect(s?.achievements.overnightClaimed).toBe(true);
+    expect(s?.version).toBe(9);
+    expect(s?.panelSeen).toEqual({
+      discoveries: ["bone_shard"],
+      specialCoins: ["copper_bit"],
+      achievements: ["first-dig"],
+    });
+  });
+
+  it("accepts version 9 with panelSeen", () => {
+    const s = parseGameState({
+      version: 9,
+      depth: "10",
+      dirt: "40",
+      upgrades: {},
+      lastPlayedAtMs: 1,
+      discoveries: {
+        unlocked: ["bone_shard"],
+        worldSeed: 3,
+        digRollMeter: 0,
+      },
+      boosters: { claimed: [], dirtEarned: 0 },
+      specialCoins: { unlocked: [] },
+      achievements: {
+        unlocked: ["first-dig"],
+        afkDigSeen: false,
+        overnightClaimed: false,
+      },
+      panelSeen: {
+        discoveries: [],
+        specialCoins: [],
+        achievements: [],
+      },
+    });
+    expect(s?.version).toBe(9);
+    expect(s?.panelSeen.discoveries).toEqual([]);
+    expect(s?.discoveries.unlocked).toEqual(["bone_shard"]);
   });
 
   it("rejects version 1", () => {
@@ -166,6 +242,14 @@ describe("migrate helpers", () => {
   it("migrateV6ToV7 returns null for non-v6", () => {
     expect(migrateV6ToV7({ version: 7, depth: 1, dirt: 1 })).toBeNull();
   });
+
+  it("migrateV7ToV8 returns null for non-v7", () => {
+    expect(migrateV7ToV8({ version: 8, depth: 1, dirt: 1 })).toBeNull();
+  });
+
+  it("migrateV8ToV9 returns null for non-v8", () => {
+    expect(migrateV8ToV9({ version: 9, depth: 1, dirt: 1 })).toBeNull();
+  });
 });
 
 describe("saveGameState / loadGameState", () => {
@@ -180,7 +264,7 @@ describe("saveGameState / loadGameState", () => {
     await saveGameState(store, state);
     const raw = await store.load();
     expect(raw).toMatchObject({
-      version: 7,
+      version: 9,
       depth: "4",
       dirt: "16",
       lastPlayedAtMs: 42,
@@ -191,6 +275,16 @@ describe("saveGameState / loadGameState", () => {
       }),
       boosters: { claimed: [], dirtEarned: 0 },
       specialCoins: { unlocked: [] },
+      achievements: {
+        unlocked: [],
+        afkDigSeen: false,
+        overnightClaimed: false,
+      },
+      panelSeen: {
+        discoveries: [],
+        specialCoins: [],
+        achievements: [],
+      },
     });
     const loaded = await loadGameState(store);
     expect(loaded?.depth.eq(state.depth)).toBe(true);
@@ -201,6 +295,12 @@ describe("saveGameState / loadGameState", () => {
     expect(loaded?.boosters.claimed).toEqual([]);
     expect(loaded?.boosters.dirtEarned).toBe(0);
     expect(loaded?.specialCoins.unlocked).toEqual([]);
+    expect(loaded?.achievements.unlocked).toEqual([]);
+    expect(loaded?.panelSeen).toEqual({
+      discoveries: [],
+      specialCoins: [],
+      achievements: [],
+    });
   });
 
   it("serialize omits legacy digPower", () => {
@@ -210,5 +310,10 @@ describe("saveGameState / loadGameState", () => {
     expect(blob.upgrades.shovel).toBe(1);
     expect(blob).toHaveProperty("lastPlayedAtMs");
     expect(blob.specialCoins).toEqual({ unlocked: [] });
+    expect(blob.achievements).toEqual({
+      unlocked: [],
+      afkDigSeen: false,
+      overnightClaimed: false,
+    });
   });
 });

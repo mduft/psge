@@ -4,6 +4,11 @@
  */
 import Decimal from "decimal.js";
 import {
+  emptyAchievementProgress,
+  normalizeAchievements,
+  type AchievementProgress,
+} from "./achievements.js";
+import {
   emptyBoosterProgress,
   normalizeBoosterProgress,
   type BoosterProgress,
@@ -14,6 +19,11 @@ import {
   resolveDiscoveries,
   type DiscoveryProgress,
 } from "./discoveries.js";
+import {
+  emptyPanelSeen,
+  normalizePanelSeen,
+  type PanelSeenProgress,
+} from "./panelSeen.js";
 import {
   emptySpecialCoinProgress,
   normalizeSpecialCoinProgress,
@@ -36,8 +46,8 @@ export { DEFAULT_DIG_POWER };
 /** 2×2 shaft cells — dirt granted per block of depth dug. */
 export const SHAFT_CROSS_SECTION = 4;
 
-/** Persist / GameState schema version (M7+: special coins on v7). */
-export const GAME_STATE_VERSION = 7;
+/** Persist / GameState schema version (v9+: panelSeen for tab new-dots). */
+export const GAME_STATE_VERSION = 9;
 
 export interface GameState {
   version: number;
@@ -58,6 +68,10 @@ export interface GameState {
   boosters: BoosterProgress;
   /** Rare collectible special coins (20 unique). */
   specialCoins: SpecialCoinProgress;
+  /** M9 meta unlocks (celebration chrome). */
+  achievements: AchievementProgress;
+  /** Unlocked ids opened in Finds / Coins / Goals tabs. */
+  panelSeen: PanelSeenProgress;
 }
 
 export function toDecimal(value: Decimal.Value): Decimal {
@@ -74,6 +88,8 @@ export function createInitialState(
     discoveries?: DiscoveryProgress | Partial<DiscoveryProgress>;
     boosters?: BoosterProgress | Partial<BoosterProgress>;
     specialCoins?: SpecialCoinProgress | Partial<SpecialCoinProgress>;
+    achievements?: AchievementProgress | Partial<AchievementProgress>;
+    panelSeen?: PanelSeenProgress | Partial<PanelSeenProgress>;
     worldSeed?: number;
   } = {},
 ): GameState {
@@ -104,6 +120,12 @@ export function createInitialState(
   const specialCoins = overrides.specialCoins
     ? normalizeSpecialCoinProgress(overrides.specialCoins)
     : emptySpecialCoinProgress();
+  const achievements = overrides.achievements
+    ? normalizeAchievements(overrides.achievements)
+    : emptyAchievementProgress();
+  const panelSeen = overrides.panelSeen
+    ? normalizePanelSeen(overrides.panelSeen)
+    : emptyPanelSeen();
   return {
     version: overrides.version ?? GAME_STATE_VERSION,
     depth,
@@ -113,6 +135,8 @@ export function createInitialState(
     discoveries,
     boosters,
     specialCoins,
+    achievements,
+    panelSeen,
   };
 }
 
@@ -246,4 +270,6 @@ export function resetProgress(state: GameState): void {
   state.discoveries = emptyDiscoveryProgress();
   state.boosters = emptyBoosterProgress();
   state.specialCoins = emptySpecialCoinProgress();
+  state.achievements = emptyAchievementProgress();
+  state.panelSeen = emptyPanelSeen();
 }

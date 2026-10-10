@@ -123,6 +123,36 @@ export const SHOP_SECTIONS: readonly {
   },
 ] as const;
 
+/**
+ * Progressive shop disclosure:
+ * - keep every owned item visible (it can still be upgraded)
+ * - reveal the first unowned item in each category
+ * - reveal any unowned item the player can already afford, allowing skips
+ */
+export function visibleShopUpgradeIds(
+  upgrades: UpgradeLevels,
+  dirt: Decimal.Value,
+): ReadonlySet<UpgradeId> {
+  const visible = new Set<UpgradeId>();
+  const funds = new Decimal(dirt);
+
+  for (const section of SHOP_SECTIONS) {
+    let nextRevealed = false;
+    for (const def of UPGRADE_DEFS) {
+      if (def.kind !== section.kind) continue;
+      const owned = upgrades[def.id] > 0;
+      const affordableUnlock = funds.gte(upgradeCost(def.id, 0));
+
+      if (owned || affordableUnlock || !nextRevealed) {
+        visible.add(def.id);
+      }
+      if (!owned && !nextRevealed) nextRevealed = true;
+    }
+  }
+
+  return visible;
+}
+
 export function emptyUpgrades(): UpgradeLevels {
   return {
     shovel: 0,

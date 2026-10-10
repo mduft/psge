@@ -28,13 +28,11 @@ The `@psge/engine` public API is **never frozen**. Milestone exports may be rena
 
 First-time e2e: `npx playwright install chromium`
 
-## Milestone 8 (current) — Agent development loop
+## Milestone 9 (current) — Achievements
 
-**Focus:** prove an agent can ship a small game feature end-to-end (docs + verify recipe). Player loop remains M7. Do not leave throwaway shop SKUs after a proof.
+**Focus:** durable meta unlocks (toast + tabbed panel), save v9 (`panelSeen` new-dots). Distinct from M7 discoveries (in-world finds).
 
-**Art direction (§8.0):** Minecraft-like blocks; side cutaway shaft; half-disk surface; full-bleed HUD.
-
-**Play (M7):** discoveries, collection / find reveal, shaft props, dirt-coin boosters, 20 special coins, FAB dig-while-open sheets, soft dig + hardness.
+**Play:** M7 loop + M8 agent-loop docs + achievements celebration chrome (no dig-power rewards).
 
 **Hardness:** `gained = softDigAmount(raw) × hardness(layer)` on tap, auto, offline, and short tab catch-up.
 
@@ -44,13 +42,13 @@ First-time e2e: `npx playwright install chromium`
 
 Engine: `createApp`, loop, camera, floating origin / chunks, SaveStore, autosave helpers, `createSeededRng`, `loadGltf`.
 
-Dig rules, geo layers, discoveries, actors, shop, offline, and save payload live in the **game**.
+Dig rules, geo layers, discoveries, achievements, actors, shop, offline, and save payload live in the **game**.
 
-**Next:** Milestone 9 Achievements → Milestone 10 3D artifact inspection (deferred).
+**Next:** Milestone 10 3D artifact inspection (deferred).
 
-## Agent development loop
+## Agent development loop (M8)
 
-Canonical path (see [PSGE.md](./PSGE.md) Milestone 8):
+Canonical path:
 
 ```text
 modify code → assets if needed → tests → build → launch
@@ -59,26 +57,20 @@ modify code → assets if needed → tests → build → launch
 
 ### Verify recipe
 
-1. `npm test` — unit tests green
-2. `npm run build` — engine + game typecheck/bundle
-3. `npm run dev` — open `http://localhost:5173/?nosave=1&debug=1` (or LAN host)
-4. Interact (shop buy / dig); assert via console hooks or Playwright
-5. `npm run test:e2e` — Chromium smoke (includes screenshot on the copper-shovel path when present)
-6. Optional: Cursor built-in browser screenshot of the shop / HUD
+1. `npm test`
+2. `npm run build`
+3. `npm run dev` → `http://localhost:5173/?nosave=1&debug=1`
+4. Interact; assert via `__psge*` / `data-psge-*`
+5. `npm run test:e2e`
 
 ### Runtime hooks (Endless Dig)
-
-After `data-psge-ready="true"`:
 
 ```js
 __psgeState.depth.toString()
 __psgeState.upgrades
-__psgeState.dirt.toString()
+__psgeState.achievements.unlocked
 await __psgeSaveStore.load()
-__psgeWorld.setFocusBlockY(-900)
 ```
-
-Also: `__psgeApp`, `__psgeScroll`. Prefer asserting `html[data-psge-*]` and `[data-shop-buy="…"]` in e2e.
 
 Game guide: [games/endless-dig/AGENTS.md](./games/endless-dig/AGENTS.md).
 

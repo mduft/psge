@@ -7,6 +7,10 @@
 import { DISCOVERY_DEFS } from "./discoveries.js";
 import { formatAmount } from "./formatAmount.js";
 import {
+  discoveryIconUrl,
+  uiIconUrl,
+} from "./icons.js";
+import {
   getSpecialCoinDef,
   type SpecialCoinClaim,
 } from "./specialCoins.js";
@@ -33,7 +37,7 @@ export function createFindReveal(options: {
 }): FindReveal {
   const findBackdrop = document.querySelector<HTMLElement>("#find-backdrop");
   const findEyebrow = document.querySelector("[data-find-eyebrow]");
-  const findIcon = document.querySelector<HTMLElement>("[data-find-icon]");
+  const findIcon = document.querySelector<HTMLImageElement>("[data-find-icon]");
   const findName = document.querySelector("[data-find-name]");
   const findBlurb = document.querySelector("[data-find-blurb]");
   const findQueueEl = document.querySelector<HTMLElement>("[data-find-queue]");
@@ -70,8 +74,8 @@ export function createFindReveal(options: {
             : "Special coin";
       }
       if (findIcon) {
-        findIcon.className = "find-icon coin-mark";
-        findIcon.textContent = def?.mark ?? "?";
+        findIcon.className = "find-icon coin-mark psge-icon";
+        findIcon.src = uiIconUrl("coin");
         findIcon.style.background = def
           ? `#${def.tint.toString(16).padStart(6, "0")}`
           : "#c4a050";
@@ -88,8 +92,10 @@ export function createFindReveal(options: {
       const def = DISCOVERY_DEFS.find((d) => d.id === item.id);
       if (findEyebrow) findEyebrow.textContent = "Discovery";
       if (findIcon) {
-        findIcon.className = `discovery-icon find-icon icon-${def?.icon ?? "stone"}`;
-        findIcon.textContent = "";
+        const icon = def?.icon ?? "stone";
+        findIcon.className = "discovery-icon find-icon psge-icon";
+        findIcon.dataset.discoveryIcon = icon;
+        findIcon.src = discoveryIconUrl(icon);
         findIcon.style.background = "";
       }
       if (findName) findName.textContent = def?.name ?? item.id;

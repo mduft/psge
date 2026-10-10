@@ -11,3 +11,5 @@ Committed 32×32 PNGs used as the canvas cursor (hotspot = dig tip; see `digCurs
 | `jackhammer.png` | Owned `jackhammer` (highest) |
 
 Replace these files in place when updating art; keep size 32×32 and adjust hotspots in `src/digCursor.ts` if the tip moves.
+
+HUD / collection icons live under `../icons/` (`src/icons.ts`).

@@ -5,6 +5,11 @@
 import Decimal from "decimal.js";
 import type { SaveStore } from "@psge/engine";
 import {
+  emptyAchievementProgress,
+  normalizeAchievements,
+  type AchievementProgress,
+} from "./achievements.js";
+import {
   emptyBoosterProgress,
   normalizeBoosterProgress,
   type BoosterProgress,
@@ -19,6 +24,12 @@ import {
   GAME_STATE_VERSION,
   type GameState,
 } from "./gameState.js";
+import {
+  emptyPanelSeen,
+  normalizePanelSeen,
+  panelSeenFromUnlocked,
+  type PanelSeenProgress,
+} from "./panelSeen.js";
 import {
   emptySpecialCoinProgress,
   normalizeSpecialCoinProgress,
@@ -40,6 +51,8 @@ export interface SerializedGameState {
   discoveries: DiscoveryProgress;
   boosters: BoosterProgress;
   specialCoins: SpecialCoinProgress;
+  achievements: AchievementProgress;
+  panelSeen: PanelSeenProgress;
 }
 
 function parseDecimalField(value: unknown): Decimal | null {
@@ -76,6 +89,8 @@ function stateFromFields(
   discoveries?: DiscoveryProgress,
   boosters?: BoosterProgress,
   specialCoins?: SpecialCoinProgress,
+  achievements?: AchievementProgress,
+  panelSeen?: PanelSeenProgress,
 ): GameState {
   return createInitialState({
     version: DIG_SAVE_VERSION,
@@ -86,6 +101,8 @@ function stateFromFields(
     discoveries: discoveries ?? emptyDiscoveryProgress(),
     boosters: boosters ?? emptyBoosterProgress(),
     specialCoins: specialCoins ?? emptySpecialCoinProgress(),
+    achievements: achievements ?? emptyAchievementProgress(),
+    panelSeen: panelSeen ?? emptyPanelSeen(),
   });
 }
 
@@ -183,6 +200,69 @@ export function migrateV6ToV7(data: Record<string, unknown>): GameState | null {
     discoveries,
     boosters,
     emptySpecialCoinProgress(),
+    emptyAchievementProgress(),
+  );
+}
+
+/** Migrate a v7 save into v8 (adds empty achievements). */
+export function migrateV7ToV8(data: Record<string, unknown>): GameState | null {
+  if (data.version !== 7) return null;
+  const depth = parseDecimalField(data.depth);
+  const dirt = parseDecimalField(data.dirt);
+  if (!depth || !dirt) return null;
+  const upgrades =
+    data.upgrades && typeof data.upgrades === "object"
+      ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
+      : normalizeUpgrades(undefined);
+  const fallbackSeed =
+    ((Date.now() ^ Math.floor(depth.toNumber())) >>> 0) || 1;
+  const discoveries = normalizeDiscoveryProgress(
+    data.discoveries,
+    fallbackSeed,
+  );
+  const boosters = normalizeBoosterProgress(data.boosters);
+  const specialCoins = normalizeSpecialCoinProgress(data.specialCoins);
+  return stateFromFields(
+    depth,
+    dirt,
+    upgrades,
+    parseLastPlayedAtMs(data.lastPlayedAtMs),
+    discoveries,
+    boosters,
+    specialCoins,
+    emptyAchievementProgress(),
+  );
+}
+
+/** Migrate a v8 save into v9 (panelSeen; existing unlocks count as viewed). */
+export function migrateV8ToV9(data: Record<string, unknown>): GameState | null {
+  if (data.version !== 8) return null;
+  const depth = parseDecimalField(data.depth);
+  const dirt = parseDecimalField(data.dirt);
+  if (!depth || !dirt) return null;
+  const upgrades =
+    data.upgrades && typeof data.upgrades === "object"
+      ? normalizeUpgrades(data.upgrades as Record<string, unknown>)
+      : normalizeUpgrades(undefined);
+  const fallbackSeed =
+    ((Date.now() ^ Math.floor(depth.toNumber())) >>> 0) || 1;
+  const discoveries = normalizeDiscoveryProgress(
+    data.discoveries,
+    fallbackSeed,
+  );
+  const boosters = normalizeBoosterProgress(data.boosters);
+  const specialCoins = normalizeSpecialCoinProgress(data.specialCoins);
+  const achievements = normalizeAchievements(data.achievements);
+  return stateFromFields(
+    depth,
+    dirt,
+    upgrades,
+    parseLastPlayedAtMs(data.lastPlayedAtMs),
+    discoveries,
+    boosters,
+    specialCoins,
+    achievements,
+    panelSeenFromUnlocked({ discoveries, specialCoins, achievements }),
   );
 }
 
@@ -195,6 +275,8 @@ export function parseGameState(data: unknown): GameState | null {
   if (o.version === 4) return migrateV4ToV5(o);
   if (o.version === 5) return migrateV5ToV6(o);
   if (o.version === 6) return migrateV6ToV7(o);
+  if (o.version === 7) return migrateV7ToV8(o);
+  if (o.version === 8) return migrateV8ToV9(o);
 
   if (o.version !== DIG_SAVE_VERSION) return null;
 
@@ -212,6 +294,8 @@ export function parseGameState(data: unknown): GameState | null {
   const discoveries = normalizeDiscoveryProgress(o.discoveries, fallbackSeed);
   const boosters = normalizeBoosterProgress(o.boosters);
   const specialCoins = normalizeSpecialCoinProgress(o.specialCoins);
+  const achievements = normalizeAchievements(o.achievements);
+  const panelSeen = normalizePanelSeen(o.panelSeen);
 
   return stateFromFields(
     depth,
@@ -221,6 +305,8 @@ export function parseGameState(data: unknown): GameState | null {
     discoveries,
     boosters,
     specialCoins,
+    achievements,
+    panelSeen,
   );
 }
 
@@ -242,6 +328,16 @@ export function serializeGameState(state: GameState): SerializedGameState {
     },
     specialCoins: {
       unlocked: [...state.specialCoins.unlocked],
+    },
+    achievements: {
+      unlocked: [...state.achievements.unlocked],
+      afkDigSeen: state.achievements.afkDigSeen,
+      overnightClaimed: state.achievements.overnightClaimed,
+    },
+    panelSeen: {
+      discoveries: [...state.panelSeen.discoveries],
+      specialCoins: [...state.panelSeen.specialCoins],
+      achievements: [...state.panelSeen.achievements],
     },
   };
 }

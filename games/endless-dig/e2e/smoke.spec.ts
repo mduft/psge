@@ -21,29 +21,52 @@ async function seedSaveBeforeGoto(
   );
 }
 
-/** Panels are FAB sheets on all viewports — open when needed. */
+/** Open the tabbed HUD panel on a given tab (wide may already be open). */
+async function ensurePanelTab(
+  page: Page,
+  tab: "shop" | "collection" | "coins" | "achievements",
+): Promise<void> {
+  const panelOpen = await page.locator("html").getAttribute("data-psge-panel");
+  if (panelOpen !== "open") {
+    await page.locator("#panel-toggle").click();
+  }
+  const current = await page
+    .locator("html")
+    .getAttribute("data-psge-panel-tab");
+  if (current !== tab) {
+    await page.locator(`[data-panel-tab="${tab}"]`).click();
+  }
+  await expect(page.locator("html")).toHaveAttribute("data-psge-panel", "open");
+  await expect(page.locator(`[data-panel-pane="${tab}"]`)).toBeVisible();
+}
+
 async function ensureShopOpen(page: Page): Promise<void> {
-  const fab = page.locator("#shop-toggle");
-  await expect(fab).toBeVisible();
-  const open = await page.locator("html").getAttribute("data-psge-shop");
-  if (open !== "open") await fab.click();
-  await expect(page.locator("#shop-sheet")).toBeVisible();
+  await ensurePanelTab(page, "shop");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
 }
 
 async function ensureCollectionOpen(page: Page): Promise<void> {
-  const fab = page.locator("#collection-toggle");
-  await expect(fab).toBeVisible();
-  const open = await page.locator("html").getAttribute("data-psge-collection");
-  if (open !== "open") await fab.click();
-  await expect(page.locator("#collection-sheet")).toBeVisible();
+  await ensurePanelTab(page, "collection");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-collection",
+    "open",
+  );
 }
 
 async function ensureCoinsOpen(page: Page): Promise<void> {
-  const fab = page.locator("#coins-toggle");
-  await expect(fab).toBeVisible();
-  const open = await page.locator("html").getAttribute("data-psge-coin-sheet");
-  if (open !== "open") await fab.click();
-  await expect(page.locator("#coins-sheet")).toBeVisible();
+  await ensurePanelTab(page, "coins");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-coin-sheet",
+    "open",
+  );
+}
+
+async function ensureAchievementsOpen(page: Page): Promise<void> {
+  await ensurePanelTab(page, "achievements");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-achievements",
+    "open",
+  );
 }
 
 async function ensureDebugOpen(page: Page): Promise<void> {
@@ -55,6 +78,29 @@ async function ensureDebugOpen(page: Page): Promise<void> {
   if (open !== "open") await fab.click();
   await expect(page.locator("#debug-panel")).toBeVisible();
 }
+
+test("panel tabs switch and only one pane is active", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("#panel-toggle")).toBeVisible();
+  await page.locator("#panel-toggle").click();
+  await expect(page.locator("html")).toHaveAttribute("data-psge-panel", "open");
+  await expect(page.locator("[data-panel-tab]")).toHaveCount(4);
+
+  await page.locator('[data-panel-tab="achievements"]').click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-psge-achievements",
+    "open",
+  );
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "closed");
+  await expect(page.locator("#panel-achievements")).toBeVisible();
+  await expect(page.locator("#panel-shop")).toBeHidden();
+
+  await page.locator('[data-panel-tab="shop"]').click();
+  await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
+  await expect(page.locator("#panel-shop")).toBeVisible();
+});
 
 test("full-bleed dig-to-reveal boots", async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -70,7 +116,7 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
   await page.goto("/?nosave=1&depth=1000");
   await expect(page.getByRole("heading", { name: "The Endless Dig" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "8");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "9");
   await expect
     .poll(async () =>
       Number(await page.locator("html").getAttribute("data-psge-world-extent")),
@@ -351,7 +397,7 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   });
 
   await ensureShopOpen(page);
-  await expect(page.locator('#shop-sheet [data-shop-buy="shovel"]')).toBeEnabled();
+  await expect(page.locator('#panel-shop [data-shop-buy="shovel"]')).toBeEnabled();
 
   const before = await page.evaluate(() => {
     const s = (
@@ -365,7 +411,7 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   expect(before.shovel).toBe(0);
 
   const digPowerBefore = await page.locator('[data-stat="dig-power"]').innerText();
-  await page.locator('#shop-sheet [data-shop-buy="shovel"]').click();
+  await page.locator('#panel-shop [data-shop-buy="shovel"]').click();
 
   await expect
     .poll(async () =>
@@ -394,12 +440,77 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   expect(digPowerAfter).not.toBe(digPowerBefore);
 });
 
+test("first dig unlocks an achievement toast and sheet row", async ({
+  page,
+}) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "9");
+
+  const canvas = page.locator("#game-canvas");
+  await canvas.click({ position: { x: 200, y: 300 } });
+
+  await expect
+    .poll(async () =>
+      page.locator("html").getAttribute("data-psge-achievements-count"),
+    )
+    .not.toBe("0");
+
+  await expect(page.locator("#achievement-toast")).toHaveClass(/is-visible/);
+  await expect(page.locator("[data-achievement-toast-name]")).toHaveText(
+    "First dig",
+  );
+
+  await ensureAchievementsOpen(page);
+  const row = page.locator(
+    '#achievements-list [data-achievement="first-dig"]',
+  );
+  await expect(row).toHaveAttribute("data-unlocked", "1");
+  await expect(row.locator(".collection-name")).toHaveText("First dig");
+});
+
+test("achievement unlock persists across reload", async ({ page }) => {
+  await seedSaveBeforeGoto(page, {
+    version: 8,
+    depth: "1",
+    dirt: "4",
+    upgrades: {
+      shovel: 0,
+      pickaxe: 0,
+      jackhammer: 0,
+      cart: 0,
+      drill: 0,
+      crew: 0,
+    },
+    lastPlayedAtMs: Date.now(),
+    discoveries: { unlocked: [], worldSeed: 1, digRollMeter: 0 },
+    boosters: { claimed: [], dirtEarned: 0 },
+    specialCoins: { unlocked: [] },
+    achievements: {
+      unlocked: ["first-dig"],
+      afkDigSeen: false,
+      overnightClaimed: false,
+    },
+  });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect
+    .poll(async () =>
+      page.locator("html").getAttribute("data-psge-achievements-count"),
+    )
+    .toBe("1");
+  await ensureAchievementsOpen(page);
+  await expect(
+    page.locator('#achievements-list [data-achievement="first-dig"]'),
+  ).toHaveAttribute("data-unlocked", "1");
+});
+
 test("agent-loop verify: shop buy + state inspect + screenshot", async ({
   page,
 }) => {
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "8");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "9");
 
   await page.evaluate(() => {
     const s = (
@@ -415,7 +526,7 @@ test("agent-loop verify: shop buy + state inspect + screenshot", async ({
   });
 
   await ensureShopOpen(page);
-  const buy = page.locator('#shop-sheet [data-shop-buy="shovel"]');
+  const buy = page.locator('#panel-shop [data-shop-buy="shovel"]');
   await expect(buy).toBeEnabled();
   const powerBefore = await page
     .locator("html")
@@ -465,11 +576,11 @@ test("narrow shop opens as a sheet before buy", async ({ page }) => {
     window.dispatchEvent(new Event("resize"));
   });
 
-  await expect(page.locator("#shop-toggle")).toBeVisible();
-  await expect(page.locator('[data-shop-afford]')).toBeVisible();
-  await page.locator("#shop-toggle").click();
+  await expect(page.locator("#panel-toggle")).toBeVisible();
+  await expect(page.locator("[data-shop-afford]")).toBeVisible();
+  await page.locator("#panel-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
-  const buyShovel = page.locator('#shop-sheet [data-shop-buy="shovel"]');
+  const buyShovel = page.locator('#panel-shop [data-shop-buy="shovel"]');
   await expect(buyShovel).toBeEnabled();
   await buyShovel.evaluate((el) => (el as HTMLButtonElement).click());
   await expect
@@ -530,7 +641,7 @@ test("depth milestones unlock discoveries into the collection", async ({
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute(
     "data-psge-milestone",
-    "8",
+    "9",
   );
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-discoveries"))
@@ -546,7 +657,7 @@ test("depth milestones unlock discoveries into the collection", async ({
   await expect
     .poll(async () => page.locator("#find-backdrop").isHidden())
     .toBe(true);
-  // Drain any queued find reveals so the collection FAB is free.
+  // Drain any queued find reveals so the panel is free to open.
   for (let i = 0; i < 8; i++) {
     if (await page.locator("#find-backdrop").isHidden()) break;
     const btn = page.locator("#find-continue");
@@ -579,7 +690,7 @@ test("special coins unlock into coin collection via find reveal", async ({
   await expect
     .poll(async () => page.locator("#find-backdrop").isHidden())
     .toBe(true);
-  // Panels sit above FABs — close debug so the coin FAB is clickable.
+  // Close debug so the panel dock is free.
   await page.locator("#debug-close").click();
   await expect(page.locator("html")).toHaveAttribute(
     "data-psge-debug-sheet",
@@ -595,26 +706,26 @@ test("special coins unlock into coin collection via find reveal", async ({
   );
 });
 
-test("shop FAB stays open while digging on desktop", async ({ page }) => {
+test("shop panel stays open while digging on desktop", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/?nosave=1");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("#shop-toggle")).toBeVisible();
-  await expect(page.locator("#shop-sheet")).toBeHidden();
-  await ensureShopOpen(page);
+  // Wide opens the dock under the stats rail by default.
+  await expect(page.locator("html")).toHaveAttribute("data-psge-panel", "open");
   await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
+  await expect(page.locator("#panel-shop")).toBeVisible();
 
   const before = await page.locator("html").getAttribute("data-psge-depth");
   const canvas = page.locator("#game-canvas");
   const box = await canvas.boundingBox();
   expect(box).toBeTruthy();
-  // Tap above the bottom sheet so dig hits the canvas, not the shop.
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height * 0.35);
+  // Tap left of the right-rail dock so dig hits the canvas, not the panel.
+  await page.mouse.click(box!.x + box!.width * 0.35, box!.y + box!.height * 0.5);
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-depth"))
     .not.toBe(before);
   await expect(page.locator("html")).toHaveAttribute("data-psge-shop", "open");
-  await expect(page.locator("#shop-sheet")).toBeVisible();
+  await expect(page.locator("#panel-shop")).toBeVisible();
 });
 
 test("offline claim grants depth and dirt", async ({ page }) => {
