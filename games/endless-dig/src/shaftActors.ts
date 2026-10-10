@@ -100,7 +100,7 @@ function makeTool(tool: DigTool): Group {
     box(g, steel, 0.22, 0.16, 0.04, 0, -0.12, 0.04);
   } else if (tool === "pickaxe") {
     box(g, wood, 0.07, 0.42, 0.07, 0, 0.1, 0);
-    box(g, steel, 0.36, 0.08, 0.08, 0, 0.28, 0);
+    box(g, steel, 0.36, 0.08, 0.08, 0, -0.12, 0);
   } else {
     box(g, steel, 0.12, 0.5, 0.12, 0, 0.05, 0);
     box(g, mat(0x445566), 0.2, 0.14, 0.2, 0, 0.28, 0);
