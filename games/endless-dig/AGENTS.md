@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 Markus Duft. SPDX-License-Identifier: MIT -->
 # The Endless Dig — Agent Guide
 
-Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 7).
+Repo guide: [../../AGENTS.md](../../AGENTS.md). Spec: [../../PSGE.md](../../PSGE.md) (§8.0, Milestone 8).
 
 ## Commands
 
@@ -18,7 +18,22 @@ Dev URL examples:
 - `http://<host>:5173/?debug=1` — debug panel (give dirt, layer jumps, unlock find, drag-scroll opt-in, Reset)
 - `http://<host>:5173/?offlineMs=3600000` — pretend away for N ms (claim modal if auto dig owned)
 
-## Milestone 7
+## Milestone 8 (current) — Agent loop
+
+Process milestone: document + exercise the agent ship path. Play content is still M7.
+
+### Agent loop (this game)
+
+1. Change game code under `games/endless-dig/` (upgrades stay game-owned — not `@psge/engine`).
+2. Add/adjust Vitest under `games/endless-dig/tests/`.
+3. `npm test` then `npm run build` from repo root.
+4. `npm run dev` → interact with `?nosave=1&debug=1`.
+5. Inspect: `__psgeState.upgrades`, `html[data-psge-dig-power]`, `[data-shop-buy="shovel"]`.
+6. `npm run test:e2e` — agent-loop test buys shovel and writes `test-results/m8-agent-loop-shop.png`.
+
+Practice exercise: add a temporary tap upgrade end-to-end, verify, then **remove it** unless it earns a real progression niche (do not keep proof-only SKUs in the shop).
+
+## Play (M7) reference
 
 - Tap to dig; HUD stats (Depth / Layer / Dirt / Dirt coins / Per tap / Auto) + shop + **Finds** / **Coins** FABs
 - **Discoveries** (`discoveries.ts`): depth milestones + seeded dig rolls; find-reveal modal; collection sheet; shaft props (`discoveryProps.ts`)
@@ -38,10 +53,13 @@ Dev hooks: `window.__psgeApp`, `__psgeWorld`, `__psgeScroll`, `__psgeState`, `__
 
 ```js
 __psgeState.depth.toString()
+__psgeState.upgrades
 __psgeState.discoveries.unlocked
 await __psgeSaveStore.load()
 __psgeWorld.setFocusBlockY(-900)
 ```
+
+Useful DOM: `html[data-psge-ready]`, `data-psge-milestone`, `data-psge-dig-power`, `data-psge-dirt`, `[data-shop-buy="<id>"]`, `[data-stat="dig-power"]`.
 
 ## World conventions
 

@@ -70,7 +70,7 @@ test("full-bleed dig-to-reveal boots", async ({ page }) => {
   await page.goto("/?nosave=1&depth=1000");
   await expect(page.getByRole("heading", { name: "The Endless Dig" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
-  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "7");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "8");
   await expect
     .poll(async () =>
       Number(await page.locator("html").getAttribute("data-psge-world-extent")),
@@ -394,6 +394,58 @@ test("shop buy spends dirt and raises dig power", async ({ page }) => {
   expect(digPowerAfter).not.toBe(digPowerBefore);
 });
 
+test("agent-loop verify: shop buy + state inspect + screenshot", async ({
+  page,
+}) => {
+  await page.goto("/?nosave=1");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-psge-milestone", "8");
+
+  await page.evaluate(() => {
+    const s = (
+      window as unknown as {
+        __psgeState: { dirt: DecLike };
+      }
+    ).__psgeState;
+    const D = Object.getPrototypeOf(s.dirt).constructor as new (
+      n: number,
+    ) => DecLike;
+    (s as { dirt: DecLike }).dirt = new D(100);
+    window.dispatchEvent(new Event("resize"));
+  });
+
+  await ensureShopOpen(page);
+  const buy = page.locator('#shop-sheet [data-shop-buy="shovel"]');
+  await expect(buy).toBeEnabled();
+  const powerBefore = await page
+    .locator("html")
+    .getAttribute("data-psge-dig-power");
+  await buy.click();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __psgeState: { upgrades: { shovel: number } };
+            }
+          ).__psgeState.upgrades.shovel,
+      ),
+    )
+    .toBe(1);
+
+  const powerAfter = await page
+    .locator("html")
+    .getAttribute("data-psge-dig-power");
+  expect(Number(powerAfter)).toBeGreaterThan(Number(powerBefore));
+
+  await page.screenshot({
+    path: "test-results/m8-agent-loop-shop.png",
+    fullPage: true,
+  });
+});
+
 test("narrow shop opens as a sheet before buy", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?nosave=1");
@@ -478,7 +530,7 @@ test("depth milestones unlock discoveries into the collection", async ({
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute(
     "data-psge-milestone",
-    "7",
+    "8",
   );
   await expect
     .poll(async () => page.locator("html").getAttribute("data-psge-discoveries"))

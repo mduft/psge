@@ -909,7 +909,7 @@ Offline progression should be deterministic and testable.
 
 # 14. Discoveries
 
-Achievements (meta unlocks for depth, gear, idle, collection) are separate — see **Milestone 10**. This chapter is about in-world finds only.
+Achievements (meta unlocks for depth, gear, idle, collection) are separate — see **Milestone 9**. This chapter is about in-world finds only.
 
 The central secondary mechanic is discovery.
 
@@ -1006,7 +1006,7 @@ Target:
 1 fixed-camera 3D excavation scene
 ```
 
-Later (Milestone 10): a small achievements set (depth / shop / idle / discovery toasts + panel) — optional chrome, not required for the first playable loop.
+Later (Milestone 9): a small achievements set (depth / shop / idle / discovery toasts + panel) — optional chrome, not required for the first playable loop.
 
 The first version does not need:
 
@@ -1733,27 +1733,21 @@ Locked (see also §4.8):
 - **20** special collectible coins (`specialCoins.ts`): ~220–480 m apart; same grace; tap premium from **2K** dirt (scales with depth); find reveal + coin collection sheet.
 - Soft dig uses a linear floor so late upgrades stay meaningful; effective dig = soft × layer hardness (tap, auto, offline, short catch-up).
 - FAB sheets for shop / finds / coins / debug on all viewports; dig while open (wide: right dock; narrow ≤520px: bottom sheets). Auto **Pause** stops live auto-dig so players can grab coins.
-- Out of scope: 3D inspect (M8).
+- Out of scope: 3D inspect (M10).
 
-## Milestone 8 — 3D artifact inspection
+## Milestone 8 — Agent development loop
 
-Add:
+Process / benchmark milestone (not a new dig-loop system). Prove agents can ship a small Endless Dig feature end-to-end.
 
-- artifact loading;
-- fixed inspection camera;
-- drag-to-rotate;
-- object interaction;
-- simple puzzle.
-
-## Milestone 9 — Agent development loop
-
-Demonstrate an agent completing a full feature request:
+Canonical exercise (for agents practicing the loop — do **not** leave throwaway shop SKUs after the proof):
 
 ```text
-"Add a copper shovel that increases digging power by 25%."
+Add a temporary tap upgrade end-to-end (shop row, dig-power effect, tests),
+verify via hooks / e2e / screenshot, then remove it unless it earns a real
+progression niche.
 ```
 
-The agent should be able to:
+Agent path to demonstrate:
 
 ```text
 modify code
@@ -1767,15 +1761,20 @@ modify code
 → verify result
 ```
 
-This should become a practical benchmark for PSGE.
+### Locked acceptance
 
-## Milestone 10 — Achievements
+- Repo + game `AGENTS.md` document the agent loop (commands, URL flags, `__psge*` hooks, verify recipe).
+- E2e covers interact → inspect state (`__psgeState` / `data-psge-dig-power`) → screenshot on a real shop buy (e.g. shovel).
+- `data-psge-milestone="8"` while M8 is current.
+- Out of scope: 3D inspect, achievements UI, new engine APIs unless strictly required for the benchmark; permanent “proof-only” upgrades.
+
+## Milestone 9 — Achievements
 
 Meta progression distinct from **Discoveries** (M7): discoveries are in-world finds; achievements are durable unlocks for reaching milestones of play (depth, upgrades, idle, collection).
 
 ### Goals
 
-- Game-owned achievement definitions + unlock checks (engine may later offer a tiny toast/list helper; not required for M10).
+- Game-owned achievement definitions + unlock checks (engine may later offer a tiny toast/list helper; not required for M9).
 - Persist unlocked ids in `GameState` / save (new save version + migrate).
 - Lightweight UI: toast on unlock + a simple Achievements panel (list name, short blurb, locked/unlocked).
 - Deterministic: same play history → same unlocks; Vitest covers triggers without WebGL.
@@ -1813,14 +1812,14 @@ Meta progression distinct from **Discoveries** (M7): discoveries are in-world fi
 | `overnight` | Claim offline progress once (after M5) |
 | `long-haul` | Single session dig streak / many taps in one sitting |
 
-**Discoveries & artifacts** (after M7 / M8)
+**Discoveries & artifacts** (after M7 / M10)
 
 | Id | Idea |
 | --- | --- |
 | `first-find` | Unlock first discovery |
 | `collector` | Unlock N discoveries |
 | `museum` | Complete a discovery set / all common finds |
-| `inspector` | Finish one 3D artifact inspection / puzzle |
+| `inspector` | Finish one 3D artifact inspection / puzzle (M10) |
 
 **Curiosity / debug-safe**
 
@@ -1844,9 +1843,24 @@ dig / buy / idle / discover
 
 - Unit tests for unlock predicates + save migrate of `achievements: string[]` (or equivalent).
 - E2e: trigger one easy unlock (e.g. `first-dig`), see toast or panel state; reload retains it.
-- Docs distinguish achievements (M10) from discoveries (M7).
+- Docs distinguish achievements (M9) from discoveries (M7).
 
-Out of scope for M10: cloud sync, leaderboards, Steam-style rare %, monetized unlocks.
+Out of scope for M9: cloud sync, leaderboards, Steam-style rare %, monetized unlocks.
+
+## Milestone 10 — 3D artifact inspection
+
+Deferred: the dig loop plays well without inspect. Add when ready as a bridge to simple 3D puzzle scenes (§15).
+
+Add:
+
+- artifact loading (engine `loadGltf` and/or procedural placeholder);
+- fixed inspection camera;
+- drag-to-rotate;
+- object interaction;
+- simple puzzle;
+- entry from find reveal and/or collection sheet for selected discoveries.
+
+Out of scope until M10: free camera, large puzzle graphs, full catalog of inspectables.
 
 ---
 
@@ -1946,7 +1960,7 @@ Another equally important rule is:
 
 # 35. Current Technical Questions
 
-## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7
+## Resolved for Milestone 0 / 1 / 1.1 / 2 / 3 / 4 / 5 / 6 / 7 / 8
 
 See §4.8 for the decision table. In short:
 
@@ -1961,6 +1975,7 @@ See §4.8 for the decision table. In short:
 - M5: offline claim when away ≥30s at soft auto × hardness × 1/6 (max 24h); shorter hides catch up at full rate; save v4 `lastPlayedAtMs`; `?offlineMs=`.
 - M6: km geo layers + hardness; mood/palette; procedural digger + crew/machinery props.
 - M7: discoveries + find reveal; dirt-coin boosters (6 m grace); 20 special coins (depth-scaled tap premium); FAB dig-while-open sheets; soft dig linear floor; save v7.
+- M8: agent development loop playbook + e2e verify path (shop buy / state / screenshot); 3D inspect deferred to M10; achievements are M9.
 - Assets: folder layout under `assets/`; no metadata schema yet.
 - API policy: unfrozen (§28).
 
@@ -1996,8 +2011,8 @@ See §4.8 for the decision table. In short:
 ## Sample game
 
 - Final name?
-- Achievement set size / whether any grant a tiny reward vs toast-only? (M10)
-- Artifact puzzle mechanics? (M8)
+- Achievement set size / whether any grant a tiny reward vs toast-only? (M9)
+- Artifact puzzle mechanics? (M10)
 - Further upgrade-tree / economy tuning beyond current soft dig + shop?
 
 ## Hosting

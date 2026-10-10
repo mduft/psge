@@ -36,7 +36,7 @@ export type ShaftCoinPick =
   | { kind: "dirt"; id: string }
   | { kind: "special"; id: string };
 
-export interface BoosterProps {
+export interface ShaftCoinProps {
   sync(
     excavatedDepth: number,
     worldSeed: number,
@@ -297,9 +297,9 @@ function setGroupHover(g: Group, hovered: boolean): void {
   });
 }
 
-export function createBoosterProps(parent: Object3D): BoosterProps {
+export function createShaftCoinProps(parent: Object3D): ShaftCoinProps {
   const root = new Group();
-  root.name = "booster-props";
+  root.name = "shaft-coin-props";
   parent.add(root);
 
   const raycaster = new Raycaster();

@@ -23,16 +23,19 @@ import {
   type BoosterClaim,
 } from "./boosters.js";
 import {
-  DISCOVERY_DEFS,
+  refreshDiscoveryList,
+  refreshSpecialCoinsList,
+} from "./collectionLists.js";
+import {
   resolveDiscoveries,
   unlockNextDiscovery,
 } from "./discoveries.js";
+import { createFindReveal } from "./findReveal.js";
+import { createHudSheets } from "./hudSheets.js";
 import {
   claimAutoSpecialCoins,
   claimTapSpecialCoin,
-  getSpecialCoinDef,
   SPECIAL_COIN_COUNT,
-  SPECIAL_COIN_DEFS,
   unlockNextSpecialCoin,
   type SpecialCoinClaim,
 } from "./specialCoins.js";
@@ -305,14 +308,10 @@ async function boot(): Promise<() => void> {
     }
   };
   const debugFab = document.querySelector<HTMLButtonElement>("#debug-fab");
-  const debugClose = document.querySelector<HTMLButtonElement>("#debug-close");
-  const debugBackdrop = document.querySelector<HTMLElement>("#debug-backdrop");
   const debugScroll = document.querySelector<HTMLInputElement>("#debug-scroll");
   const shopList = document.querySelector<HTMLElement>("#shop-list");
   const shopToggle =
     document.querySelector<HTMLButtonElement>("#shop-toggle");
-  const shopClose = document.querySelector<HTMLButtonElement>("#shop-close");
-  const shopBackdrop = document.querySelector<HTMLElement>("#shop-backdrop");
   const shopAffordDot =
     document.querySelector<HTMLElement>("[data-shop-afford]");
   const resetButton =
@@ -328,43 +327,25 @@ async function boot(): Promise<() => void> {
   const offlineDepthEl = document.querySelector("[data-offline-depth]");
   const offlineDirtEl = document.querySelector("[data-offline-dirt]");
 
-  const collectionToggle =
-    document.querySelector<HTMLButtonElement>("#collection-toggle");
-  const collectionClose =
-    document.querySelector<HTMLButtonElement>("#collection-close");
-  const collectionBackdrop = document.querySelector<HTMLElement>(
-    "#collection-backdrop",
-  );
   const collectionList =
     document.querySelector<HTMLElement>("#collection-list");
   const collectionCountEl = document.querySelector<HTMLElement>(
     "[data-collection-count]",
   );
-  const coinsToggle =
-    document.querySelector<HTMLButtonElement>("#coins-toggle");
-  const coinsClose =
-    document.querySelector<HTMLButtonElement>("#coins-close");
-  const coinsBackdrop = document.querySelector<HTMLElement>("#coins-backdrop");
   const coinsList = document.querySelector<HTMLElement>("#coins-list");
   const coinsCountEl = document.querySelector<HTMLElement>("[data-coins-count]");
   const coinsProgressEl = document.querySelector<HTMLElement>(
     "[data-coins-progress]",
   );
-  const findBackdrop = document.querySelector<HTMLElement>("#find-backdrop");
-  const findEyebrow = document.querySelector("[data-find-eyebrow]");
-  const findIcon = document.querySelector<HTMLElement>("[data-find-icon]");
-  const findName = document.querySelector("[data-find-name]");
-  const findBlurb = document.querySelector("[data-find-blurb]");
-  const findQueueEl = document.querySelector<HTMLElement>("[data-find-queue]");
-  const findContinue = document.querySelector<HTMLButtonElement>(
-    "#find-continue",
-  );
-  type FindRevealItem =
-    | { kind: "discovery"; id: string }
-    | { kind: "special"; id: string; via: "tap" | "auto"; dirt: number };
-  const FIND_QUEUE: FindRevealItem[] = [];
-  let findRevealOpen = false;
-  let findAutoCloseTimer = 0;
+
+  const sheets = createHudSheets();
+  sheets.closeAll();
+  const unbindSheets = sheets.bind();
+
+  const findReveal = createFindReveal({
+    autoCloseMs: FIND_AUTO_CLOSE_MS,
+    isBlocked: () => pendingOffline !== null,
+  });
 
   const boosterToast = document.querySelector<HTMLElement>("#booster-toast");
   const boosterToastEyebrow = document.querySelector(
@@ -383,83 +364,6 @@ async function boot(): Promise<() => void> {
   const restoreDigCursor = (): void => {
     applyDigCursor(canvas, digToolOf(state.upgrades));
   };
-
-  const setDebugSheetOpen = (open: boolean): void => {
-    if (open) {
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCollection = "closed";
-      document.documentElement.dataset.psgeCoinSheet = "closed";
-      shopToggle?.setAttribute("aria-expanded", "false");
-      collectionToggle?.setAttribute("aria-expanded", "false");
-      coinsToggle?.setAttribute("aria-expanded", "false");
-      shopBackdrop?.setAttribute("hidden", "");
-      collectionBackdrop?.setAttribute("hidden", "");
-      coinsBackdrop?.setAttribute("hidden", "");
-    }
-    document.documentElement.dataset.psgeDebugSheet = open ? "open" : "closed";
-    debugFab?.setAttribute("aria-expanded", open ? "true" : "false");
-    if (debugBackdrop) {
-      if (open) debugBackdrop.removeAttribute("hidden");
-      else debugBackdrop.setAttribute("hidden", "");
-    }
-  };
-
-  const setCoinsOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCollection = "closed";
-      shopToggle?.setAttribute("aria-expanded", "false");
-      collectionToggle?.setAttribute("aria-expanded", "false");
-      shopBackdrop?.setAttribute("hidden", "");
-      collectionBackdrop?.setAttribute("hidden", "");
-    }
-    document.documentElement.dataset.psgeCoinSheet = open ? "open" : "closed";
-    coinsToggle?.setAttribute("aria-expanded", open ? "true" : "false");
-    if (coinsBackdrop) {
-      if (open) coinsBackdrop.removeAttribute("hidden");
-      else coinsBackdrop.setAttribute("hidden", "");
-    }
-  };
-
-  const setCollectionOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      document.documentElement.dataset.psgeShop = "closed";
-      document.documentElement.dataset.psgeCoinSheet = "closed";
-      shopToggle?.setAttribute("aria-expanded", "false");
-      coinsToggle?.setAttribute("aria-expanded", "false");
-      shopBackdrop?.setAttribute("hidden", "");
-      coinsBackdrop?.setAttribute("hidden", "");
-    }
-    document.documentElement.dataset.psgeCollection = open
-      ? "open"
-      : "closed";
-    collectionToggle?.setAttribute("aria-expanded", open ? "true" : "false");
-    if (collectionBackdrop) {
-      if (open) collectionBackdrop.removeAttribute("hidden");
-      else collectionBackdrop.setAttribute("hidden", "");
-    }
-  };
-
-  const setShopOpen = (open: boolean): void => {
-    if (open) {
-      setDebugSheetOpen(false);
-      setCollectionOpen(false);
-      setCoinsOpen(false);
-    }
-    document.documentElement.dataset.psgeShop = open ? "open" : "closed";
-    shopToggle?.setAttribute("aria-expanded", open ? "true" : "false");
-    if (shopBackdrop) {
-      if (open) shopBackdrop.removeAttribute("hidden");
-      else shopBackdrop.setAttribute("hidden", "");
-    }
-  };
-
-  setShopOpen(false);
-  setCollectionOpen(false);
-  setCoinsOpen(false);
-  setDebugSheetOpen(false);
 
   if (debug) {
     debugPanel?.removeAttribute("hidden");
@@ -523,107 +427,11 @@ async function boot(): Promise<() => void> {
     }
     offlineBackdrop?.removeAttribute("hidden");
     document.documentElement.dataset.psgeOffline = "pending";
-    setShopOpen(false);
-    setCollectionOpen(false);
-    setCoinsOpen(false);
-    setDebugSheetOpen(false);
-  };
-
-  const clearFindAutoClose = (): void => {
-    if (findAutoCloseTimer !== 0) {
-      clearTimeout(findAutoCloseTimer);
-      findAutoCloseTimer = 0;
-    }
-    findContinue?.classList.remove("is-counting");
-  };
-
-  const hideFindReveal = (): void => {
-    clearFindAutoClose();
-    findBackdrop?.setAttribute("hidden", "");
-    findRevealOpen = false;
-    document.documentElement.dataset.psgeFind = "none";
-  };
-
-  const showFindReveal = (item: FindRevealItem): void => {
-    if (item.kind === "special") {
-      const def = getSpecialCoinDef(item.id);
-      if (findEyebrow) {
-        findEyebrow.textContent =
-          item.via === "tap" && item.dirt > 0
-            ? `Special coin · tap +${formatAmount(item.dirt)} dirt`
-            : "Special coin";
-      }
-      if (findIcon) {
-        findIcon.className = "find-icon coin-mark";
-        findIcon.textContent = def?.mark ?? "?";
-        findIcon.style.background = def
-          ? `#${def.tint.toString(16).padStart(6, "0")}`
-          : "#c4a050";
-      }
-      if (findName) findName.textContent = def?.name ?? item.id;
-      if (findBlurb) {
-        const base = def?.blurb ?? "A rare coin from the shaft.";
-        findBlurb.textContent =
-          item.via === "tap" && item.dirt > 0
-            ? `${base} (+${formatAmount(item.dirt)} dirt for the grab.)`
-            : base;
-      }
-    } else {
-      const def = DISCOVERY_DEFS.find((d) => d.id === item.id);
-      if (findEyebrow) findEyebrow.textContent = "Discovery";
-      if (findIcon) {
-        findIcon.className = `discovery-icon find-icon icon-${def?.icon ?? "stone"}`;
-        findIcon.textContent = "";
-        findIcon.style.background = "";
-      }
-      if (findName) findName.textContent = def?.name ?? item.id;
-      if (findBlurb) {
-        findBlurb.textContent =
-          def?.blurb ?? "A curious find from the shaft.";
-      }
-    }
-    if (findQueueEl) {
-      const more = FIND_QUEUE.length;
-      if (more > 0) {
-        findQueueEl.hidden = false;
-        findQueueEl.textContent =
-          more === 1
-            ? "1 more find waiting"
-            : `${more} more finds waiting`;
-      } else {
-        findQueueEl.hidden = true;
-        findQueueEl.textContent = "";
-      }
-    }
-    findBackdrop?.removeAttribute("hidden");
-    findRevealOpen = true;
-    document.documentElement.dataset.psgeFind = `${item.kind}:${item.id}`;
-    // Find modal stays modal; leave side panels as the player left them.
-    clearFindAutoClose();
-    // Restart the button countdown fill (reflow so animation replays).
-    if (findContinue) {
-      void findContinue.offsetWidth;
-      findContinue.classList.add("is-counting");
-    }
-    findAutoCloseTimer = window.setTimeout(() => {
-      findAutoCloseTimer = 0;
-      hideFindReveal();
-      pumpFindReveal();
-    }, FIND_AUTO_CLOSE_MS);
-    findContinue?.focus();
-  };
-
-  const pumpFindReveal = (): void => {
-    if (findRevealOpen || FIND_QUEUE.length === 0) return;
-    // Don't stack over the offline claim — show finds after they claim.
-    if (pendingOffline) return;
-    showFindReveal(FIND_QUEUE.shift()!);
+    sheets.closeAll();
   };
 
   const enqueueFinds = (ids: string[]): void => {
-    if (ids.length === 0) return;
-    FIND_QUEUE.push(...ids.map((id) => ({ kind: "discovery" as const, id })));
-    pumpFindReveal();
+    findReveal.enqueueDiscoveries(ids);
   };
 
   const enqueueSpecialClaims = (claims: SpecialCoinClaim[]): void => {
@@ -631,26 +439,8 @@ async function boot(): Promise<() => void> {
     for (const c of claims) {
       if (c.dirt > 0) state.dirt = state.dirt.plus(c.dirt);
     }
-    FIND_QUEUE.push(
-      ...claims.map((c) => ({
-        kind: "special" as const,
-        id: c.id,
-        via: c.via,
-        dirt: c.dirt,
-      })),
-    );
-    pumpFindReveal();
+    findReveal.enqueueSpecialClaims(claims);
   };
-
-  const onFindContinue = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    hideFindReveal();
-    pumpFindReveal();
-  };
-  findContinue?.addEventListener("click", onFindContinue);
-  findContinue?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  findBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const showBoosterToast = (claims: BoosterClaim[]): void => {
     if (!boosterToast || claims.length === 0) return;
@@ -722,23 +512,23 @@ async function boot(): Promise<() => void> {
 
   const clearCoinHover = (): void => {
     if (!hoveringCoin) {
-      world.setCoinHover(null);
+      world.setShaftCoinHover(null);
       return;
     }
     hoveringCoin = false;
-    world.setCoinHover(null);
+    world.setShaftCoinHover(null);
     if (!coarsePointer) restoreDigCursor();
   };
 
   const refreshCoinHover = (): void => {
-    if (pendingOffline || findRevealOpen) {
+    if (pendingOffline || findReveal.isOpen) {
       clearCoinHover();
       return;
     }
     const ndcX = lastPointer.x * 2 - 1;
     const ndcY = -(lastPointer.y * 2 - 1);
-    const hit = world.pickBooster(app.camera, ndcX, ndcY);
-    world.setCoinHover(hit);
+    const hit = world.pickShaftCoin(app.camera, ndcX, ndcY);
+    world.setShaftCoinHover(hit);
     const next = hit !== null;
     if (next === hoveringCoin) {
       if (next && !coarsePointer) canvas.style.cursor = "pointer";
@@ -795,70 +585,6 @@ async function boot(): Promise<() => void> {
   offlineBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const shopButtons = new Map<UpgradeId, HTMLButtonElement>();
-
-  const refreshCollectionList = (): void => {
-    if (!collectionList) return;
-    const owned = new Set(state.discoveries.unlocked);
-    collectionList.replaceChildren();
-    for (const def of DISCOVERY_DEFS) {
-      const unlocked = owned.has(def.id);
-      const row = document.createElement("div");
-      row.className = `collection-row${unlocked ? "" : " is-locked"}`;
-      row.dataset.discovery = def.id;
-      row.dataset.unlocked = unlocked ? "1" : "0";
-
-      const icon = document.createElement("span");
-      icon.className = `discovery-icon icon-${def.icon}`;
-      icon.setAttribute("aria-hidden", "true");
-
-      const meta = document.createElement("div");
-      meta.className = "collection-meta";
-      const name = document.createElement("span");
-      name.className = "collection-name";
-      name.textContent = unlocked ? def.name : "???";
-      const blurb = document.createElement("span");
-      blurb.className = "collection-blurb";
-      blurb.textContent = unlocked ? def.blurb : "Keep digging.";
-      meta.append(name, blurb);
-
-      row.append(icon, meta);
-      collectionList.append(row);
-    }
-  };
-
-  const refreshCoinsList = (): void => {
-    if (!coinsList) return;
-    const owned = new Set(state.specialCoins.unlocked);
-    coinsList.replaceChildren();
-    for (const def of SPECIAL_COIN_DEFS) {
-      const unlocked = owned.has(def.id);
-      const row = document.createElement("div");
-      row.className = `collection-row${unlocked ? "" : " is-locked"}`;
-      row.dataset.specialCoin = def.id;
-      row.dataset.unlocked = unlocked ? "1" : "0";
-
-      const mark = document.createElement("span");
-      mark.className = "coin-mark";
-      mark.setAttribute("aria-hidden", "true");
-      mark.textContent = unlocked ? def.mark : "?";
-      mark.style.background = unlocked
-        ? `#${def.tint.toString(16).padStart(6, "0")}`
-        : "#3a4048";
-
-      const meta = document.createElement("div");
-      meta.className = "collection-meta";
-      const name = document.createElement("span");
-      name.className = "collection-name";
-      name.textContent = unlocked ? def.name : "???";
-      const blurb = document.createElement("span");
-      blurb.className = "collection-blurb";
-      blurb.textContent = unlocked ? def.blurb : "Rare — dig deeper.";
-      meta.append(name, blurb);
-
-      row.append(mark, meta);
-      coinsList.append(row);
-    }
-  };
 
   const syncFromState = (): void => {
     ensureExtentForPlay();
@@ -932,7 +658,7 @@ async function boot(): Promise<() => void> {
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
     world.syncDiscoveries(depth, state.discoveries);
-    world.syncBoosters(
+    world.syncShaftCoins(
       depth,
       state.discoveries.worldSeed,
       state.boosters,
@@ -941,8 +667,8 @@ async function boot(): Promise<() => void> {
     if (collectionCountEl) {
       collectionCountEl.textContent = String(state.discoveries.unlocked.length);
     }
-    refreshCollectionList();
-    refreshCoinsList();
+    refreshDiscoveryList(collectionList, state.discoveries.unlocked);
+    refreshSpecialCoinsList(coinsList, state.specialCoins.unlocked);
 
     let anyAffordable = false;
     for (const def of UPGRADE_DEFS) {
@@ -968,6 +694,7 @@ async function boot(): Promise<() => void> {
 
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
+    document.documentElement.dataset.psgeDigPower = power.toString();
     if (hoveringCoin && !coarsePointer) canvas.style.cursor = "pointer";
     else restoreDigCursor();
   };
@@ -1034,90 +761,6 @@ async function boot(): Promise<() => void> {
   };
 
   buildShop();
-
-  const onShopToggle = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setShopOpen(document.documentElement.dataset.psgeShop !== "open");
-  };
-  const onShopClose = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setShopOpen(false);
-  };
-  const onCollectionToggle = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCollectionOpen(
-      document.documentElement.dataset.psgeCollection !== "open",
-    );
-  };
-  const onCollectionClose = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCollectionOpen(false);
-  };
-  const onCoinsToggle = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCoinsOpen(document.documentElement.dataset.psgeCoinSheet !== "open");
-  };
-  const onCoinsClose = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCoinsOpen(false);
-  };
-  const onDebugFabToggle = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDebugSheetOpen(
-      document.documentElement.dataset.psgeDebugSheet !== "open",
-    );
-  };
-  const onDebugSheetClose = (e: Event): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDebugSheetOpen(false);
-  };
-  shopToggle?.addEventListener("click", onShopToggle);
-  shopToggle?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  shopClose?.addEventListener("click", onShopClose);
-  shopClose?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  shopBackdrop?.addEventListener("click", onShopClose);
-  shopBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  const shopSheet = document.querySelector<HTMLElement>("#shop-sheet");
-  shopSheet?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  collectionToggle?.addEventListener("click", onCollectionToggle);
-  collectionToggle?.addEventListener("pointerdown", (ev) =>
-    ev.stopPropagation(),
-  );
-  collectionClose?.addEventListener("click", onCollectionClose);
-  collectionClose?.addEventListener("pointerdown", (ev) =>
-    ev.stopPropagation(),
-  );
-  collectionBackdrop?.addEventListener("click", onCollectionClose);
-  collectionBackdrop?.addEventListener("pointerdown", (ev) =>
-    ev.stopPropagation(),
-  );
-  const collectionSheet = document.querySelector<HTMLElement>(
-    "#collection-sheet",
-  );
-  collectionSheet?.addEventListener("pointerdown", (ev) =>
-    ev.stopPropagation(),
-  );
-  coinsToggle?.addEventListener("click", onCoinsToggle);
-  coinsToggle?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  coinsClose?.addEventListener("click", onCoinsClose);
-  coinsClose?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  const coinsSheet = document.querySelector<HTMLElement>("#coins-sheet");
-  coinsSheet?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  debugFab?.addEventListener("click", onDebugFabToggle);
-  debugFab?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  debugClose?.addEventListener("click", onDebugSheetClose);
-  debugClose?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  debugBackdrop?.addEventListener("click", onDebugSheetClose);
-  debugBackdrop?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-  debugPanel?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
 
   const onGiveDirt = (e: Event): void => {
     const btn = e.currentTarget as HTMLButtonElement;
@@ -1245,29 +888,25 @@ async function boot(): Promise<() => void> {
     // Drag-scroll is debug-only and off by default (opt in via checkbox).
     scrollEnabled: false,
     onTap: () => {
-      if (pendingOffline || findRevealOpen) return;
+      if (pendingOffline || findReveal.isOpen) return;
       const ndcX = lastPointer.x * 2 - 1;
       const ndcY = -(lastPointer.y * 2 - 1);
-      const hit = world.pickBooster(app.camera, ndcX, ndcY);
+      const hit = world.pickShaftCoin(app.camera, ndcX, ndcY);
+      const depth = depthNumber(state);
+      const seed = state.discoveries.worldSeed;
       if (hit?.kind === "dirt") {
-        const claim = claimTapBooster(
-          state.boosters,
-          state.discoveries.worldSeed,
-          depthNumber(state),
-          hit.id,
-        );
+        const claim = claimTapBooster(state.boosters, seed, depth, hit.id);
         if (claim) {
           applyBoosterClaims([claim]);
           applyPlayView();
           autosave.markDirty();
           return;
         }
-      }
-      if (hit?.kind === "special") {
+      } else if (hit?.kind === "special") {
         const claim = claimTapSpecialCoin(
           state.specialCoins,
-          state.discoveries.worldSeed,
-          depthNumber(state),
+          seed,
+          depth,
           hit.id,
         );
         if (claim) {
@@ -1357,7 +996,7 @@ async function boot(): Promise<() => void> {
   document.addEventListener("visibilitychange", onVisibility);
 
   applyPlayView();
-  hideFindReveal();
+  findReveal.hide();
   if (pendingOffline) showOfflineModal(pendingOffline);
   else {
     hideOfflineModal();
@@ -1375,7 +1014,7 @@ async function boot(): Promise<() => void> {
   app.startLoop((dt) => {
     world.update(dt);
     // Pause live auto-dig while claim / find reveal is open, or player paused.
-    if (pendingOffline || findRevealOpen || autoDigPaused) return;
+    if (pendingOffline || findReveal.isOpen || autoDigPaused) return;
     trickleCooldown = Math.max(0, trickleCooldown - dt);
     const depthBefore = depthNumber(state);
     const found = tickProduction(state, dt);
@@ -1409,7 +1048,7 @@ async function boot(): Promise<() => void> {
   dbg.__psgeSaveStore = store;
 
   document.documentElement.dataset.psgeReady = "true";
-  document.documentElement.dataset.psgeMilestone = "7";
+  document.documentElement.dataset.psgeMilestone = "8";
   document.documentElement.dataset.psgeWorldExtent = String(
     world.getWorldExtent(),
   );
@@ -1420,18 +1059,13 @@ async function boot(): Promise<() => void> {
     window.removeEventListener("resize", onResize);
     window.removeEventListener("pagehide", onPageHide);
     document.removeEventListener("visibilitychange", onVisibility);
-    shopToggle?.removeEventListener("click", onShopToggle);
-    shopClose?.removeEventListener("click", onShopClose);
-    shopBackdrop?.removeEventListener("click", onShopClose);
-    debugFab?.removeEventListener("click", onDebugFabToggle);
-    debugClose?.removeEventListener("click", onDebugSheetClose);
-    debugBackdrop?.removeEventListener("click", onDebugSheetClose);
+    unbindSheets();
+    findReveal.dispose();
     offlineClaim?.removeEventListener("click", onOfflineClaim);
-    findContinue?.removeEventListener("click", onFindContinue);
     canvas.removeEventListener("pointerdown", onCanvasPointerDown);
     canvas.removeEventListener("pointermove", onCanvasPointerMove);
     canvas.removeEventListener("pointerleave", onCanvasPointerLeave);
-    world.setCoinHover(null);
+    world.setShaftCoinHover(null);
     autoPauseBtn?.removeEventListener("click", onAutoPauseToggle);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {
@@ -1443,7 +1077,6 @@ async function boot(): Promise<() => void> {
     if (saveFadeTimer !== 0) clearTimeout(saveFadeTimer);
     if (layerToastTimer !== 0) clearTimeout(layerToastTimer);
     if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
-    clearFindAutoClose();
     void autosave.flush().finally(() => {
       autosave.dispose();
     });

@@ -16,7 +16,6 @@ import {
 import {
   DISCOVERY_DEFS,
   discoveryPropCell,
-  getDiscoveryDef,
   type DiscoveryDef,
   type DiscoveryProgress,
 } from "./discoveries.js";
@@ -150,8 +149,4 @@ export function createDiscoveryProps(parent: Object3D): DiscoveryProps {
       parent.remove(root);
     },
   };
-}
-
-export function discoveryName(id: string): string {
-  return getDiscoveryDef(id)?.name ?? id;
 }

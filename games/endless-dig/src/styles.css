@@ -696,6 +696,7 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
 
 .shop-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -1203,10 +1204,6 @@ html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
     padding: 0.55rem 0.75rem 0.65rem;
     border-radius: var(--hud-panel-radius);
   }
-}
-
-.shop-header {
-  flex: 0 0 auto;
 }
 
 /* Narrow: compact one-line stats + bottom sheets (default .shop). */

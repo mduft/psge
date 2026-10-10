@@ -22,10 +22,12 @@ import {
 import { getBlockMaterial, getDigFaceMaterials } from "./blockMaterials.js";
 import { createSkyColor, type BlockId, type PaletteFamily } from "./blockTextures.js";
 import type { BoosterProgress } from "./boosters.js";
-import type { ShaftCoinPick } from "./boosterProps.js";
 import type { SpecialCoinProgress } from "./specialCoins.js";
-import { createBoosterProps } from "./boosterProps.js";
 import type { DiscoveryProgress } from "./discoveries.js";
+import {
+  createShaftCoinProps,
+  type ShaftCoinPick,
+} from "./shaftCoinProps.js";
 import { DIG_SHAFT_XS, DIG_SHAFT_ZS, isDigShaftCell } from "./digShaft.js";
 import { createDigParticles } from "./digParticles.js";
 import { createDiscoveryProps } from "./discoveryProps.js";
@@ -73,16 +75,20 @@ export interface DigWorld {
   /** Sync discovery props on cutaway walls. */
   syncDiscoveries(excavatedDepth: number, progress: DiscoveryProgress): void;
   /** Sync visible dirt + special coins in the shaft. */
-  syncBoosters(
+  syncShaftCoins(
     excavatedDepth: number,
     worldSeed: number,
     boosters: BoosterProgress,
     special: SpecialCoinProgress,
   ): void;
   /** NDC ray pick against shaft coins (−1…1). */
-  pickBooster(camera: Camera, ndcX: number, ndcY: number): ShaftCoinPick | null;
+  pickShaftCoin(
+    camera: Camera,
+    ndcX: number,
+    ndcY: number,
+  ): ShaftCoinPick | null;
   /** Hover highlight for a shaft coin (or clear). */
-  setCoinHover(pick: ShaftCoinPick | null): void;
+  setShaftCoinHover(pick: ShaftCoinPick | null): void;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -255,7 +261,7 @@ export function buildDigWorld(
   const particles = createDigParticles(content);
   const actors: ShaftActors = createShaftActors(content);
   const discoveryProps = createDiscoveryProps(content);
-  const boosterProps = createBoosterProps(content);
+  const shaftCoins = createShaftCoinProps(content);
   const chunkGroups = new Map<number, Group>();
   /** Dig-face partials live here so intra-block dig does not reload chunks. */
   const digFaceRoot = new Group();
@@ -464,23 +470,23 @@ export function buildDigWorld(
     syncDiscoveries(depth: number, progress: DiscoveryProgress): void {
       discoveryProps.sync(depth, progress);
     },
-    syncBoosters(
+    syncShaftCoins(
       depth: number,
       worldSeed: number,
       boosters: BoosterProgress,
       special: SpecialCoinProgress,
     ): void {
-      boosterProps.sync(depth, worldSeed, boosters, special);
+      shaftCoins.sync(depth, worldSeed, boosters, special);
     },
-    pickBooster(
+    pickShaftCoin(
       camera: Camera,
       ndcX: number,
       ndcY: number,
     ): ShaftCoinPick | null {
-      return boosterProps.pick(camera, ndcX, ndcY);
+      return shaftCoins.pick(camera, ndcX, ndcY);
     },
-    setCoinHover(pick: ShaftCoinPick | null): void {
-      boosterProps.setHover(pick);
+    setShaftCoinHover(pick: ShaftCoinPick | null): void {
+      shaftCoins.setHover(pick);
     },
     playDigSwing(): void {
       actors.playDigSwing();
@@ -497,11 +503,11 @@ export function buildDigWorld(
     update(dtSeconds: number): void {
       particles.update(dtSeconds);
       actors.update(dtSeconds);
-      boosterProps.update(dtSeconds);
+      shaftCoins.update(dtSeconds);
     },
     dispose(): void {
       actors.dispose();
-      boosterProps.dispose();
+      shaftCoins.dispose();
       discoveryProps.dispose();
       particles.dispose();
       disposeChunkGroup(digFaceRoot);
