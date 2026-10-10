@@ -53,7 +53,7 @@ Useful DOM: `html[data-psge-ready]`, `data-psge-milestone`, `data-psge-version` 
 Help: `#help-fab` opens a full-screen how-to-play modal (`#help-backdrop`).
 Mute: `#mute-fab` above help; preference in `localStorage` key `psge:digger:muted` (`html[data-psge-muted]`). Coin appear SFX: `assets/audio/coin.wav`.
 
-Game version: bump `@psge/digger` `package.json` `"version"` (shown as `v…` under the title).
+Game version: bump `@psge/digger` `package.json` `"version"` (shown as `v…` under the title). Add a matching entry in `changelog.ts` (Help → What's new; version label opens that tab).
 Deploy updates: production builds emit `dist/version.json` (`buildId`); clients poll and show `#update-banner` (`html[data-psge-update]`) when it changes.
 
 ## Art replace slots

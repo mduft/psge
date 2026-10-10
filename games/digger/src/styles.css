@@ -80,12 +80,27 @@ body {
 }
 
 .game-version {
+  display: inline-block;
   margin: 0.2rem 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
   font-size: 0.68rem;
   font-weight: 650;
   letter-spacing: 0.06em;
   color: var(--hud-muted);
   opacity: 0.7;
+  cursor: pointer;
+  pointer-events: auto;
+  text-shadow: var(--hud-shadow);
+}
+
+.game-version:hover,
+.game-version:focus-visible {
+  opacity: 1;
+  color: #e2c48f;
+  outline: none;
 }
 
 /* Right-side stack: stats + shop + finds (+ debug). Cap to viewport height so
@@ -1468,7 +1483,43 @@ html[data-psge-panel="open"] #hud-panel {
   letter-spacing: -0.02em;
 }
 
-.help-manual {
+.help-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0.55rem 0.85rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.help-tab {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0.45rem 0.55rem 0.55rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--hud-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.help-tab.is-active,
+.help-tab[aria-selected="true"] {
+  color: #f0e2c4;
+  border-bottom-color: #c4a574;
+}
+
+.help-tab:hover,
+.help-tab:focus-visible {
+  color: #f0e2c4;
+  outline: none;
+}
+
+.help-manual,
+.help-changelog {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
@@ -1478,6 +1529,53 @@ html[data-psge-panel="open"] #hud-panel {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+}
+
+.help-changelog[hidden],
+.help-manual[hidden] {
+  display: none !important;
+}
+
+.changelog-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.changelog-entry:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.changelog-version {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e2c48f;
+}
+
+.changelog-summary {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: #f0e2c4;
+  font-weight: 650;
+}
+
+.changelog-highlights {
+  margin: 0.15rem 0 0;
+  padding: 0 0 0 1.1rem;
+  color: var(--hud-ink);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.changelog-highlights li + li {
+  margin-top: 0.2rem;
 }
 
 .help-section h3 {

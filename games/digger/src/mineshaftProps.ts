@@ -42,10 +42,12 @@ export interface MineshaftCartPick {
 }
 
 export interface MineshaftSyncResult {
-  /** Shaft ids that just entered the loaded window. */
+  /** Shaft ids that just entered the near dig-face band. */
   newShaftIds: string[];
-  /** Cart ids that just became visible. */
+  /** Cart ids that just entered the near dig-face band. */
   newCartIds: string[];
+  /** Play rail SFX — near-band cart appear after the first sync. */
+  cartAppeared: boolean;
 }
 
 export interface MineshaftProps {
@@ -65,6 +67,9 @@ export interface MineshaftProps {
 /** How far above/below the dig face to keep décor loaded. */
 const LOOK_AHEAD_M = 140;
 const LOOK_BEHIND_M = 100;
+/** ~6 blocks from dig face for “scrolled into view” SFX / spot achievements. */
+const NEAR_AHEAD_M = 6;
+const NEAR_BEHIND_M = 6;
 const WEB_TEX_SIZE = 128;
 const HOVER_SCALE = 1.12;
 
@@ -509,8 +514,9 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
   const raycaster = new Raycaster();
   const ndc = new Vector2();
   let lastKey = "";
-  let prevShaftIds = new Set<string>();
-  let prevCartIds = new Set<string>();
+  let prevNearShaftIds = new Set<string>();
+  let prevNearCartIds = new Set<string>();
+  let syncedOnce = false;
   let hoverId: string | null = null;
   let torchTime = 0;
   let torches: Group[] = [];
@@ -534,14 +540,29 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
         list.map((m) => m.id).join("|") +
         "#" +
         [...claimedCartIds].sort().join(",");
-      const shaftIds = new Set(list.map((m) => m.id));
-      const cartIds = new Set(
-        list.filter((m) => mineshaftHasMinecart(m.band, m.side)).map((m) => m.id),
+      // Spot / SFX when the shaft is beside the dig face — not when it
+      // merely enters the wide load window (~140 m ahead).
+      const nearLo = depth - NEAR_BEHIND_M;
+      const nearHi = depth + NEAR_AHEAD_M;
+      const near = list.filter(
+        (m) => m.depthM >= nearLo && m.depthM <= nearHi,
       );
-      const newShaftIds = [...shaftIds].filter((id) => !prevShaftIds.has(id));
-      const newCartIds = [...cartIds].filter((id) => !prevCartIds.has(id));
-      prevShaftIds = shaftIds;
-      prevCartIds = cartIds;
+      const nearShaftIds = new Set(near.map((m) => m.id));
+      const nearCartIds = new Set(
+        near
+          .filter((m) => mineshaftHasMinecart(m.band, m.side))
+          .map((m) => m.id),
+      );
+      const newShaftIds = [...nearShaftIds].filter(
+        (id) => !prevNearShaftIds.has(id),
+      );
+      const newCartIds = [...nearCartIds].filter(
+        (id) => !prevNearCartIds.has(id),
+      );
+      const cartAppeared = syncedOnce && newCartIds.length > 0;
+      prevNearShaftIds = nearShaftIds;
+      prevNearCartIds = nearCartIds;
+      syncedOnce = true;
 
       if (key !== lastKey) {
         lastKey = key;
@@ -552,7 +573,7 @@ export function createMineshaftProps(parent: Object3D): MineshaftProps {
           root.add(buildShaftDecor(m, claimedCartIds, torches));
         }
       }
-      return { newShaftIds, newCartIds };
+      return { newShaftIds, newCartIds, cartAppeared };
     },
 
     pickCart(camera, ndcX, ndcY): MineshaftCartPick | null {

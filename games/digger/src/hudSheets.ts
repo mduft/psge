@@ -6,7 +6,10 @@
  * Wide: docked under stats rail. Narrow: bottom sheet. Dig while open.
  */
 
+import { CHANGELOG } from "./changelog.js";
+
 export type HudPanelTab = "shop" | "collection" | "coins" | "achievements";
+export type HelpTab = "manual" | "changelog";
 
 export interface HudSheetsOptions {
   /** Fired when open state or active tab changes. */
@@ -26,7 +29,8 @@ export interface HudSheets {
   setCoinsOpen(open: boolean): void;
   setAchievementsOpen(open: boolean): void;
   setDebugSheetOpen(open: boolean): void;
-  setHelpOpen(open: boolean): void;
+  setHelpOpen(open: boolean, tab?: HelpTab): void;
+  openChangelog(): void;
   closeAll(): void;
   bind(): () => void;
 }
@@ -65,6 +69,39 @@ function isTab(v: string | undefined): v is HudPanelTab {
   );
 }
 
+function isHelpTab(v: string | undefined): v is HelpTab {
+  return v === "manual" || v === "changelog";
+}
+
+function mountChangelogList(host: HTMLElement): void {
+  const frag = document.createDocumentFragment();
+  for (const entry of CHANGELOG) {
+    const article = document.createElement("article");
+    article.className = "changelog-entry";
+    article.dataset.version = entry.version;
+
+    const heading = document.createElement("h3");
+    heading.className = "changelog-version";
+    heading.textContent = `v${entry.version}`;
+
+    const summary = document.createElement("p");
+    summary.className = "changelog-summary";
+    summary.textContent = entry.summary;
+
+    const ul = document.createElement("ul");
+    ul.className = "changelog-highlights";
+    for (const line of entry.highlights) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    }
+
+    article.append(heading, summary, ul);
+    frag.appendChild(article);
+  }
+  host.replaceChildren(frag);
+}
+
 /**
  * One panel shell, tab-switched content. Dataset:
  * - `data-psge-panel` open|closed
@@ -86,9 +123,14 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
   const helpFab = qs<HTMLButtonElement>("#help-fab");
   const helpClose = qs<HTMLButtonElement>("#help-close");
   const helpBackdrop = qs<HTMLElement>("#help-backdrop");
+  const helpTitle = qs<HTMLElement>("#help-title");
+  const changelogList = qs<HTMLElement>("[data-changelog-list]");
+  const openChangelogBtn = qs<HTMLButtonElement>("[data-open-changelog]");
 
   let tab: HudPanelTab = "shop";
   let panelOpen = false;
+  let helpTab: HelpTab = "manual";
+  if (changelogList) mountChangelogList(changelogList);
 
   const notify = (): void => {
     options.onChange?.({ open: panelOpen, tab });
@@ -133,17 +175,44 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     notify();
   };
 
-  const setHelpOpen = (open: boolean): void => {
+  const applyHelpTabUi = (): void => {
+    for (const id of ["manual", "changelog"] as const) {
+      const tabBtn = qs<HTMLButtonElement>(`[data-help-tab="${id}"]`);
+      const pane = qs<HTMLElement>(`[data-help-pane="${id}"]`);
+      const selected = id === helpTab;
+      tabBtn?.setAttribute("aria-selected", selected ? "true" : "false");
+      tabBtn?.classList.toggle("is-active", selected);
+      setHidden(pane, !selected);
+    }
+    if (helpTitle) {
+      helpTitle.textContent =
+        helpTab === "changelog" ? "What's new" : "How to play";
+    }
+    document.documentElement.dataset.psgeHelpTab = helpTab;
+  };
+
+  const setHelpTab = (next: HelpTab): void => {
+    helpTab = next;
+    applyHelpTabUi();
+  };
+
+  const setHelpOpen = (open: boolean, nextTab: HelpTab = "manual"): void => {
     if (open) {
       panelOpen = false;
       applyPanelUi();
       document.documentElement.dataset.psgeDebugSheet = "closed";
       setExpanded(debugFab, false);
       setHidden(debugBackdrop, true);
+      helpTab = nextTab;
+      applyHelpTabUi();
     }
     document.documentElement.dataset.psgeHelp = open ? "open" : "closed";
     setExpanded(helpFab, open);
     setHidden(helpBackdrop, !open);
+  };
+
+  const openChangelog = (): void => {
+    setHelpOpen(true, "changelog");
   };
 
   const setDebugSheetOpen = (open: boolean): void => {
@@ -239,7 +308,8 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     const onHelpToggle = (e: Event): void => {
       e.preventDefault();
       e.stopPropagation();
-      setHelpOpen(document.documentElement.dataset.psgeHelp !== "open");
+      const open = document.documentElement.dataset.psgeHelp !== "open";
+      setHelpOpen(open, open ? "manual" : helpTab);
     };
     const onHelpClose = (e: Event): void => {
       e.preventDefault();
@@ -251,6 +321,22 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
       e.preventDefault();
       e.stopPropagation();
       setHelpOpen(false);
+    };
+    const onHelpTabClick = (e: Event): void => {
+      const btn = (e.target as Element | null)?.closest?.(
+        "[data-help-tab]",
+      ) as HTMLElement | null;
+      if (!btn) return;
+      const id = btn.dataset.helpTab;
+      if (!isHelpTab(id)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHelpTab(id);
+    };
+    const onOpenChangelog = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      openChangelog();
     };
 
     panelToggle?.addEventListener("click", onPanelToggle);
@@ -272,8 +358,12 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     helpClose?.addEventListener("pointerdown", stopBubble);
     helpBackdrop?.addEventListener("click", onHelpBackdrop);
     helpBackdrop?.addEventListener("pointerdown", stopBubble);
+    helpBackdrop?.addEventListener("click", onHelpTabClick);
+    openChangelogBtn?.addEventListener("click", onOpenChangelog);
+    openChangelogBtn?.addEventListener("pointerdown", stopBubble);
 
     applyPanelUi();
+    applyHelpTabUi();
     setHelpOpen(false);
 
     return () => {
@@ -296,6 +386,9 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
       helpClose?.removeEventListener("pointerdown", stopBubble);
       helpBackdrop?.removeEventListener("click", onHelpBackdrop);
       helpBackdrop?.removeEventListener("pointerdown", stopBubble);
+      helpBackdrop?.removeEventListener("click", onHelpTabClick);
+      openChangelogBtn?.removeEventListener("click", onOpenChangelog);
+      openChangelogBtn?.removeEventListener("pointerdown", stopBubble);
     };
   };
 
@@ -311,6 +404,7 @@ export function createHudSheets(options: HudSheetsOptions = {}): HudSheets {
     setAchievementsOpen,
     setDebugSheetOpen,
     setHelpOpen,
+    openChangelog,
     closeAll,
     bind,
   };

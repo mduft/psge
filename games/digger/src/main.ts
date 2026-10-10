@@ -265,7 +265,13 @@ async function boot(): Promise<() => void> {
   muteFab?.addEventListener("click", onMuteToggle);
   muteFab?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
   const gameVersionEl = document.querySelector("[data-game-version]");
-  if (gameVersionEl) gameVersionEl.textContent = `v${GAME_VERSION}`;
+  if (gameVersionEl) {
+    gameVersionEl.textContent = `v${GAME_VERSION}`;
+    gameVersionEl.setAttribute(
+      "aria-label",
+      `What's new — v${GAME_VERSION}`,
+    );
+  }
 
   const updateBanner = document.querySelector<HTMLElement>("#update-banner");
   const updateVersionEl = document.querySelector<HTMLElement>(
@@ -995,8 +1001,8 @@ async function boot(): Promise<() => void> {
     }
     if (shaftSync.newCartIds.length > 0) {
       noteMinecartsSeen(state, shaftSync.newCartIds);
-      playRailClink();
     }
+    if (shaftSync.cartAppeared) playRailClink();
     const coinsAppeared = world.syncShaftCoins(
       depth,
       state.discoveries.worldSeed,

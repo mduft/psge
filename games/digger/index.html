@@ -20,7 +20,16 @@
       <div id="hud" aria-live="polite">
         <header class="hud-top">
           <h1>Digger</h1>
-          <p class="game-version" data-game-version>v0.9.3</p>
+          <button
+            type="button"
+            class="game-version"
+            data-game-version
+            data-open-changelog
+            title="What's new"
+            aria-label="What's new — v0.9.3"
+          >
+            v0.9.3
+          </button>
         </header>
 
         <div class="hud-rail">
@@ -609,7 +618,7 @@
             aria-labelledby="help-title"
           >
             <header class="help-modal-header">
-              <h2 id="help-title" class="help-title">How to play</h2>
+              <h2 id="help-title" class="help-title">Help</h2>
               <button
                 type="button"
                 id="help-close"
@@ -626,7 +635,37 @@
                 />
               </button>
             </header>
-            <div class="help-manual">
+            <div class="help-tabs" role="tablist" aria-label="Help sections">
+              <button
+                type="button"
+                class="help-tab is-active"
+                role="tab"
+                id="help-tab-manual"
+                data-help-tab="manual"
+                aria-selected="true"
+                aria-controls="help-pane-manual"
+              >
+                How to play
+              </button>
+              <button
+                type="button"
+                class="help-tab"
+                role="tab"
+                id="help-tab-changelog"
+                data-help-tab="changelog"
+                aria-selected="false"
+                aria-controls="help-pane-changelog"
+              >
+                What's new
+              </button>
+            </div>
+            <div
+              id="help-pane-manual"
+              class="help-manual"
+              role="tabpanel"
+              data-help-pane="manual"
+              aria-labelledby="help-tab-manual"
+            >
               <section class="help-section">
                 <h3>
                   <img
@@ -839,6 +878,16 @@
                   offline reward when you return (capped at 24 hours).
                 </p>
               </section>
+            </div>
+            <div
+              id="help-pane-changelog"
+              class="help-changelog"
+              role="tabpanel"
+              data-help-pane="changelog"
+              aria-labelledby="help-tab-changelog"
+              hidden
+            >
+              <div data-changelog-list></div>
             </div>
           </div>
         </div>
