@@ -415,6 +415,9 @@ describe("saveGameState / loadGameState", () => {
       unlocked: [],
       afkDigSeen: false,
       overnightClaimed: false,
+      mineshaftSeen: false,
+      seenMinecarts: [],
+      claimedMinecarts: [],
     });
     expect(blob.boosters).toEqual({
       claimed: [],

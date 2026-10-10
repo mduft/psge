@@ -118,14 +118,29 @@ function makeWorker(): Group {
 }
 
 function makeCart(): Group {
+  // Open-top crate + disk wheels + dirt load (same idea as mineshaft carts).
   const root = new Group();
   const wood = mat(0x6b4424);
-  const iron = mat(0x4a4a50);
-  box(root, wood, 0.7, 0.35, 0.45, 0, 0.28, 0);
-  box(root, iron, 0.12, 0.12, 0.08, -0.28, 0.08, 0.22);
-  box(root, iron, 0.12, 0.12, 0.08, 0.28, 0.08, 0.22);
-  box(root, iron, 0.12, 0.12, 0.08, -0.28, 0.08, -0.22);
-  box(root, iron, 0.12, 0.12, 0.08, 0.28, 0.08, -0.22);
+  const iron = mat(0x3a3a42);
+  const dirt = mat(0x6b5340);
+  box(root, wood, 0.7, 0.07, 0.48, 0, 0.14, 0);
+  for (const zOff of [-0.21, 0.21]) {
+    box(root, wood, 0.7, 0.32, 0.06, 0, 0.3, zOff);
+  }
+  for (const xOff of [-0.32, 0.32]) {
+    box(root, wood, 0.06, 0.32, 0.48, xOff, 0.3, 0);
+  }
+  // Heap above the rim so load reads from the dig camera.
+  box(root, dirt, 0.5, 0.22, 0.34, 0, 0.42, 0);
+  box(root, dirt, 0.3, 0.16, 0.24, 0.08, 0.52, 0.02);
+  for (const xOff of [-0.22, 0.22]) {
+    for (const zOff of [-0.26, 0.26]) {
+      const wheel = new Mesh(new CylinderGeometry(0.1, 0.1, 0.09, 12), iron);
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(xOff, 0.1, zOff);
+      root.add(wheel);
+    }
+  }
   return root;
 }
 

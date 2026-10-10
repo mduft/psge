@@ -20,6 +20,7 @@ import {
   initAudio,
   isMuted,
   playCoinAppear,
+  playRailClink,
   toggleMuted,
 } from "./audio.js";
 import { applyDomIcons, createUiIconImg, uiIconUrl } from "./icons.js";
@@ -43,8 +44,12 @@ import {
   evaluateAchievements,
   getAchievementDef,
   noteAfkDig,
+  noteMinecartClaimed,
+  noteMinecartsSeen,
+  noteMineshaftSeen,
   noteOvernightClaim,
 } from "./achievements.js";
+import { mineshaftCartDirtReward } from "./mineshafts.js";
 import {
   refreshAchievementsList,
   refreshDiscoveryList,
@@ -84,6 +89,7 @@ import {
   resetProgress,
   SHAFT_CROSS_SECTION,
   tickProduction,
+  toDecimal,
   type GameState,
 } from "./gameState.js";
 import {
@@ -551,7 +557,8 @@ async function boot(): Promise<() => void> {
   const coarsePointer =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(pointer: coarse)").matches;
-  let hoveringCoin = false;
+  /** Fine pointer: pointer cursor while hovering a shaft coin / minecart. */
+  let hoveringLoot = false;
 
   const restoreDigCursor = (): void => {
     applyDigCursor(canvas, digToolOf(state.upgrades));
@@ -667,11 +674,17 @@ async function boot(): Promise<() => void> {
     pumpAchievementToast();
   };
 
+  /**
+   * When `?nosave=1`, suppress boot find/achievement/loot popups so deep
+   * `?depth=` stress loads stay usable. Cleared after the first paint.
+   */
+  let bootUiQuiet = nosave;
+
   /** Evaluate unlocks; toast newly earned; returns whether any unlocked. */
   const flushAchievements = (): boolean => {
     const newly = evaluateAchievements(state);
     if (newly.length === 0) return false;
-    enqueueAchievementToasts(newly);
+    if (!bootUiQuiet) enqueueAchievementToasts(newly);
     return true;
   };
 
@@ -748,29 +761,70 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeBooster = claims[claims.length - 1]!.id;
   };
 
-  const collectAutoBoosters = (): void => {
+  /** Reuse dirt-coin toast chrome for minecart loot. */
+  const showCartLootToast = (dirt: number): void => {
+    if (!boosterToast || dirt <= 0) return;
+    boosterToast.dataset.combo = "0";
+    boosterToast.style.setProperty("--combo", "0");
+    if (boosterToastEyebrow) boosterToastEyebrow.textContent = "Minecart";
+    if (boosterToastCombo) {
+      boosterToastCombo.hidden = true;
+      boosterToastCombo.textContent = "";
+    }
+    if (boosterToastName) {
+      boosterToastName.textContent = `+${formatAmount(dirt)} dirt`;
+    }
+    boosterToast.classList.remove("is-visible", "has-combo-pop");
+    void boosterToast.offsetWidth;
+    boosterToast.classList.add("is-visible");
+    boosterToast.setAttribute("aria-hidden", "false");
+    if (boosterToastTimer !== 0) clearTimeout(boosterToastTimer);
+    boosterToastTimer = window.setTimeout(() => {
+      boosterToastTimer = 0;
+      boosterToast.classList.remove("is-visible", "has-combo-pop");
+      boosterToast.setAttribute("aria-hidden", "true");
+      boosterToast.dataset.combo = "0";
+      boosterToast.style.setProperty("--combo", "0");
+      if (boosterToastCombo) {
+        boosterToastCombo.hidden = true;
+        boosterToastCombo.textContent = "";
+      }
+    }, BOOSTER_TOAST_MS);
+  };
+
+  const collectAutoBoosters = (quiet = false): void => {
     const claims = claimAutoBoosters(
       state.boosters,
       state.discoveries.worldSeed,
       depthNumber(state),
     );
-    if (claims.length > 0) clearBoosterCombo(state.boosters);
+    if (claims.length === 0) return;
+    clearBoosterCombo(state.boosters);
+    if (quiet) {
+      for (const c of claims) state.dirt = state.dirt.plus(c.dirt);
+      return;
+    }
     applyBoosterClaims(claims);
   };
 
-  const collectAutoSpecialCoins = (): void => {
-    enqueueSpecialClaims(
-      claimAutoSpecialCoins(
-        state.specialCoins,
-        state.discoveries.worldSeed,
-        depthNumber(state),
-      ),
+  const collectAutoSpecialCoins = (quiet = false): void => {
+    const claims = claimAutoSpecialCoins(
+      state.specialCoins,
+      state.discoveries.worldSeed,
+      depthNumber(state),
     );
+    if (quiet) {
+      for (const c of claims) {
+        if (c.dirt > 0) state.dirt = state.dirt.plus(c.dirt);
+      }
+      return;
+    }
+    enqueueSpecialClaims(claims);
   };
 
-  const collectShaftCoins = (): void => {
-    collectAutoBoosters();
-    collectAutoSpecialCoins();
+  const collectShaftCoins = (quiet = false): void => {
+    collectAutoBoosters(quiet);
+    collectAutoSpecialCoins(quiet);
   };
 
   const pointerToCanvas = (e: PointerEvent): boolean => {
@@ -784,12 +838,10 @@ async function boot(): Promise<() => void> {
   };
 
   const clearCoinHover = (): void => {
-    if (!hoveringCoin) {
-      world.setShaftCoinHover(null);
-      return;
-    }
-    hoveringCoin = false;
     world.setShaftCoinHover(null);
+    world.setMinecartHover(null);
+    if (!hoveringLoot) return;
+    hoveringLoot = false;
     if (!coarsePointer) restoreDigCursor();
   };
 
@@ -800,14 +852,18 @@ async function boot(): Promise<() => void> {
     }
     const ndcX = lastPointer.x * 2 - 1;
     const ndcY = -(lastPointer.y * 2 - 1);
-    const hit = world.pickShaftCoin(app.camera, ndcX, ndcY);
-    world.setShaftCoinHover(hit);
-    const next = hit !== null;
-    if (next === hoveringCoin) {
+    const coinHit = world.pickShaftCoin(app.camera, ndcX, ndcY);
+    const cartHit = coinHit
+      ? null
+      : world.pickMinecart(app.camera, ndcX, ndcY);
+    world.setShaftCoinHover(coinHit);
+    world.setMinecartHover(cartHit);
+    const next = coinHit !== null || cartHit !== null;
+    if (next === hoveringLoot) {
       if (next && !coarsePointer) canvas.style.cursor = "pointer";
       return;
     }
-    hoveringCoin = next;
+    hoveringLoot = next;
     if (!coarsePointer) {
       if (next) canvas.style.cursor = "pointer";
       else restoreDigCursor();
@@ -932,7 +988,15 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeSpecialCoins = String(specialCount);
     applyLayerMood(depth);
     world.syncActors(depth, state.upgrades);
-    world.syncMineshafts(depth);
+    const claimedCarts = new Set(state.achievements.claimedMinecarts);
+    const shaftSync = world.syncMineshafts(depth, claimedCarts);
+    if (shaftSync.newShaftIds.length > 0) {
+      noteMineshaftSeen(state);
+    }
+    if (shaftSync.newCartIds.length > 0) {
+      noteMinecartsSeen(state, shaftSync.newCartIds);
+      playRailClink();
+    }
     const coinsAppeared = world.syncShaftCoins(
       depth,
       state.discoveries.worldSeed,
@@ -1010,7 +1074,7 @@ async function boot(): Promise<() => void> {
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
     document.documentElement.dataset.psgeDigPower = power.toString();
-    if (hoveringCoin && !coarsePointer) canvas.style.cursor = "pointer";
+    if (hoveringLoot && !coarsePointer) canvas.style.cursor = "pointer";
     else restoreDigCursor();
   };
 
@@ -1245,6 +1309,18 @@ async function boot(): Promise<() => void> {
           autosave.markDirty();
           return;
         }
+      } else {
+        const cart = world.pickMinecart(app.camera, ndcX, ndcY);
+        if (cart && noteMinecartClaimed(state, cart.id)) {
+          const reward = mineshaftCartDirtReward(depth);
+          state.dirt = state.dirt.plus(toDecimal(reward));
+          world.markMinecartClaimed(cart.id);
+          playRailClink();
+          showCartLootToast(reward);
+          applyPlayView();
+          autosave.markDirty();
+          return;
+        }
       }
       const found = dig(state);
       document.documentElement.dataset.psgeDigIntent = "1";
@@ -1334,10 +1410,16 @@ async function boot(): Promise<() => void> {
       state.lastPlayedAtMs = wallClock();
       autosave.markDirty();
     }
-    enqueueFinds(bootFinds);
-    collectShaftCoins();
+    if (bootUiQuiet) {
+      // Unlock boot finds/loot into state without Continue modals / toast spam.
+      collectShaftCoins(true);
+    } else {
+      enqueueFinds(bootFinds);
+      collectShaftCoins();
+    }
     applyPlayView();
   }
+  bootUiQuiet = false;
 
   /** Pace subtle passive chips so high rates don't look like tap bursts. */
   let trickleCooldown = 0;

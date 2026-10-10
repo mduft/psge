@@ -69,3 +69,44 @@ export function playCoinAppear(): void {
     /* ignore */
   }
 }
+
+let railAudioCtx: AudioContext | null = null;
+
+function ensureRailAudioCtx(): AudioContext | null {
+  const AC =
+    typeof AudioContext !== "undefined"
+      ? AudioContext
+      : (
+          globalThis as unknown as {
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).webkitAudioContext;
+  if (!AC) return null;
+  if (!railAudioCtx) railAudioCtx = new AC();
+  return railAudioCtx;
+}
+
+/** Short metallic clink when a minecart / shaft scrolls into view. */
+export function playRailClink(): void {
+  if (muted) return;
+  const ctx = ensureRailAudioCtx();
+  if (!ctx) return;
+  try {
+    void ctx.resume().catch(() => {});
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(880, t0);
+    osc.frequency.exponentialRampToValueAtTime(220, t0 + 0.08);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.14);
+  } catch {
+    /* ignore */
+  }
+}

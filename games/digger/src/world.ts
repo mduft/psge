@@ -36,7 +36,11 @@ import {
   wallAccentVariant,
 } from "./geoLayers.js";
 import { isMineshaftAir } from "./mineshafts.js";
-import { createMineshaftProps } from "./mineshaftProps.js";
+import {
+  createMineshaftProps,
+  type MineshaftCartPick,
+  type MineshaftSyncResult,
+} from "./mineshaftProps.js";
 import { createShaftActors, type ShaftActors } from "./shaftActors.js";
 import type { UpgradeLevels } from "./upgrades.js";
 
@@ -72,8 +76,11 @@ export interface DigWorld {
   setFogDistanceScale(scale: number): void;
   /** Sync digger + machinery to dig face and upgrades. */
   syncActors(excavatedDepth: number, upgrades: UpgradeLevels): void;
-  /** Sync side-mineshaft rails / cobwebs near the dig face. */
-  syncMineshafts(excavatedDepth: number): void;
+  /** Sync side-mineshaft décor near the dig face. */
+  syncMineshafts(
+    excavatedDepth: number,
+    claimedCartIds?: ReadonlySet<string>,
+  ): MineshaftSyncResult;
   /** Sync visible dirt + special coins; returns count of newly appeared coins. */
   syncShaftCoins(
     excavatedDepth: number,
@@ -89,6 +96,14 @@ export interface DigWorld {
   ): ShaftCoinPick | null;
   /** Hover highlight for a shaft coin (or clear). */
   setShaftCoinHover(pick: ShaftCoinPick | null): void;
+  /** NDC ray pick against looting minecarts (−1…1). */
+  pickMinecart(
+    camera: Camera,
+    ndcX: number,
+    ndcY: number,
+  ): MineshaftCartPick | null;
+  setMinecartHover(pick: MineshaftCartPick | null): void;
+  markMinecartClaimed(id: string): void;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -467,8 +482,8 @@ export function buildDigWorld(
     syncActors(depth: number, upgrades: UpgradeLevels): void {
       actors.sync(depth, upgrades);
     },
-    syncMineshafts(depth: number): void {
-      mineshaftProps.sync(depth);
+    syncMineshafts(depth, claimedCartIds): MineshaftSyncResult {
+      return mineshaftProps.sync(depth, claimedCartIds);
     },
     syncShaftCoins(
       depth: number,
@@ -488,6 +503,15 @@ export function buildDigWorld(
     setShaftCoinHover(pick: ShaftCoinPick | null): void {
       shaftCoins.setHover(pick);
     },
+    pickMinecart(camera, ndcX, ndcY): MineshaftCartPick | null {
+      return mineshaftProps.pickCart(camera, ndcX, ndcY);
+    },
+    setMinecartHover(pick: MineshaftCartPick | null): void {
+      mineshaftProps.setCartHover(pick);
+    },
+    markMinecartClaimed(id: string): void {
+      mineshaftProps.markCartClaimed(id);
+    },
     playDigSwing(): void {
       actors.playDigSwing();
     },
@@ -504,6 +528,7 @@ export function buildDigWorld(
       particles.update(dtSeconds);
       actors.update(dtSeconds);
       shaftCoins.update(dtSeconds);
+      mineshaftProps.update(dtSeconds);
     },
     dispose(): void {
       actors.dispose();

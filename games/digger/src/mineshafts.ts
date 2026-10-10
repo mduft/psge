@@ -199,6 +199,8 @@ export function mineshaftHasCobweb(
 
 /** Fraction of band/side shafts that get a minecart on the rails. */
 export const MINESHAFT_MINECART_CHANCE = 0.25;
+/** Fraction that get a spare crate/barrel on the rails. */
+export const MINESHAFT_CRATE_CHANCE = 0.25;
 
 /** ~25% of shafts get a cart (seeded per band/side). */
 export function mineshaftHasMinecart(
@@ -208,13 +210,38 @@ export function mineshaftHasMinecart(
   return hash01(band, side, 0xca27) < MINESHAFT_MINECART_CHANCE;
 }
 
+/** ~25% of shafts get a barrel or crate (seeded; may coexist with a cart). */
+export function mineshaftHasCrate(band: number, side: MineshaftSide): boolean {
+  return hash01(band, side, 0xc2a7) < MINESHAFT_CRATE_CHANCE;
+}
+
 /** How far into the tunnel from the dig-shaft mouth a cart may sit (blocks). */
 export const MINESHAFT_MINECART_MAX_INSET = 3;
 
 /**
+ * Cell X near the dig-shaft mouth (inset 0…max).
+ * Deterministic per band/side/seed; clamped to the tunnel.
+ */
+export function mineshaftMouthInsetX(
+  band: number,
+  side: MineshaftSide,
+  xMin: number,
+  xMax: number,
+  seed: number,
+  maxInset = MINESHAFT_MINECART_MAX_INSET,
+): number {
+  if (xMax < xMin) return xMin;
+  const mouthX = side < 0 ? xMax : xMin;
+  const tunnelLen = xMax - xMin + 1;
+  const insetMax = Math.min(maxInset, tunnelLen - 1);
+  const inset = Math.floor(hash01(band, side, seed) * (insetMax + 1));
+  const x = mouthX - side * inset;
+  return Math.min(xMax, Math.max(xMin, x));
+}
+
+/**
  * Cell X for a cart on this shaft's rails — at the mouth toward the player,
  * or at most `MINESHAFT_MINECART_MAX_INSET` blocks deeper into the tunnel.
- * Deterministic per band/side; call when `mineshaftHasMinecart` is true.
  */
 export function mineshaftMinecartX(
   band: number,
@@ -222,12 +249,64 @@ export function mineshaftMinecartX(
   xMin: number,
   xMax: number,
 ): number {
-  if (xMax < xMin) return xMin;
-  const mouthX = side < 0 ? xMax : xMin;
-  const tunnelLen = xMax - xMin + 1;
-  const maxInset = Math.min(MINESHAFT_MINECART_MAX_INSET, tunnelLen - 1);
-  const inset = Math.floor(hash01(band, side, 0xca28) * (maxInset + 1));
-  // Left mouth is xMax; deeper into tunnel decreases X. Right is the reverse.
-  const x = mouthX - side * inset;
-  return Math.min(xMax, Math.max(xMin, x));
+  return mineshaftMouthInsetX(band, side, xMin, xMax, 0xca28);
+}
+
+/** Crate/barrel X; prefers a different cell than the cart when both exist. */
+export function mineshaftCrateX(
+  band: number,
+  side: MineshaftSide,
+  xMin: number,
+  xMax: number,
+): number {
+  let x = mineshaftMouthInsetX(band, side, xMin, xMax, 0xc2a8);
+  if (
+    mineshaftHasMinecart(band, side) &&
+    x === mineshaftMinecartX(band, side, xMin, xMax)
+  ) {
+    const alt = mineshaftMouthInsetX(band, side, xMin, xMax, 0xc2a9);
+    if (alt !== x) return alt;
+    // Nudge one block deeper if the tunnel allows.
+    const mouthX = side < 0 ? xMax : xMin;
+    const nudged = Math.min(xMax, Math.max(xMin, x - side));
+    if (nudged !== mouthX || xMax !== xMin) return nudged;
+  }
+  return x;
+}
+
+/** Barrel vs square crate. */
+export function mineshaftCrateIsBarrel(
+  band: number,
+  side: MineshaftSide,
+): boolean {
+  return hash01(band, side, 0xc2aa) < 0.55;
+}
+
+/** Ceiling torch every few blocks (biased toward the mouth). */
+export function mineshaftHasTorch(
+  x: number,
+  floorY: number,
+  side: MineshaftSide,
+  mouthX: number,
+): boolean {
+  const dist = Math.abs(x - mouthX);
+  if (dist > 8) return false;
+  // Roughly every 3rd column near the mouth (normalize for negative coords).
+  const step = x + floorY + side;
+  if (((step % 3) + 3) % 3 !== 0) return false;
+  return hash01(x, floorY, 0x70c4 ^ (side + 3)) < 0.85;
+}
+
+/** Early shafts use wood ties; deeper switch toward iron. */
+export type MineshaftDecorStyle = "wood" | "iron";
+
+export function mineshaftDecorStyle(depthM: number): MineshaftDecorStyle {
+  return depthM >= 4_000 ? "iron" : "wood";
+}
+
+/** Dirt granted once when tapping a minecart (rare side-shaft loot). */
+export function mineshaftCartDirtReward(depthM: number): number {
+  const d = Math.max(0, depthM);
+  // Floor 1k; ~0.5 dirt/m so deep carts stay worth the detour.
+  return Math.min(50_000, Math.floor(1000 + d * 0.5));
 }

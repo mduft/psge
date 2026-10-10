@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateAchievements,
   noteAfkDig,
+  noteMinecartsSeen,
+  noteMineshaftSeen,
   noteOvernightClaim,
 } from "../src/achievements.js";
 import { DISCOVERY_DEFS } from "../src/discoveries.js";
@@ -118,5 +120,28 @@ describe("evaluateAchievements", () => {
     const newly = evaluateAchievements(state);
     expect(newly).toContain("afk-digger");
     expect(newly).toContain("overnight");
+  });
+
+  it("unlocks mineshaft and cart sighting achievements", () => {
+    const state = createInitialState({ depth: 100 });
+    evaluateAchievements(state);
+    expect(state.achievements.unlocked).not.toContain("first-mineshaft");
+    noteMineshaftSeen(state);
+    expect(evaluateAchievements(state)).toContain("first-mineshaft");
+    noteMinecartsSeen(state, ["0:1", "1:-1", "2:1"]);
+    expect(evaluateAchievements(state)).toContain("carts-3");
+    expect(evaluateAchievements(state)).not.toContain("carts-10");
+    noteMinecartsSeen(state, [
+      "3:1",
+      "4:-1",
+      "5:1",
+      "6:-1",
+      "7:1",
+      "8:-1",
+      "9:1",
+    ]);
+    expect(evaluateAchievements(state)).toContain("carts-10");
+    // Re-seeing the same carts does not double-count.
+    expect(noteMinecartsSeen(state, ["0:1", "1:-1"])).toBe(0);
   });
 });

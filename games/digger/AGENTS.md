@@ -13,8 +13,8 @@ Dev URL examples:
 
 - `http://<host>:5173/` — load save if present, else dug **0**; extent ≥ `ceil(savedDepth)`
 - `http://<host>:5173/?depth=100` — pre-dig to 100 only when **no** save; extent ≥ 1000
-- `http://<host>:5173/?nosave=1` — clear save, fresh run
-- `http://<host>:5173/?nosave=1&depth=10000` — reset + stress shaft
+- `http://<host>:5173/?nosave=1` — clear save, fresh run; skips boot find/achievement popups
+- `http://<host>:5173/?nosave=1&depth=10000` — reset + stress shaft (no boot modals)
 - `http://<host>:5173/?debug=1` — debug panel (give dirt, layer jumps, unlock find, drag-scroll opt-in, Reset)
 - `http://<host>:5173/?offlineMs=3600000` — pretend away for N ms (claim modal if auto dig owned)
 

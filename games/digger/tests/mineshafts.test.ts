@@ -9,8 +9,14 @@ import {
   mineshaftCobwebChance,
   mineshaftFloorY,
   mineshaftHasCobweb,
+  mineshaftCartDirtReward,
+  mineshaftCrateX,
+  mineshaftDecorStyle,
+  mineshaftHasCrate,
   mineshaftHasMinecart,
+  mineshaftHasTorch,
   mineshaftMinecartX,
+  MINESHAFT_CRATE_CHANCE,
   MINESHAFT_MINECART_MAX_INSET,
   mineshaftMouthGap,
   mineshaftPlacement,
@@ -162,5 +168,60 @@ describe("minecarts", () => {
       }
     }
     expect(placed).toBeGreaterThan(0);
+  });
+});
+
+describe("crates and décor", () => {
+  it("selects about a quarter of shafts for crates", () => {
+    let hits = 0;
+    let total = 0;
+    for (let b = 0; b < 200; b++) {
+      for (const side of [-1, 1] as const) {
+        total++;
+        if (mineshaftHasCrate(b, side)) hits++;
+      }
+    }
+    const rate = hits / total;
+    expect(rate).toBeGreaterThan(MINESHAFT_CRATE_CHANCE - 0.1);
+    expect(rate).toBeLessThan(MINESHAFT_CRATE_CHANCE + 0.1);
+  });
+
+  it("places crates near the mouth", () => {
+    for (let b = 0; b < 40; b++) {
+      for (const side of mineshaftSides(b) as (-1 | 1)[]) {
+        if (!mineshaftHasCrate(b, side)) continue;
+        const m = mineshaftPlacement(b, side);
+        const x = mineshaftCrateX(b, side, m.xMin, m.xMax);
+        const mouthX = side < 0 ? m.xMax : m.xMin;
+        expect(Math.abs(x - mouthX)).toBeLessThanOrEqual(
+          MINESHAFT_MINECART_MAX_INSET,
+        );
+      }
+    }
+  });
+
+  it("switches décor style at bedrock depths", () => {
+    expect(mineshaftDecorStyle(100)).toBe("wood");
+    expect(mineshaftDecorStyle(4_000)).toBe("iron");
+  });
+
+  it("places some torches near the mouth", () => {
+    let torches = 0;
+    for (let b = 0; b < 20; b++) {
+      const m = mineshaftPlacement(b, mineshaftSides(b)[0]!);
+      const mouthX = m.side < 0 ? m.xMax : m.xMin;
+      for (let x = m.xMin; x <= m.xMax; x++) {
+        if (mineshaftHasTorch(x, m.floorY, m.side, mouthX)) torches++;
+      }
+    }
+    expect(torches).toBeGreaterThan(0);
+  });
+
+  it("scales cart dirt rewards with depth", () => {
+    expect(mineshaftCartDirtReward(50)).toBeGreaterThanOrEqual(1000);
+    expect(mineshaftCartDirtReward(10_000)).toBeGreaterThan(
+      mineshaftCartDirtReward(50),
+    );
+    expect(mineshaftCartDirtReward(1_000_000)).toBeLessThanOrEqual(50_000);
   });
 });

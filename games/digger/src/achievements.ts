@@ -36,6 +36,12 @@ export interface AchievementProgress {
   afkDigSeen: boolean;
   /** Set when the player completes an offline claim. */
   overnightClaimed: boolean;
+  /** Set when a side mineshaft has entered the loaded window. */
+  mineshaftSeen: boolean;
+  /** Unique minecart ids that have scrolled into view (all-time). */
+  seenMinecarts: string[];
+  /** Minecart ids already tapped for dirt loot. */
+  claimedMinecarts: string[];
 }
 
 const LAYER_ACHIEVEMENTS: readonly {
@@ -304,12 +310,37 @@ export const ACHIEVEMENT_DEFS: readonly AchievementDef[] = [
     blurb: "Every discovery unlocked.",
     hint: "Complete the discovery catalog.",
   },
+  {
+    id: "first-mineshaft",
+    name: "Side tunnel",
+    blurb: "Rails in the dark.",
+    hint: "Reach an abandoned side mineshaft.",
+  },
+  {
+    id: "carts-3",
+    name: "Rolling stock",
+    blurb: "Three carts along the rails.",
+    hint: "Spot 3 minecarts in side shafts.",
+  },
+  {
+    id: "carts-10",
+    name: "Rail yard",
+    blurb: "A dozen carts would be showing off — ten will do.",
+    hint: "Spot 10 minecarts in side shafts.",
+  },
 ];
 
 const DEF_IDS = new Set(ACHIEVEMENT_DEFS.map((d) => d.id));
 
 export function emptyAchievementProgress(): AchievementProgress {
-  return { unlocked: [], afkDigSeen: false, overnightClaimed: false };
+  return {
+    unlocked: [],
+    afkDigSeen: false,
+    overnightClaimed: false,
+    mineshaftSeen: false,
+    seenMinecarts: [],
+    claimedMinecarts: [],
+  };
 }
 
 export function normalizeAchievements(raw: unknown): AchievementProgress {
@@ -325,10 +356,31 @@ export function normalizeAchievements(raw: unknown): AchievementProgress {
       unlocked.push(id);
     }
   }
+  const seenMinecarts: string[] = [];
+  const seenSet = new Set<string>();
+  if (Array.isArray(o.seenMinecarts)) {
+    for (const id of o.seenMinecarts) {
+      if (typeof id !== "string" || !id || seenSet.has(id)) continue;
+      seenSet.add(id);
+      seenMinecarts.push(id);
+    }
+  }
+  const claimedMinecarts: string[] = [];
+  const claimedSeen = new Set<string>();
+  if (Array.isArray(o.claimedMinecarts)) {
+    for (const id of o.claimedMinecarts) {
+      if (typeof id !== "string" || !id || claimedSeen.has(id)) continue;
+      claimedSeen.add(id);
+      claimedMinecarts.push(id);
+    }
+  }
   return {
     unlocked,
     afkDigSeen: o.afkDigSeen === true,
     overnightClaimed: o.overnightClaimed === true,
+    mineshaftSeen: o.mineshaftSeen === true,
+    seenMinecarts,
+    claimedMinecarts,
   };
 }
 
@@ -421,6 +473,12 @@ function isMet(state: AchievementEvalState, id: string): boolean {
       return finds >= 5;
     case "museum":
       return finds >= DISCOVERY_DEFS.length;
+    case "first-mineshaft":
+      return state.achievements.mineshaftSeen;
+    case "carts-3":
+      return state.achievements.seenMinecarts.length >= 3;
+    case "carts-10":
+      return state.achievements.seenMinecarts.length >= 10;
     default:
       return false;
   }
@@ -451,4 +509,45 @@ export function noteAfkDig(state: AchievementEvalState): void {
 /** Mark that offline progress was claimed (for `overnight`). */
 export function noteOvernightClaim(state: AchievementEvalState): void {
   state.achievements.overnightClaimed = true;
+}
+
+/** First time a side mineshaft loads near the dig face. */
+export function noteMineshaftSeen(state: AchievementEvalState): void {
+  state.achievements.mineshaftSeen = true;
+}
+
+/**
+ * Record unique minecart sightings. Returns how many ids were new all-time.
+ */
+export function noteMinecartsSeen(
+  state: AchievementEvalState,
+  cartIds: readonly string[],
+): number {
+  const have = new Set(state.achievements.seenMinecarts);
+  let added = 0;
+  for (const id of cartIds) {
+    if (!id || have.has(id)) continue;
+    have.add(id);
+    state.achievements.seenMinecarts.push(id);
+    added += 1;
+  }
+  return added;
+}
+
+/** Whether this minecart has already been looted. */
+export function isMinecartClaimed(
+  state: AchievementEvalState,
+  cartId: string,
+): boolean {
+  return state.achievements.claimedMinecarts.includes(cartId);
+}
+
+/** Record a minecart loot claim (idempotent). */
+export function noteMinecartClaimed(
+  state: AchievementEvalState,
+  cartId: string,
+): boolean {
+  if (state.achievements.claimedMinecarts.includes(cartId)) return false;
+  state.achievements.claimedMinecarts.push(cartId);
+  return true;
 }
