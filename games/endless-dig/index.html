@@ -25,83 +25,59 @@
         <div class="hud-rail">
           <aside class="hud-stats" aria-label="Stats">
             <div class="stat">
-              <span class="label">
-                <span class="label-full">Depth</span>
-                <span class="label-abbr" aria-hidden="true">Dep</span>
-              </span>
+              <span class="label">Depth</span>
               <span class="value" data-stat="depth">0 m</span>
             </div>
-            <div class="stat stat-layer">
-              <span class="label">
-                <span class="label-full">Layer</span>
-                <span class="label-abbr" aria-hidden="true">Lay</span>
-              </span>
-              <span class="value" data-stat="layer">Topsoil</span>
-            </div>
             <div class="stat">
-              <span class="label">
-                <span class="label-full">Dirt</span>
-                <span class="label-abbr" aria-hidden="true">Dirt</span>
-              </span>
+              <span class="label">Dirt</span>
               <span class="value" data-stat="dirt">0</span>
             </div>
             <div class="stat">
-              <span class="label">
-                <span class="label-full">Coins</span>
-                <span class="label-abbr" aria-hidden="true">Coin</span>
-              </span>
+              <span class="label">Coins</span>
               <span class="value" data-stat="coins" title="Coins collected · dirt from coins"
                 >0 · 0</span
               >
             </div>
             <div class="stat">
-              <span class="label">
-                <span class="label-full">Per tap</span>
-                <span class="label-abbr" aria-hidden="true">Tap</span>
-              </span>
+              <span class="label">Per tap</span>
               <span class="value" data-stat="dig-power">0.031 m</span>
             </div>
             <div class="stat stat-auto">
-              <span class="label">
-                <span class="label-full">Auto</span>
-                <span class="label-abbr" aria-hidden="true">Auto</span>
-              </span>
-              <span class="stat-auto-controls">
-                <span class="value" data-stat="passive">0 m/s</span>
-                <button
-                  type="button"
-                  id="auto-pause"
-                  class="auto-pause"
-                  aria-pressed="false"
-                  aria-label="Pause auto-dig"
-                  title="Pause auto-dig to grab coins"
-                  hidden
+              <span class="label">Auto</span>
+              <span class="value" data-stat="passive">0 m/s</span>
+              <button
+                type="button"
+                id="auto-pause"
+                class="auto-pause"
+                aria-pressed="false"
+                aria-label="Pause auto-dig"
+                title="Pause auto-dig to grab coins"
+                hidden
+              >
+                <svg
+                  class="auto-pause-icon auto-pause-icon-pause"
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                  focusable="false"
                 >
-                  <svg
-                    class="auto-pause-icon auto-pause-icon-pause"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      fill="currentColor"
-                      d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"
-                    />
-                  </svg>
-                  <svg
-                    class="auto-pause-icon auto-pause-icon-play"
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path fill="currentColor" d="M8 5v14l11-7L8 5z" />
-                  </svg>
-                </button>
-              </span>
+                  <path
+                    fill="currentColor"
+                    d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"
+                  />
+                </svg>
+                <svg
+                  class="auto-pause-icon auto-pause-icon-play"
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path fill="currentColor" d="M8 5v14l11-7L8 5z" />
+                </svg>
+              </button>
             </div>
           </aside>
 
@@ -392,9 +368,15 @@
         <div id="save-indicator" class="save-indicator" aria-hidden="true">
           Saved
         </div>
-        <p class="hud-hint">
-          Tap to dig · shop · finds · coins · ?debug=1 for tools
-        </p>
+        <div
+          class="layer-plate"
+          aria-live="polite"
+          aria-label="Current layer"
+          data-layer-plate
+        >
+          <span class="layer-plate-eyebrow">Layer</span>
+          <span class="layer-plate-name" data-layer-plate-name>Topsoil</span>
+        </div>
 
         <div
           id="find-backdrop"

@@ -462,7 +462,13 @@ test("geo layer updates at 1000m", async ({ page }) => {
   await page.goto("/?nosave=1&depth=1000");
   await expect(page.locator("html")).toHaveAttribute("data-psge-ready", "true");
   await expect(page.locator("html")).toHaveAttribute("data-psge-layer", "clay");
-  await expect(page.locator('[data-stat="layer"]')).toHaveText("Packed clay");
+  await expect(page.locator("[data-layer-plate]")).toHaveAttribute(
+    "data-layer",
+    "clay",
+  );
+  await expect(page.locator("[data-layer-plate-name]")).toHaveText(
+    "Packed clay",
+  );
 });
 
 test("depth milestones unlock discoveries into the collection", async ({

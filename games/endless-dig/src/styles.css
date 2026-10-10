@@ -150,11 +150,16 @@ body {
   font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
 }
 
-.stat-auto-controls {
-  display: inline-flex;
+.stat-auto {
+  position: relative;
+  justify-content: flex-start;
   align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
+  gap: 0.45rem;
+}
+
+.stat-auto .value {
+  margin-left: auto;
+  text-align: right;
 }
 
 .auto-pause {
@@ -170,6 +175,7 @@ body {
   text-shadow: none;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.25rem;
   cursor: pointer;
   pointer-events: auto;
 }
@@ -1026,12 +1032,6 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
   outline: none;
 }
 
-.stat-layer .value {
-  font-size: 0.82rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-}
-
 .layer-toast {
   position: absolute;
   left: 50%;
@@ -1092,15 +1092,59 @@ html[data-psge-coin-sheet="open"] #coins-sheet {
   transition: opacity 0.12s ease;
 }
 
-.hud-hint {
-  margin: 0;
+.layer-plate {
   justify-self: center;
   align-self: end;
-  padding: 0.4rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  min-width: min(11rem, 70vw);
+  padding: 0.45rem 1.15rem 0.55rem;
+  text-align: center;
+  pointer-events: none;
+  background: var(--hud-panel-bg);
+  border: 1px solid var(--hud-panel-border);
+  border-radius: var(--hud-panel-radius);
+  box-shadow: var(--hud-panel-shadow);
+  backdrop-filter: var(--hud-panel-blur);
+  -webkit-backdrop-filter: var(--hud-panel-blur);
+  border-top: 2px solid var(--layer-plate-accent, rgba(196, 165, 116, 0.65));
+}
+
+.layer-plate-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--hud-muted);
-  font-size: clamp(0.72rem, 1.8vw, 0.85rem);
-  background: var(--hud-panel);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.layer-plate-name {
+  font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--hud-ink);
+  text-shadow: var(--hud-shadow);
+}
+
+.layer-plate[data-layer="soil"] {
+  --layer-plate-accent: #8b5a2b;
+}
+.layer-plate[data-layer="clay"] {
+  --layer-plate-accent: #a67c52;
+}
+.layer-plate[data-layer="bedrock"] {
+  --layer-plate-accent: #8a9098;
+}
+.layer-plate[data-layer="deep_crust"] {
+  --layer-plate-accent: #607888;
+}
+.layer-plate[data-layer="ancient"] {
+  --layer-plate-accent: #3a8880;
+}
+.layer-plate[data-layer="abyss"] {
+  --layer-plate-accent: #ff8040;
 }
 
 /* Wide: stats rail hosts docked panels below when open. */
@@ -1183,32 +1227,72 @@ html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
     gap: 0.4rem;
     overflow: visible;
     pointer-events: none;
-    scrollbar-gutter: auto;
+    scrollbar-gutter: unset;
   }
 
+  /* Compact strip: uniform columns; pause floats so it cannot skew layout. */
   .hud-stats {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.35rem;
-    padding: 0.4rem 0.55rem;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.2fr);
+    align-items: start;
+    gap: 0.3rem 0.45rem;
+    padding: 0.45rem 0.55rem;
+    overflow: hidden;
   }
 
   .stat {
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.05rem;
+    justify-content: flex-start;
+    gap: 0.15rem;
     min-width: 0;
   }
 
   .stat .label {
-    font-size: 0.62rem;
-    letter-spacing: 0.04em;
+    font-size: 0.58rem;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    white-space: nowrap;
   }
 
-  .label-full {
+  .stat .value {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    font-size: 0.72rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-auto {
+    padding-right: 1.25rem;
+  }
+
+  .stat-auto .value {
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .stat-auto .auto-pause {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .auto-pause-icon {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* Debug panel still uses short labels on narrow. */
+  .debug-panel .label-full {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1220,28 +1304,8 @@ html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
     border: 0;
   }
 
-  .label-abbr {
+  .debug-panel .label-abbr {
     display: inline;
-  }
-
-  .stat .value {
-    font-size: 0.78rem;
-  }
-
-  .stat-auto-controls {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.15rem;
-  }
-
-  .auto-pause {
-    width: 1.35rem;
-    height: 1.35rem;
-  }
-
-  .auto-pause-icon {
-    width: 12px;
-    height: 12px;
   }
 
 }
@@ -1260,7 +1324,11 @@ html[data-psge-debug-sheet="open"] .debug-panel:not([hidden]) {
     display: none;
   }
 
-  .hud-hint {
-    font-size: 0.7rem;
+  .layer-plate {
+    padding: 0.35rem 0.9rem 0.4rem;
+  }
+
+  .layer-plate-name {
+    font-size: 0.9rem;
   }
 }

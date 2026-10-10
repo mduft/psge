@@ -245,7 +245,8 @@ async function boot(): Promise<() => void> {
   };
 
   const depthEl = document.querySelector('[data-stat="depth"]');
-  const layerEl = document.querySelector('[data-stat="layer"]');
+  const layerPlate = document.querySelector<HTMLElement>("[data-layer-plate]");
+  const layerPlateName = document.querySelector("[data-layer-plate-name]");
   const dirtEl = document.querySelector('[data-stat="dirt"]');
   const coinsEl = document.querySelector('[data-stat="coins"]');
   const digPowerEl = document.querySelector('[data-stat="dig-power"]');
@@ -373,6 +374,15 @@ async function boot(): Promise<() => void> {
   let boosterToastTimer = 0;
   /** Last canvas pointer in CSS pixels relative to canvas (for NDC pick). */
   let lastPointer = { x: 0.5, y: 0.5 };
+  /** Fine pointer: swap to pointer cursor while hovering a shaft coin. */
+  const coarsePointer =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
+  let hoveringCoin = false;
+
+  const restoreDigCursor = (): void => {
+    applyDigCursor(canvas, digToolOf(state.upgrades));
+  };
 
   const setDebugSheetOpen = (open: boolean): void => {
     if (open) {
@@ -700,15 +710,61 @@ async function boot(): Promise<() => void> {
     collectAutoSpecialCoins();
   };
 
-  const onCanvasPointerDown = (e: PointerEvent): void => {
+  const pointerToCanvas = (e: PointerEvent): boolean => {
     const rect = canvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
+    if (rect.width <= 0 || rect.height <= 0) return false;
     lastPointer = {
       x: (e.clientX - rect.left) / rect.width,
       y: (e.clientY - rect.top) / rect.height,
     };
+    return true;
+  };
+
+  const clearCoinHover = (): void => {
+    if (!hoveringCoin) {
+      world.setCoinHover(null);
+      return;
+    }
+    hoveringCoin = false;
+    world.setCoinHover(null);
+    if (!coarsePointer) restoreDigCursor();
+  };
+
+  const refreshCoinHover = (): void => {
+    if (pendingOffline || findRevealOpen) {
+      clearCoinHover();
+      return;
+    }
+    const ndcX = lastPointer.x * 2 - 1;
+    const ndcY = -(lastPointer.y * 2 - 1);
+    const hit = world.pickBooster(app.camera, ndcX, ndcY);
+    world.setCoinHover(hit);
+    const next = hit !== null;
+    if (next === hoveringCoin) {
+      if (next && !coarsePointer) canvas.style.cursor = "pointer";
+      return;
+    }
+    hoveringCoin = next;
+    if (!coarsePointer) {
+      if (next) canvas.style.cursor = "pointer";
+      else restoreDigCursor();
+    }
+  };
+
+  const onCanvasPointerDown = (e: PointerEvent): void => {
+    if (!pointerToCanvas(e)) return;
+    refreshCoinHover();
+  };
+  const onCanvasPointerMove = (e: PointerEvent): void => {
+    if (!pointerToCanvas(e)) return;
+    refreshCoinHover();
+  };
+  const onCanvasPointerLeave = (): void => {
+    clearCoinHover();
   };
   canvas.addEventListener("pointerdown", onCanvasPointerDown);
+  canvas.addEventListener("pointermove", onCanvasPointerMove);
+  canvas.addEventListener("pointerleave", onCanvasPointerLeave);
 
   const onAutoPauseToggle = (e: Event): void => {
     e.preventDefault();
@@ -817,7 +873,8 @@ async function boot(): Promise<() => void> {
     const passive = effectivePassiveRateOf(state);
     const layer = geoLayerAt(depth);
     if (depthEl) depthEl.textContent = `${formatAmount(state.depth)} m`;
-    if (layerEl) layerEl.textContent = layer.name;
+    if (layerPlateName) layerPlateName.textContent = layer.name;
+    if (layerPlate) layerPlate.dataset.layer = layer.id;
     if (dirtEl) dirtEl.textContent = formatAmount(state.dirt);
     const coinCount = boosterCoinsCollected(state.boosters);
     const coinDirt = state.boosters.dirtEarned;
@@ -840,9 +897,8 @@ async function boot(): Promise<() => void> {
     }
     if (digPowerEl) digPowerEl.textContent = formatDigPower(power);
     if (passiveEl) {
-      passiveEl.textContent = autoDigPaused
-        ? "paused"
-        : `${formatMeters(passive)} m/s`;
+      // Keep the rate visible while paused — the button icon/color carries state.
+      passiveEl.textContent = `${formatMeters(passive)} m/s`;
     }
     if (autoPauseBtn) {
       if (passive > 0 || autoDigPaused) {
@@ -912,7 +968,8 @@ async function boot(): Promise<() => void> {
 
     document.documentElement.dataset.psgeDepth = state.depth.toString();
     document.documentElement.dataset.psgeDirt = state.dirt.toString();
-    applyDigCursor(canvas, digToolOf(state.upgrades));
+    if (hoveringCoin && !coarsePointer) canvas.style.cursor = "pointer";
+    else restoreDigCursor();
   };
 
   const applyPlayView = (): void => {
@@ -1372,6 +1429,9 @@ async function boot(): Promise<() => void> {
     offlineClaim?.removeEventListener("click", onOfflineClaim);
     findContinue?.removeEventListener("click", onFindContinue);
     canvas.removeEventListener("pointerdown", onCanvasPointerDown);
+    canvas.removeEventListener("pointermove", onCanvasPointerMove);
+    canvas.removeEventListener("pointerleave", onCanvasPointerLeave);
+    world.setCoinHover(null);
     autoPauseBtn?.removeEventListener("click", onAutoPauseToggle);
     resetButton?.removeEventListener("click", onReset);
     for (const btn of giveDirtButtons) {

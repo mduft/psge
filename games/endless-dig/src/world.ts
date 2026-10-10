@@ -81,6 +81,8 @@ export interface DigWorld {
   ): void;
   /** NDC ray pick against shaft coins (−1…1). */
   pickBooster(camera: Camera, ndcX: number, ndcY: number): ShaftCoinPick | null;
+  /** Hover highlight for a shaft coin (or clear). */
+  setCoinHover(pick: ShaftCoinPick | null): void;
   playDigSwing(): void;
   playCrewChip(): void;
   /** Dirt-chip burst at the current dig face (manual dig). */
@@ -476,6 +478,9 @@ export function buildDigWorld(
       ndcY: number,
     ): ShaftCoinPick | null {
       return boosterProps.pick(camera, ndcX, ndcY);
+    },
+    setCoinHover(pick: ShaftCoinPick | null): void {
+      boosterProps.setHover(pick);
     },
     playDigSwing(): void {
       actors.playDigSwing();

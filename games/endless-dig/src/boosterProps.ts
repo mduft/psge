@@ -10,6 +10,7 @@ import {
   Group,
   LinearFilter,
   Mesh,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   Raycaster,
   SRGBColorSpace,
@@ -44,9 +45,16 @@ export interface BoosterProps {
   ): void;
   /** NDC pick (−1…1). */
   pick(camera: Camera, ndcX: number, ndcY: number): ShaftCoinPick | null;
+  /** Hover highlight for the given coin (or clear). */
+  setHover(pick: ShaftCoinPick | null): void;
   update(dtSeconds: number): void;
   dispose(): void;
 }
+
+/** Visual radius → pick radius (invisible hit cylinder). */
+const HIT_SCALE = 1.35;
+const HOVER_EMISSIVE_BOOST = 0.18;
+const HOVER_SCALE = 1.08;
 
 const VALUE_FACE: Record<BoosterValue, number> = {
   50: 0xc4a85a,
@@ -143,52 +151,93 @@ function materialsForMap(
   map: CanvasTexture,
   hot: boolean,
 ): MeshLambertMaterial[] {
+  const baseEmissive = hot ? 0.14 : 0.06;
+  const capEmissive = hot ? 0.12 : 0.05;
   const side = new MeshLambertMaterial({
     color: faceHex,
     emissive: faceHex,
-    emissiveIntensity: hot ? 0.14 : 0.06,
+    emissiveIntensity: baseEmissive,
   });
+  side.userData.baseEmissive = baseEmissive;
   const cap = new MeshLambertMaterial({
     map,
     emissive: faceHex,
-    emissiveIntensity: hot ? 0.12 : 0.05,
+    emissiveIntensity: capEmissive,
   });
-  return [side, cap, cap.clone()];
+  cap.userData.baseEmissive = capEmissive;
+  const cap2 = cap.clone();
+  cap2.userData.baseEmissive = capEmissive;
+  return [side, cap, cap2];
 }
 
-function buildDirtCoin(b: DirtBooster): Mesh {
-  const mesh = new Mesh(
+function makeHitProxy(radius: number): Mesh {
+  const hit = new Mesh(
+    new CylinderGeometry(radius * HIT_SCALE, radius * HIT_SCALE, 0.14, 16),
+    new MeshBasicMaterial({
+      visible: false,
+      depthWrite: false,
+    }),
+  );
+  hit.name = "coin-hit";
+  hit.userData.isHitProxy = true;
+  return hit;
+}
+
+function buildDirtCoin(b: DirtBooster): Group {
+  const g = new Group();
+  g.name = `dirt-${b.id}`;
+  g.userData.coinKind = "dirt";
+  g.userData.coinId = b.id;
+  const baseY = 1 - b.depth + 0.35;
+  g.userData.baseY = baseY;
+
+  const visual = new Mesh(
     new CylinderGeometry(0.24, 0.24, 0.06, 24),
     materialsForMap(VALUE_FACE[b.value], dirtFaceTexture(b.value), b.value >= 200),
   );
-  mesh.name = `dirt-${b.id}`;
-  mesh.userData.coinKind = "dirt";
-  mesh.userData.coinId = b.id;
-  const baseY = 1 - b.depth + 0.35;
-  mesh.userData.baseY = baseY;
-  mesh.rotation.x = Math.PI / 2;
-  mesh.frustumCulled = false;
-  mesh.position.set(b.x, baseY, b.z);
-  return mesh;
+  visual.name = `dirt-visual-${b.id}`;
+  visual.rotation.x = Math.PI / 2;
+  visual.frustumCulled = false;
+
+  const hit = makeHitProxy(0.24);
+  hit.rotation.x = Math.PI / 2;
+  hit.userData.coinKind = "dirt";
+  hit.userData.coinId = b.id;
+
+  g.add(visual, hit);
+  g.position.set(b.x, baseY, b.z);
+  g.frustumCulled = false;
+  return g;
 }
 
-function buildSpecialCoin(c: SpecialCoinPlacement): Mesh {
+function buildSpecialCoin(c: SpecialCoinPlacement): Group {
   const def = getSpecialCoinDef(c.id);
   const tint = def?.tint ?? 0xc4a050;
   const mark = def?.mark ?? "?";
-  const mesh = new Mesh(
+  const g = new Group();
+  g.name = `special-${c.id}`;
+  g.userData.coinKind = "special";
+  g.userData.coinId = c.id;
+  const baseY = 1 - c.depth + 0.4;
+  g.userData.baseY = baseY;
+
+  const visual = new Mesh(
     new CylinderGeometry(0.28, 0.28, 0.07, 24),
     materialsForMap(tint, specialFaceTexture(c.id, tint, mark), true),
   );
-  mesh.name = `special-${c.id}`;
-  mesh.userData.coinKind = "special";
-  mesh.userData.coinId = c.id;
-  const baseY = 1 - c.depth + 0.4;
-  mesh.userData.baseY = baseY;
-  mesh.rotation.x = Math.PI / 2;
-  mesh.frustumCulled = false;
-  mesh.position.set(c.x, baseY, c.z);
-  return mesh;
+  visual.name = `special-visual-${c.id}`;
+  visual.rotation.x = Math.PI / 2;
+  visual.frustumCulled = false;
+
+  const hit = makeHitProxy(0.28);
+  hit.rotation.x = Math.PI / 2;
+  hit.userData.coinKind = "special";
+  hit.userData.coinId = c.id;
+
+  g.add(visual, hit);
+  g.position.set(c.x, baseY, c.z);
+  g.frustumCulled = false;
+  return g;
 }
 
 function disposeMaterial(m: Material): void {
@@ -216,6 +265,38 @@ function meshKey(kind: string, id: string): string {
   return `${kind}:${id}`;
 }
 
+function pickFromObject(obj: Object3D): ShaftCoinPick | null {
+  let o: Object3D | null = obj;
+  while (o) {
+    const kind = o.userData.coinKind;
+    const id = o.userData.coinId;
+    if (kind === "dirt" && typeof id === "string") return { kind: "dirt", id };
+    if (kind === "special" && typeof id === "string") {
+      return { kind: "special", id };
+    }
+    o = o.parent;
+  }
+  return null;
+}
+
+function setGroupHover(g: Group, hovered: boolean): void {
+  g.userData.hovered = hovered;
+  g.scale.setScalar(hovered ? HOVER_SCALE : 1);
+  g.traverse((child) => {
+    if (!(child instanceof Mesh) || child.userData.isHitProxy) return;
+    const mats = child.material;
+    const list = Array.isArray(mats) ? mats : [mats];
+    for (const m of list) {
+      if (!(m instanceof MeshLambertMaterial)) continue;
+      const base =
+        typeof m.userData.baseEmissive === "number"
+          ? m.userData.baseEmissive
+          : 0.06;
+      m.emissiveIntensity = hovered ? base + HOVER_EMISSIVE_BOOST : base;
+    }
+  });
+}
+
 export function createBoosterProps(parent: Object3D): BoosterProps {
   const root = new Group();
   root.name = "booster-props";
@@ -224,6 +305,7 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
   const raycaster = new Raycaster();
   const ndc = new Vector2();
   let spin = 0;
+  let hoverKey: string | null = null;
 
   const clear = (): void => {
     while (root.children.length > 0) {
@@ -231,14 +313,27 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
       root.remove(child);
       disposeObject(child);
     }
+    hoverKey = null;
   };
 
   const applySpinPose = (child: Object3D): void => {
-    child.rotation.z = spin;
+    child.rotation.y = spin;
     const base = child.userData.baseY;
     if (typeof base === "number") {
       child.position.y = base + Math.sin(spin * 2 + base * 0.7) * 0.05;
     }
+  };
+
+  const findGroup = (key: string): Group | null => {
+    for (const child of root.children) {
+      if (!(child instanceof Group)) continue;
+      const kind = child.userData.coinKind;
+      const id = child.userData.coinId;
+      if (typeof kind === "string" && typeof id === "string") {
+        if (meshKey(kind, id) === key) return child;
+      }
+    }
+    return null;
   };
 
   return {
@@ -260,6 +355,7 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
         if (!key || !wanted.has(key)) {
           root.remove(child);
           disposeObject(child);
+          if (key && key === hoverKey) hoverKey = null;
           continue;
         }
         existing.set(key, child);
@@ -269,6 +365,7 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
         if (existing.has(key)) continue;
         const mesh = buildDirtCoin(b);
         applySpinPose(mesh);
+        if (key === hoverKey) setGroupHover(mesh, true);
         root.add(mesh);
       }
       for (const c of rare) {
@@ -276,6 +373,7 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
         if (existing.has(key)) continue;
         const mesh = buildSpecialCoin(c);
         applySpinPose(mesh);
+        if (key === hoverKey) setGroupHover(mesh, true);
         root.add(mesh);
       }
     },
@@ -284,18 +382,27 @@ export function createBoosterProps(parent: Object3D): BoosterProps {
       if (root.children.length === 0) return null;
       ndc.set(ndcX, ndcY);
       raycaster.setFromCamera(ndc, camera);
-      const hits = raycaster.intersectObjects(root.children, false);
+      const hits = raycaster.intersectObjects(root.children, true);
       for (const hit of hits) {
-        const kind = hit.object.userData.coinKind;
-        const id = hit.object.userData.coinId;
-        if (kind === "dirt" && typeof id === "string") {
-          return { kind: "dirt", id };
-        }
-        if (kind === "special" && typeof id === "string") {
-          return { kind: "special", id };
-        }
+        const picked = pickFromObject(hit.object);
+        if (picked) return picked;
       }
       return null;
+    },
+
+    setHover(pick): void {
+      const next =
+        pick === null ? null : meshKey(pick.kind, pick.id);
+      if (next === hoverKey) return;
+      if (hoverKey) {
+        const prev = findGroup(hoverKey);
+        if (prev) setGroupHover(prev, false);
+      }
+      hoverKey = next;
+      if (next) {
+        const g = findGroup(next);
+        if (g) setGroupHover(g, true);
+      }
     },
 
     update(dtSeconds): void {
