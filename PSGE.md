@@ -388,7 +388,7 @@ The following choices are locked for implementing these milestones. They may sti
 | Browser support | No hardcoded support matrix; automate against Chromium; visual checks also via the Cursor built-in browser |
 | `game.json` | `{ id, name, engine, entry }` only for M0/M1 |
 | Asset directories | `assets/models`, `textures`, `audio`, `data` — conventions in `AGENTS.md`; no metadata schema until an asset needs one |
-| M1 art direction | Minecraft-like **block / voxel** look (see §8.0) |
+| M1 art direction | Chunky **block / voxel** look (see §8.0) |
 | M1 presentation | Side-view **cutaway shaft**; surface extends left/right; camera ready to scroll down the shaft |
 | M1 shell UI | Full-bleed canvas (no window-in-window); transparent HUD overlays; dig = click canvas (no dedicated DIG button) |
 | Responsive | Usable on phone, tablet, desktop, and half-desktop split layouts |
@@ -582,7 +582,7 @@ The camera simply removes unnecessary movement from the player's responsibilitie
 
 Digger presentation constraints (Milestone 1+):
 
-1. **Minecraft-like blocks.** The world is built from unit cubes with a chunky voxel look. Digging later removes layers/blocks rather than morphing a smooth mesh hole.
+1. **Chunky voxel blocks.** The world is built from unit cubes with a blocky look. Digging later removes layers/blocks rather than morphing a smooth mesh hole.
 2. **Side-view cutaway shaft.** The shaft is cut open toward the camera so the player reads depth as a vertical cross-section. The surface **extends left and right**. As the game progresses, the view **scrolls down** the shaft (camera follows depth; orientation stays locked).
 3. **Integrated shell.** The WebGL canvas is full-bleed in the browser viewport — not a framed “window inside a window”. Stats and title are **transparent HUD overlays** on top of the scene. Primary dig action is **clicking the canvas** (no separate DIG button chrome).
 4. **Responsive.** The game must be usable on phone, tablet, full desktop, and half-desktop (side-by-side windows). Exact pixel-perfect scaling animation is not required; layout and camera framing must remain readable.
@@ -1588,7 +1588,7 @@ The sample project should already be understandable to an agent.
 Acceptance criteria:
 
 - Browser app boots via Vite; Three.js renderer + locked perspective camera (§19.3).
-- Minecraft-like **block world**: surface extending sideways + vertical shaft **cut open** toward the camera (§8.0).
+- Chunky **block world**: surface extending sideways + vertical shaft **cut open** toward the camera (§8.0).
 - Full-bleed canvas with transparent HUD overlays (title + placeholder stats); **no** DIG button; dig affordance is canvas click (wired in M2).
 - Responsive framing on narrow and wide viewports.
 - `requestAnimationFrame` loop with clamped delta.

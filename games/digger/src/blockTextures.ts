@@ -259,7 +259,7 @@ const GEM_COLORS = [
   "#a8ffe8",
 ] as const;
 
-/** Minecraft-like iron ore flecks — warm tan / raw-iron on dark rock. */
+/** Iron ore flecks — warm tan / raw-iron on dark rock. */
 const IRON_ORE_COLORS = [
   "#e8d4b8",
   "#d8c4a0",
@@ -331,7 +331,7 @@ function paintGemFace(
 }
 
 /**
- * Deep-crust iron ore — rock with Minecraft-style tan ore blotches.
+ * Deep-crust iron ore — rock with tan ore blotches.
  */
 function paintIronFace(
   ctx: CanvasRenderingContext2D,
@@ -441,7 +441,7 @@ export interface AccentMaterialOpts {
   under?: BlockId;
 }
 
-/** Minecraft-style materials: [right, left, top, bottom, front, back] */
+/** Block face materials: [right, left, top, bottom, front, back] */
 export function createBlockMaterials(
   id: BlockId,
   family: PaletteFamily = "soil",

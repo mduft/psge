@@ -24,7 +24,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       "Tap barrels for dirt plus a short auto-dig speed burst",
       "Tap crates for +1 on a random Per tap tool you already own",
       "Minecart clink plays when a cart is near the dig face",
-      "Deep crust walls show Minecraft-style iron ore flecks",
+      "Deep crust walls show shimmering iron ore flecks",
       "Achievement and dirt toasts no longer stack on top of each other",
     ],
   },
